@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+1. 接口返回格式外层固定为{success: xx, payload: {data: xx, total: xx}, message: xx, code: xx}
+2. 需要习惯使用链式语法，例如a?.b?.c?.find()，而不是a.b.c.find()

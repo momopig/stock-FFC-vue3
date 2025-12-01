@@ -1,0 +1,159 @@
+<template>
+    <div class="login">
+        <img src="./background-image.jpg" alt="" class="background-image">
+        <div class="login-container" @keydown.enter="handleLogin">
+            <div class="logo-box" >
+                <!-- <img src="@assets/images/login/logo.svg" alt="" /> -->
+            </div>
+            <h2>云智猫ERP</h2>
+            <div class="version">v1.0.0</div>
+            <div class="login-form">
+                <div class="input-box">
+                    <el-icon class="box-icon"><ElIconUser/></el-icon>
+                    <input type="text" placeholder="请输入手机号" v-model="userNo" @input="onChange"/>
+                </div>
+                <div class="input-box">
+                    <el-icon class="box-icon"><ElIconLock/></el-icon>
+                    <input class="password-input" :type="showPassword ? '' : 'password'" placeholder="请输入密码" v-model="password" :class="{'has-value': password}" @input="onChange"/>
+                    <el-icon class="toggle-password" @click="togglePasswordVisibility">
+                        <ElIconLock v-if="!showPassword"/>
+                        <ElIconUnlock v-else/>
+                    </el-icon>
+                </div>
+                <el-button class="login-btn" @click="handleLogin" :loading="loading">
+                    登录
+                </el-button>
+                <div class="register-btn" @click="handleRegister">
+                    没有账号？点击注册
+                </div>
+                <!-- <div class="register-btn" @click="handleGuestLogin">
+                    使用访客模式
+                </div> -->
+                <div v-if="errTipsShow" class="err-tips">
+                    {{ errTips }}
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script lang="ts">
+import { ref, defineComponent } from 'vue';
+import { customerLogin, guestLogin } from '../../api/modules/customerUser'
+import { setToken } from '../../utils/auth'
+import { getLocal, setLocal } from '../../utils/storage'
+
+export default defineComponent({
+    name: 'Login',
+    components: {
+
+    },
+    setup() {
+        const userNo = ref('')
+        const password = ref('')
+        const errTipsShow = ref(false)
+        const errTips = ref('')
+        const showPassword = ref(false);
+        const loading = ref(false)
+
+        const handleLogin = () => {
+            loading.value = true
+            customerLogin({
+                phone: userNo.value,
+                password: password.value
+            }).then((res: any) => {
+                if (res.success === true) {
+                    setToken(res.result.accessToken)
+                    setTimeout(() => {
+                    const urlParams = new URLSearchParams(window.location.search)
+                    const next = urlParams.get('next')
+                        if (next) {
+                            window.location.href = next
+                        } else {
+                            window.location.href = '/home'
+                        }
+                    }, 1000)
+                } else {
+                    errTipsShow.value = true
+                    errTips.value = res.errorMsg
+                }
+            }).catch((error) => {
+                errTipsShow.value = true
+                errTips.value = error.response?.data?.message || '登录错误，请联系管理员'
+            }).finally(() => {
+                loading.value = false
+            })
+        }
+
+        const handleRegister = () => {
+            window.location.href = '/register'
+        }
+
+        const onChange = () => {
+            if (userNo.value && password.value) {
+                errTipsShow.value = false
+                errTips.value = ''
+            }
+        }
+
+        const togglePasswordVisibility = () => {
+            showPassword.value = !showPassword.value;
+        };
+
+        const handleGuestLogin = () => {
+            loading.value = true
+            // 检查 Local Storage 中是否已有 deviceId
+            let deviceId = getLocal('deviceId');
+            if (typeof deviceId !== 'string') {
+                deviceId = '';
+            }
+            if (!deviceId) {
+                // 如果没有，则生成一个新的 UUID 并存储
+                deviceId = generateUUID();
+                setLocal('deviceId', deviceId);
+            }
+
+            // 生成 UUID 的函数
+            function generateUUID() {
+                return Math.random().toString(36).substr(2, 8);
+            }
+
+            guestLogin({
+                phone: 'Guest',
+                password: 'guest_password',
+                deviceId,
+            }).then((res: any) => {
+                if (res.success === true) {
+                    setToken(res.result.accessToken)
+                    // 访客模式视为账号登录入口，同样记为 account 优先
+                    // setLocal('preferredLoginMode', 'account')
+                    window.location.href = '/home'
+                } else {
+                    errTipsShow.value = true
+                    errTips.value = res.errorMsg
+                }
+            }).catch((error) => {
+                errTipsShow.value = true
+                errTips.value = error.response?.data?.message || '访客登录错误，请联系管理员'
+            }).finally(() => {
+                loading.value = false
+            })
+        }
+
+        return {
+            userNo,
+            password,
+            errTips,
+            errTipsShow,
+            showPassword,
+            handleLogin,
+            onChange,
+            togglePasswordVisibility,
+            handleRegister,
+            handleGuestLogin,
+            loading
+        }
+    }
+})
+</script>
+<style scoped lang="less" src="./index.less"></style>

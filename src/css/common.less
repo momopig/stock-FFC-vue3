@@ -1,0 +1,89 @@
+.danger,
+.fail,
+.red {
+  color: red !important;
+  a {
+    color: red !important;
+  }
+}
+.success,
+.green {
+  color: green !important;
+}
+a.disabled {
+  color: gray; /* 置灰 */
+  text-decoration: none; /* 去掉下划线 */
+  // pointer-events: none; /* 禁用点击 */
+}
+
+/* ElNotification 自定义样式 */
+.el-notification {
+  /* 确保整个通知区域可以点击 */
+  cursor: pointer;
+
+  /* 悬停时的整体效果 */
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+  }
+
+  .el-notification__content {
+    .el-notification__message {
+      /* 为包含"点击查看详情"的消息添加特殊样式 */
+      span {
+        /* 针对内联样式的 span 元素 */
+        &[style*="color: #409eff"] {
+          color: #409eff !important;
+          text-decoration: underline !important;
+          cursor: pointer !important;
+          font-weight: 500;
+          transition: color 0.2s ease;
+
+          &:hover {
+            color: #66b1ff !important;
+            text-decoration: underline !important;
+          }
+        }
+      }
+    }
+  }
+
+  /* 悬停效果 */
+  &:hover {
+    .el-notification__message span[style*="color: #409eff"] {
+      color: #66b1ff !important;
+    }
+  }
+}
+
+/* 全局 ElNotification 样式优化 */
+.el-notification__message {
+  /* 确保消息文本可以正确显示内联样式 */
+  span {
+    display: inline;
+  }
+
+  /* 确保文本换行正常 */
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
+/* 针对不同类型的通知的样式优化 */
+.el-notification--success {
+  .el-notification__message span[style*="color: #409eff"] {
+    color: #409eff !important;
+  }
+}
+
+.el-notification--warning {
+  .el-notification__message span[style*="color: #409eff"] {
+    color: #409eff !important;
+  }
+}
+
+.el-notification--error {
+  .el-notification__message span[style*="color: #409eff"] {
+    color: #409eff !important;
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "master": {
+    "name": "超级管理员引导",
+    "steps": [
+      {
+        "step": 1,
+        "title": "欢迎使用云智猫-ERP",
+        "description": "欢迎使用云智猫-ERP系统！这是一个强大的电商ERP管理系统，帮助您高效管理店铺、商品、订单等业务。\n\n作为超级管理员，您将学习如何：\n1. 录入店铺信息\n2. 添加团队成员\n3. 查询SKC详情\n\n让我们开始吧！",
+        "element": null,
+        "popover": {
+          "title": "欢迎使用云智猫-ERP",
+          "description": "欢迎使用云智猫-ERP系统！这是一个强大的电商ERP管理系统，帮助您高效管理店铺、商品、订单等业务。\n\n作为超级管理员，您将学习如何：\n1. 录入店铺信息\n2. 添加团队成员\n3. 查询SKC详情\n\n让我们开始吧！",
+          "position": "center"
+        },
+        "taskType": "narrative"
+      },
+      {
+        "step": 2,
+        "title": "录入店铺信息",
+        "description": "首先，您需要录入店铺信息。点击左侧菜单中的「店铺管理」，然后点击「新建店铺」按钮，填写店铺信息并保存。",
+        "element": "[data-guide='shop-mgt']",
+        "popover": {
+          "title": "录入店铺信息",
+          "description": "首先，您需要录入店铺信息。点击左侧菜单中的「店铺管理」，然后点击「新建店铺」按钮，填写店铺信息并保存。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/shop-mgt"
+      },
+      {
+        "step": 3,
+        "title": "添加团队成员",
+        "description": "接下来，您需要添加团队成员。点击左侧菜单中的「用户管理」，您可以通过邀请链接或直接新建员工账号的方式添加团队成员。",
+        "element": "[data-guide='user-mgt']",
+        "popover": {
+          "title": "添加团队成员",
+          "description": "接下来，您需要添加团队成员。点击左侧菜单中的「用户管理」，您可以通过邀请链接或直接新建员工账号的方式添加团队成员。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/user-mgt"
+      },
+      {
+        "step": 4,
+        "title": "查询SKC详情",
+        "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+        "element": "[data-guide='skc']",
+        "popover": {
+          "title": "查询SKC详情",
+          "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/skc"
+      }
+    ]
+  },
+  "warehouseManager": {
+    "name": "仓库管理员引导",
+    "steps": [
+      {
+        "step": 1,
+        "title": "欢迎使用云智猫-ERP",
+        "description": "欢迎使用云智猫-ERP系统！作为仓库管理员，您主要负责SKC查询、发补货和查看物流等业务。\n\n让我们先学习如何配置自动发货功能。",
+        "element": null,
+        "popover": {
+          "title": "欢迎使用云智猫-ERP",
+          "description": "欢迎使用云智猫-ERP系统！作为仓库管理员，您主要负责SKC查询、发补货和查看物流等业务。\n\n让我们先学习如何配置自动发货功能。",
+          "position": "center"
+        },
+        "taskType": "narrative"
+      },
+      {
+        "step": 2,
+        "title": "配置自动发货",
+        "description": "自动发货配置可以帮助您自动处理发货流程。点击左侧菜单中的「发补货管理」，然后选择「auto自动发货配置」，即可进行配置。",
+        "element": "[data-guide='auto-order']",
+        "popover": {
+          "title": "配置自动发货",
+          "description": "自动发货配置可以帮助您自动处理发货流程。点击左侧菜单中的「发补货管理」，然后选择「auto自动发货配置」，即可进行配置。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/auto-order"
+      },
+      {
+        "step": 3,
+        "title": "查询SKC详情",
+        "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+        "element": "[data-guide='skc']",
+        "popover": {
+          "title": "查询SKC详情",
+          "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/skc"
+      }
+    ]
+  },
+  "shopOperator": {
+    "name": "超级管理员引导",
+    "steps": [
+      {
+        "step": 1,
+        "title": "欢迎使用云智猫-ERP",
+        "description": "欢迎使用云智猫-ERP系统！这是一个强大的电商ERP管理系统，帮助您高效管理店铺、商品、订单等业务。\n\n作为店铺管理员，您将学习如何：\n1. 查询SKC详情\n\n让我们开始吧！",
+        "element": null,
+        "popover": {
+          "title": "欢迎使用云智猫-ERP",
+          "description": "欢迎使用云智猫-ERP系统！这是一个强大的电商ERP管理系统，帮助您高效管理店铺、商品、订单等业务。\n\n作为店铺管理员，您将学习如何：\n1. 查询SKC详情\n\n让我们开始吧！",
+          "position": "center"
+        },
+        "taskType": "narrative"
+      },
+      {
+        "step": 2,
+        "title": "查询SKC详情",
+        "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+        "element": "[data-guide='skc']",
+        "popover": {
+          "title": "查询SKC详情",
+          "description": "最后，让我们学习如何查询SKC详情。SKC详情可以帮助您查看商品的详细信息。点击左侧菜单中的「SKC详情」即可开始查询。",
+          "position": "right"
+        },
+        "taskType": "click",
+        "route": "/skc"
+      }
+    ]
+  }
+}
+
