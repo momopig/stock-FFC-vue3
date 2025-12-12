@@ -110,7 +110,7 @@
 
 #### 变更股票状态
 
-- PATCH /stock-api/api/stock-watchlist/{stock_id}/status
+- PATCH /stock-api/api/stock-watchlist/{stock_id}/status?status={status}
 - 请求参数
   - stock_id: 股票ID
   - status: 股票状态（active/inactive）

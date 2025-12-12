@@ -144,8 +144,6 @@
               v-model="row.status"
               :active-value="'active'"
               :inactive-value="'inactive'"
-              active-text="活跃"
-              inactive-text="失效"
               @change="(val) => handleStatusChange(row, val)"
               :loading="row.statusLoading"
             />
@@ -299,9 +297,9 @@ const columns = reactive([
   },
   {
     key: 'status',
-    label: '状态',
+    label: '是否活跃',
     prop: 'status',
-    width: 150
+    width: 100
   },
   {
     key: 'priorityLevel',

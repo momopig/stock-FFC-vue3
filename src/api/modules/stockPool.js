@@ -342,7 +342,7 @@ export const deleteStock = async (stock_id) => {
  * @returns {Promise}
  */
 export const updateStockStatus = async (stock_id, status) => {
-  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}/status`, { status })
+  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}/status?status=${status}`)
   return res
 }
 
