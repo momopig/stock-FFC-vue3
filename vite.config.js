@@ -76,23 +76,16 @@ export default defineConfig({
     // 添加这个配置来处理 history 模式的路由刷新
     historyApiFallback: true,
     proxy: {
+      '/stock-api': {
+        target: 'http://119.23.68.187:3004',
+        changeOrigin: true,
+      },
       // 使用正则表达式匹配需要代理的路径
       '^/nest-api/': {
-        target: 'http://localhost:4000',
-        // target: 'http://119.23.68.187:4000',
+        target: 'http://119.23.68.187:4000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '^/stock-api/': {
-        target: 'http://192.168.1.139:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/stock-api/, '/'),
       }
-      // '^/oms-api/': {
-      //   target: 'http://119.23.68.187:4005',
-      //   // target: 'http://localhost:4005',
-      //   changeOrigin: true,
-      // },
     },
   },
 });

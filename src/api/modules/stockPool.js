@@ -159,15 +159,15 @@ const mockGetStockPoolList = async (params) => {
 /**
  * 获取股票池列表
  * @param {Object} params - 查询参数
- * @param {number} params.skip - 页码
- * @param {number} params.limit - 每页数量
- * @param {number} params.priority_level - 优先级筛选（1-10，1 为最高）
- * @param {string} params.status - 状态筛选（active=活跃，inactive=失效）
- * @param {string} params.exchange_code - 交易所筛选（SH/SZ/HK/US 等）
- * @param {string} params.search - 搜索关键词（股票代码、名称）
- * @param {string} params.theme - 所属题材筛选
- * @param {string} params.board - 所属板块筛选
- * @param {string} params.addMethod - 加入方式筛选（manual/program）
+ * @param {number} params.page - 页码
+ * @param {number} params.page_size - 每页数量
+ * @param {string} params.stock_name - 股票名称模糊查询
+ * @param {string} params.stock_code - 股票代码模糊查询
+ * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US）
+ * @param {string} params.status - 股票状态（active/inactive）
+ * @param {string} params.add_method - 添加方式（manual/strategy/import/other）
+ * @param {number} params.priority_level - 优先级（1-10）
+ * @param {string} params.created_by - 创建者筛选
  * @returns {Promise}
  */
 export const getStockPoolList = async (params) => {
@@ -175,7 +175,7 @@ export const getStockPoolList = async (params) => {
     return await mockGetStockPoolList(params)
   }
   const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/watchlists?` + queryString)
+  const res = await request.get(`/stock-api/api/stock-watchlist/?` + queryString)
   return res
 }
 
@@ -196,15 +196,15 @@ const mockGetStockDetail = async (id) => {
 }
 
 /**
- * 获取股票详情
- * @param {number} id - 股票ID
+ * 根据ID获取关注股票详情
+ * @param {number} stock_id - 股票ID
  * @returns {Promise}
  */
-export const getStockDetail = async (id) => {
+export const getStockDetail = async (stock_id) => {
   if (USE_MOCK_DATA) {
-    return await mockGetStockDetail(id)
+    return await mockGetStockDetail(stock_id)
   }
-  const res = await request.get(`/stock-api/stock-pool/detail/${id}`)
+  const res = await request.get(`/stock-api/api/stock-watchlist/${stock_id}`)
   return res
 }
 
@@ -270,10 +270,11 @@ const mockAddStock = async (data) => {
  * @returns {Promise}
  */
 export const addStock = async (data) => {
-  if (USE_MOCK_DATA) {
-    return await mockAddStock(data)
-  }
-  const res = await request.post(`/stock-api/stock-pool/add`, data)
+  // if (USE_MOCK_DATA) {
+  //   return await mockAddStock(data)
+  // }
+  // 注意：接口文档中没有提供添加接口，这里保持原有逻辑或需要确认后端是否提供
+  const res = await request.post(`/stock-api/api/stock-watchlist/`, data)
   return res
 }
 
@@ -295,16 +296,16 @@ const mockUpdateStock = async (id, data) => {
 }
 
 /**
- * 更新股票信息
- * @param {number} id - 股票ID
- * @param {Object} data - 更新的股票数据
+ * 根据ID更新关注股票
+ * @param {number} stock_id - 股票ID
+ * @param {Object} data - 更新数据（可更新字段：status, priority_level, notes, add_reason）
  * @returns {Promise}
  */
-export const updateStock = async (id, data) => {
+export const updateStock = async (stock_id, data) => {
   if (USE_MOCK_DATA) {
-    return await mockUpdateStock(id, data)
+    return await mockUpdateStock(stock_id, data)
   }
-  const res = await request.post(`/stock-api/stock-pool/update/${id}`, data)
+  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}`, data)
   return res
 }
 
@@ -322,15 +323,15 @@ const mockDeleteStock = async (id) => {
 }
 
 /**
- * 从池中删除股票
- * @param {number} id - 股票ID
+ * 根据ID删除关注股票
+ * @param {number} stock_id - 股票ID
  * @returns {Promise}
  */
-export const deleteStock = async (id) => {
+export const deleteStock = async (stock_id) => {
   if (USE_MOCK_DATA) {
-    return await mockDeleteStock(id)
+    return await mockDeleteStock(stock_id)
   }
-  const res = await request.get(`/stock-api/stock-pool/delete/${id}`)
+  const res = await request.delete(`/stock-api/api/stock-watchlist/${stock_id}`)
   return res
 }
 
@@ -382,7 +383,7 @@ export const getBuySignals = async (params = {}) => {
     return await mockGetBuySignals(params)
   }
   const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/stock-pool/buy-signals?` + queryString)
+  const res = await request.get(`/stock-api/api/stock-pool/buy-signals?` + queryString)
   return res
 }
 

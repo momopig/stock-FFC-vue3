@@ -36,38 +36,18 @@
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="所属题材" prop="theme">
-            <el-input
-              v-model="formData.theme"
+          <el-form-item label="交易所" prop="exchange_code">
+            <el-select
+              v-model="formData.exchange_code"
               :disabled="isViewMode"
-              placeholder="请输入所属题材"
-              maxlength="50"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="所属板块" prop="board">
-            <el-input
-              v-model="formData.board"
-              :disabled="isViewMode"
-              placeholder="请输入所属板块"
-              maxlength="50"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
-
-      <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form-item label="市值（万元）" prop="marketCap">
-            <el-input-number
-              v-model="formData.marketCap"
-              :disabled="isViewMode"
-              :precision="2"
-              :min="0"
-              placeholder="请输入市值"
+              placeholder="请选择交易所"
               style="width: 100%"
-            />
+            >
+              <el-option label="上交所" value="SH" />
+              <el-option label="深交所" value="SZ" />
+              <el-option label="港交所" value="HK" />
+              <el-option label="美股" value="US" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -84,20 +64,68 @@
         </el-col>
       </el-row>
 
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="状态" prop="status">
+            <el-select
+              v-model="formData.status"
+              :disabled="isViewMode"
+              placeholder="请选择状态"
+              style="width: 100%"
+            >
+              <el-option label="活跃" value="active" />
+              <el-option label="失效" value="inactive" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="优先级" prop="priorityLevel">
+            <el-select
+              v-model="formData.priorityLevel"
+              :disabled="isViewMode"
+              placeholder="请选择优先级"
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="level in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+                :key="level"
+                :label="`优先级 ${level}`"
+                :value="level"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
       <el-form-item label="加入方式" prop="addMethod">
         <el-radio-group v-model="formData.addMethod" :disabled="isViewMode">
           <el-radio label="manual">手动加入</el-radio>
-          <el-radio label="program">程序加入</el-radio>
+          <el-radio label="strategy">策略加入</el-radio>
+          <el-radio label="import">导入</el-radio>
+          <el-radio label="other">其他</el-radio>
         </el-radio-group>
       </el-form-item>
 
-      <el-form-item label="加入原因/策略" prop="reason">
+      <el-form-item label="加入原因" prop="reason">
         <el-input
           v-model="formData.reason"
           :disabled="isViewMode"
           type="textarea"
-          :rows="4"
-          placeholder="请输入加入原因或策略说明"
+          :rows="3"
+          placeholder="请输入加入原因"
+          maxlength="500"
+          show-word-limit
+        />
+      </el-form-item>
+
+      <el-form-item label="备注" prop="notes">
+        <el-input
+          v-model="formData.notes"
+          :disabled="isViewMode"
+          type="textarea"
+          :rows="3"
+          placeholder="请输入备注信息"
           maxlength="500"
           show-word-limit
         />
@@ -113,22 +141,6 @@
 
       <!-- 查看模式或编辑模式时显示额外信息 -->
       <template v-if="(isViewMode || isEditMode) && formData.id">
-        <el-form-item label="当前股价">
-          <span v-if="isViewMode">{{ formData.currentPrice !== null && formData.currentPrice !== undefined ? formData.currentPrice.toFixed(2) : '--' }}</span>
-          <el-input-number
-            v-else
-            v-model="formData.currentPrice"
-            :precision="2"
-            :min="0"
-            placeholder="当前股价（可选）"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="涨幅" v-if="isViewMode">
-          <span :style="{ color: formData.changePercent >= 0 ? '#f56c6c' : '#67c23a' }">
-            {{ formData.changePercent !== null && formData.changePercent !== undefined ? `${formData.changePercent >= 0 ? '+' : ''}${formData.changePercent.toFixed(2)}%` : '--' }}
-          </span>
-        </el-form-item>
         <el-form-item label="加入时间">
           <span>{{ formData.addTime ? formatDateTime(formData.addTime) : '--' }}</span>
         </el-form-item>
@@ -202,12 +214,18 @@ const formRules = computed(() => {
       { required: true, message: '请输入股票名称', trigger: 'blur' },
       { min: 1, max: 50, message: '股票名称长度在1-50个字符', trigger: 'blur' }
     ],
+    exchange_code: [
+      { required: true, message: '请选择交易所', trigger: 'change' }
+    ],
     initialPrice: [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
       { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
     ],
     addMethod: [
       { required: true, message: '请选择加入方式', trigger: 'change' }
+    ],
+    status: [
+      { required: true, message: '请选择状态', trigger: 'change' }
     ]
   }
 })
@@ -248,11 +266,11 @@ const handleSubmit = async () => {
     const submitData = { ...props.formData }
 
     // 确保数值类型正确
-    if (submitData.marketCap !== null && submitData.marketCap !== undefined) {
-      submitData.marketCap = Number(submitData.marketCap)
-    }
     if (submitData.initialPrice !== null && submitData.initialPrice !== undefined) {
       submitData.initialPrice = Number(submitData.initialPrice)
+    }
+    if (submitData.priorityLevel !== null && submitData.priorityLevel !== undefined) {
+      submitData.priorityLevel = Number(submitData.priorityLevel)
     }
 
     emit('submit', submitData)

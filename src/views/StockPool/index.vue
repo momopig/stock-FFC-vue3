@@ -14,16 +14,16 @@
         <el-col :span="6">
           <el-card class="insight-card">
             <div class="insight-content">
-              <div class="insight-label">今日上涨</div>
-              <div class="insight-value" style="color: #f56c6c">{{ insightsData.upCount || 0 }}</div>
+              <div class="insight-label">活跃股票</div>
+              <div class="insight-value" style="color: #409eff">{{ insightsData.activeCount || 0 }}</div>
             </div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card class="insight-card">
             <div class="insight-content">
-              <div class="insight-label">今日下跌</div>
-              <div class="insight-value" style="color: #67c23a">{{ insightsData.downCount || 0 }}</div>
+              <div class="insight-label">失效股票</div>
+              <div class="insight-value" style="color: #909399">{{ insightsData.inactiveCount || 0 }}</div>
             </div>
           </el-card>
         </el-col>
@@ -48,42 +48,52 @@
         @keyup.enter="searchHandler"
       />
       <el-select
-        v-model="filterParams.theme"
-        placeholder="所属题材"
+        v-model="filterParams.exchange_code"
+        placeholder="交易所"
         clearable
         style="width: 150px; margin-right: 10px;"
         @change="searchHandler"
       >
-        <el-option
-          v-for="theme in themeOptions"
-          :key="theme"
-          :label="theme"
-          :value="theme"
-        />
+        <el-option label="上交所" value="SH" />
+        <el-option label="深交所" value="SZ" />
+        <el-option label="港交所" value="HK" />
+        <el-option label="美股" value="US" />
       </el-select>
       <el-select
-        v-model="filterParams.board"
-        placeholder="所属板块"
+        v-model="filterParams.status"
+        placeholder="状态"
         clearable
         style="width: 150px; margin-right: 10px;"
         @change="searchHandler"
       >
-        <el-option
-          v-for="board in boardOptions"
-          :key="board"
-          :label="board"
-          :value="board"
-        />
+        <el-option label="活跃" value="active" />
+        <el-option label="失效" value="inactive" />
       </el-select>
       <el-select
-        v-model="filterParams.addMethod"
+        v-model="filterParams.add_method"
         placeholder="加入方式"
         clearable
         style="width: 150px; margin-right: 10px;"
         @change="searchHandler"
       >
         <el-option label="手动加入" value="manual" />
-        <el-option label="程序加入" value="program" />
+        <el-option label="策略加入" value="strategy" />
+        <el-option label="导入" value="import" />
+        <el-option label="其他" value="other" />
+      </el-select>
+      <el-select
+        v-model="filterParams.priority_level"
+        placeholder="优先级"
+        clearable
+        style="width: 150px; margin-right: 10px;"
+        @change="searchHandler"
+      >
+        <el-option
+          v-for="level in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+          :key="level"
+          :label="`优先级 ${level}`"
+          :value="level"
+        />
       </el-select>
       <el-button class="search-btn" type="primary" @click="searchHandler">搜索</el-button>
       <el-button class="search-btn" @click="reset">重置</el-button>
@@ -122,18 +132,25 @@
             {{ row[item.prop] || '--' }}
           </span>
           <span v-else-if="item.key === 'exchange'">
-            {{ row.exchange === 'SSE' ? '上交所' : row.exchange === 'SZSE' ? '深交所' : row[item.prop] || '--' }}
-          </span>
-          <span v-else-if="item.key === 'changePercent'" :style="{ color: getChangeColor(row.changePercent) }">
-            {{ formatChangePercent(row.changePercent) }}
-          </span>
-          <span v-else-if="item.key === 'change'" :style="{ color: getChangeColor(row.pct_change || row.changePercent) }">
-            {{ formatPriceChange(row.change) }}
+            {{ row.exchange === 'SH' ? '上交所' : row.exchange === 'SZ' ? '深交所' : row.exchange === 'HK' ? '港交所' : row.exchange === 'US' ? '美股' : row[item.prop] || '--' }}
           </span>
           <span v-else-if="item.key === 'addMethod'">
-            <el-tag :type="row.addMethod === 'manual' ? 'primary' : 'success'">
-              {{ row.addMethod === 'manual' ? '手动加入' : '程序加入' }}
+            <el-tag :type="getAddMethodTagType(row.addMethod)">
+              {{ getAddMethodLabel(row.addMethod) }}
             </el-tag>
+          </span>
+          <span v-else-if="item.key === 'status'">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
+              {{ row.status === 'active' ? '活跃' : '失效' }}
+            </el-tag>
+          </span>
+          <span v-else-if="item.key === 'priorityLevel'">
+            {{ row.priorityLevel !== null && row.priorityLevel !== undefined ? `优先级 ${row.priorityLevel}` : '--' }}
+          </span>
+          <span v-else-if="item.key === 'notes'">
+            <span class="ellipsis" :title="row.notes || '--'">
+              {{ row.notes || '--' }}
+            </span>
           </span>
           <span v-else-if="item.key === 'addTime'">
             {{ row[item.prop] ? formatDateTime(row[item.prop]) : '--' }}
@@ -141,17 +158,8 @@
           <span v-else-if="item.key === 'daysAdded'">
             {{ row[item.prop] !== undefined ? `${row[item.prop]} 天` : '--' }}
           </span>
-          <span v-else-if="['open', 'high', 'low', 'close', 'prev_close', 'currentPrice', 'initialPrice', 'bid1', 'ask1'].includes(item.key)">
+          <span v-else-if="item.key === 'initialPrice'">
             {{ formatPrice(getFieldValue(row, item.prop)) }}
-          </span>
-          <span v-else-if="item.key === 'volume'">
-            {{ formatVolume(row.volume) }}
-          </span>
-          <span v-else-if="item.key === 'total_turnover'">
-            {{ formatTurnover(row.total_turnover) }}
-          </span>
-          <span v-else-if="item.key === 'market_value'">
-            {{ formatmarket_value(row[item.prop]) }}
           </span>
           <span v-else class="ellipsis" :title="row[item.prop] || '--'">
             {{ row[item.prop] || '--' }}
@@ -234,8 +242,8 @@ const isViewMode = ref(false)
 const isEditMode = ref(false)
 const insightsData = ref({
   totalCount: 0,
-  upCount: 0,
-  downCount: 0,
+  activeCount: 0,
+  inactiveCount: 0,
   avgDays: 0
 })
 
@@ -248,9 +256,10 @@ const page = reactive({
 
 // 筛选参数
 const filterParams = reactive({
-  theme: '',
-  board: '',
-  addMethod: ''
+  exchange_code: '',
+  status: '',
+  add_method: '',
+  priority_level: ''
 })
 
 // 排序参数
@@ -282,104 +291,16 @@ const columns = reactive([
     width: 100
   },
   {
-    key: 'theme',
-    label: '所属题材',
-    prop: 'theme',
-    minWidth: 100
-  },
-  {
-    key: 'board',
-    label: '所属板块',
-    prop: 'board',
-    minWidth: 100
-  },
-  {
-    key: 'open',
-    label: '开盘价',
-    prop: 'open',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'high',
-    label: '最高价',
-    prop: 'high',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'low',
-    label: '最低价',
-    prop: 'low',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'close',
-    label: '收盘价',
-    prop: 'close',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'prev_close',
-    label: '昨收盘',
-    prop: 'prev_close',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'currentPrice',
-    label: '当前价',
-    prop: 'currentPrice',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'changePercent',
-    label: '涨跌幅(%)',
-    prop: 'changePercent',
-    width: 110,
-    sortable: true
-  },
-  {
-    key: 'change',
-    label: '涨跌额',
-    prop: 'change',
-    width: 100,
-    sortable: true
-  },
-  {
-    key: 'volume',
-    label: '成交量(手)',
-    prop: 'volume',
-    width: 120,
-    sortable: true
-  },
-  {
-    key: 'total_turnover',
-    label: '成交额(元)',
-    prop: 'total_turnover',
-    width: 130,
-    sortable: true
-  },
-  {
-    key: 'bid1',
-    label: '买一价',
-    prop: 'bid1',
+    key: 'status',
+    label: '状态',
+    prop: 'status',
     width: 100
   },
   {
-    key: 'ask1',
-    label: '卖一价',
-    prop: 'ask1',
-    width: 100
-  },
-  {
-    key: 'market_value',
-    label: '市值(万元)',
-    prop: 'market_value',
-    width: 120,
+    key: 'priorityLevel',
+    label: '优先级',
+    prop: 'priorityLevel',
+    width: 100,
     sortable: true
   },
   {
@@ -411,8 +332,14 @@ const columns = reactive([
   },
   {
     key: 'reason',
-    label: '加入原因/策略',
+    label: '加入原因',
     prop: 'reason',
+    minWidth: 150
+  },
+  {
+    key: 'notes',
+    label: '备注',
+    prop: 'notes',
     minWidth: 150
   },
   {
@@ -428,43 +355,22 @@ const initStockForm = () => {
   return {
     id: null,
     code: '',
-    symbol: '',
-    theme: '',
-    board: '',
-    market_value: null,
-    currentPrice: null,
-    changePercent: null,
+    name: '',
+    exchange_code: '',
+    status: 'active',
+    priorityLevel: null,
     initialPrice: null,
     addMethod: 'manual',
     addTime: null,
     daysAdded: 0,
     reason: '',
+    notes: '',
     creator: ''
   }
 }
 
 const stockForm = ref(initStockForm())
 
-// 计算筛选选项（从现有数据中提取）
-const themeOptions = computed(() => {
-  const themes = new Set()
-  stockList.value.forEach(stock => {
-    if (stock.theme) {
-      themes.add(stock.theme)
-    }
-  })
-  return Array.from(themes).sort()
-})
-
-const boardOptions = computed(() => {
-  const boards = new Set()
-  stockList.value.forEach(stock => {
-    if (stock.board) {
-      boards.add(stock.board)
-    }
-  })
-  return Array.from(boards).sort()
-})
 
 // 页面加载时获取股票列表和洞察数据
 onMounted(() => {
@@ -477,11 +383,23 @@ const getStockList = async () => {
   try {
     tableLoading.value = true
     const params = {
-      skip: page.pageNo,
-      limit: page.pageSize,
-      search: searchQuery.value,
+      page: page.pageNo,
+      page_size: page.pageSize,
       ...filterParams,
       ...sortParams
+    }
+
+    // 处理搜索关键词：根据输入判断是股票代码还是名称
+    // 如果输入是纯数字，认为是股票代码；否则认为是股票名称
+    if (searchQuery.value) {
+      const query = searchQuery.value.trim()
+      if (/^\d+$/.test(query)) {
+        // 纯数字，认为是股票代码
+        params.stock_code = query
+      } else {
+        // 非纯数字，认为是股票名称
+        params.stock_name = query
+      }
     }
 
     // 移除空值
@@ -493,34 +411,38 @@ const getStockList = async () => {
 
     const response = await getStockPoolList(params)
     if (response.success) {
-      stockList.value = (response.payload?.data || []).map(stock => {
-        // 涨跌幅：使用RiceQuant字段 pct_change
-        if (stock.pct_change !== null && stock.pct_change !== undefined) {
-          stock.changePercent = stock.pct_change
-        }
-        // 当前价格优先使用收盘价
-        if (!stock.currentPrice && stock.close) {
-          stock.currentPrice = stock.close
+      stockList.value = (response.payload?.items || []).map(stock => {
+        // 字段映射：后端字段 -> 前端显示字段
+        const mappedStock = {
+          id: stock.id,
+          code: stock.stock_code || '',
+          symbol: stock.stock_name || '',
+          name: stock.stock_name || '',
+          exchange: stock.exchange_code || '',
+          addMethod: stock.add_method || '',
+          addTime: stock.add_time || '',
+          initialPrice: stock.initial_price ? Number(stock.initial_price) : null,
+          reason: stock.add_reason || '',
+          creator: stock.created_by || '',
+          status: stock.status || '',
+          priorityLevel: stock.priority_level || null,
+          notes: stock.notes || '',
+          updatedTime: stock.updated_time || ''
         }
 
         // 计算加入天数
-        if (stock.addTime) {
-          const days = moment().diff(moment(stock.addTime), 'days')
-          stock.daysAdded = days
+        if (mappedStock.addTime) {
+          const days = moment().diff(moment(mappedStock.addTime), 'days')
+          mappedStock.daysAdded = days
         }
-        // 计算涨幅（如果有当前价格和初始价格，且没有涨跌幅数据）
-        if ((stock.changePercent === null || stock.changePercent === undefined) &&
-            stock.currentPrice !== null && stock.currentPrice !== undefined &&
-            stock.initialPrice !== null && stock.initialPrice !== undefined && stock.initialPrice > 0) {
-          stock.changePercent = ((stock.currentPrice - stock.initialPrice) / stock.initialPrice) * 100
-        }
-        return stock
+
+        return mappedStock
       })
       page.total = response.payload?.total || 0
       // 更新洞察数据
       calculateInsightsFromList()
     } else {
-      ElMessage.error('获取股票列表失败')
+      ElMessage.error(response.message || '获取股票列表失败')
     }
   } catch (error) {
     console.error('获取股票列表失败:', error)
@@ -558,25 +480,23 @@ const calculateInsightsFromList = () => {
   if (stockList.value.length === 0 && page.total === 0) {
     insightsData.value = {
       totalCount: 0,
-      upCount: 0,
-      downCount: 0,
+      activeCount: 0,
+      inactiveCount: 0,
       avgDays: 0
     }
     return
   }
 
-  let upCount = 0
-  let downCount = 0
+  let activeCount = 0
+  let inactiveCount = 0
   let totalDays = 0
   let validDaysCount = 0
 
   stockList.value.forEach(stock => {
-    if (stock.changePercent !== null && stock.changePercent !== undefined) {
-      if (stock.changePercent > 0) {
-        upCount++
-      } else if (stock.changePercent < 0) {
-        downCount++
-      }
+    if (stock.status === 'active') {
+      activeCount++
+    } else if (stock.status === 'inactive') {
+      inactiveCount++
     }
     if (stock.daysAdded !== null && stock.daysAdded !== undefined) {
       totalDays += stock.daysAdded
@@ -587,8 +507,8 @@ const calculateInsightsFromList = () => {
   // 使用总数而不是当前页数量
   insightsData.value = {
     totalCount: page.total,
-    upCount,
-    downCount,
+    activeCount,
+    inactiveCount,
     avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0
   }
 }
@@ -620,9 +540,10 @@ const searchHandler = () => {
 // 重置搜索
 const reset = () => {
   searchQuery.value = ''
-  filterParams.theme = ''
-  filterParams.board = ''
-  filterParams.addMethod = ''
+  filterParams.exchange_code = ''
+  filterParams.status = ''
+  filterParams.add_method = ''
+  filterParams.priority_level = ''
   delete sortParams.sortBy
   delete sortParams.sortOrder
   searchHandler()
@@ -634,9 +555,27 @@ const operateHandler = (type, id) => {
     case 'edit':
     case 'view':
       getStockDetail(id).then(res => {
-        if (!res.success) return
-        const data = { ...res.result }
-        stockForm.value = data
+        if (!res.success) {
+          ElMessage.error(res.message || '获取股票详情失败')
+          return
+        }
+        // 字段映射：后端字段 -> 前端表单字段
+        const payload = res.payload || {}
+        const formData = {
+          id: payload.id,
+          code: payload.stock_code || '',
+          name: payload.stock_name || '',
+          exchange_code: payload.exchange_code || '',
+          addMethod: payload.add_method || 'manual',
+          addTime: payload.add_time || '',
+          initialPrice: payload.initial_price ? Number(payload.initial_price) : null,
+          reason: payload.add_reason || '',
+          creator: payload.created_by || '',
+          status: payload.status || 'active',
+          priorityLevel: payload.priority_level || null,
+          notes: payload.notes || ''
+        }
+        stockForm.value = formData
         isViewMode.value = type === 'view'
         isEditMode.value = type === 'edit'
         dialogVisible.value = true
@@ -644,7 +583,10 @@ const operateHandler = (type, id) => {
       break
     case 'delete':
       deleteStock(id).then((res) => {
-        if (!res || !res.success) return
+        if (!res || !res.success) {
+          ElMessage.error(res?.message || '删除股票失败')
+          return
+        }
         ElMessage.success('删除股票成功')
         searchHandler()
         loadInsights()
@@ -668,19 +610,39 @@ const submitStock = async (formData) => {
   try {
     let result
     if (formData.id) {
-      // 更新股票
-      result = await updateStock(formData.id, formData)
+      // 更新股票：只更新允许的字段（status, priority_level, notes, add_reason）
+      const updateData = {
+        status: formData.status,
+        priority_level: formData.priorityLevel,
+        notes: formData.notes,
+        add_reason: formData.reason
+      }
+      result = await updateStock(formData.id, updateData)
     } else {
-      // 添加新股票
-      result = await addStock(formData)
+      // 添加新股票：字段映射到后端字段
+      const addData = {
+        stock_code: formData.code,
+        stock_name: formData.name,
+        exchange_code: formData.exchange_code,
+        add_method: formData.addMethod,
+        initial_price: formData.initialPrice,
+        add_reason: formData.reason,
+        status: formData.status || 'active',
+        priority_level: formData.priorityLevel,
+        notes: formData.notes,
+        created_by: formData.creator
+      }
+      debugger
+      result = await addStock(addData)
     }
 
     if (result && result.success !== false) {
       ElMessage.success(formData.id ? '更新股票成功' : '添加股票成功')
       dialogVisible.value = false
       searchHandler()
-      // loadInsights()
       stockForm.value = initStockForm()
+    } else {
+      ElMessage.error(result?.message || '保存失败')
     }
   } catch (error) {
     console.error('保存失败:', error)
@@ -750,6 +712,28 @@ const getFieldValue = (row, prop) => {
     return row[prop]
   }
   return null
+}
+
+// 获取加入方式标签类型
+const getAddMethodTagType = (addMethod) => {
+  const typeMap = {
+    manual: 'primary',
+    strategy: 'success',
+    import: 'warning',
+    other: 'info'
+  }
+  return typeMap[addMethod] || 'info'
+}
+
+// 获取加入方式标签文本
+const getAddMethodLabel = (addMethod) => {
+  const labelMap = {
+    manual: '手动加入',
+    strategy: '策略加入',
+    import: '导入',
+    other: '其他'
+  }
+  return labelMap[addMethod] || addMethod || '--'
 }
 </script>
 
