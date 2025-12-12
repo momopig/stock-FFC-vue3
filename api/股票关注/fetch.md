@@ -107,3 +107,18 @@
   "message": "操作成功",
 }
 ```
+
+#### 变更股票状态
+
+- PATCH /stock-api/api/stock-watchlist/{stock_id}/status
+- 请求参数
+  - stock_id: 股票ID
+  - status: 股票状态（active/inactive）
+- 响应结果
+```json
+{
+  "success": true,
+  "code": 200,
+  "message": "操作成功",
+}
+```

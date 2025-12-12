@@ -336,6 +336,17 @@ export const deleteStock = async (stock_id) => {
 }
 
 /**
+ * 变更股票状态
+ * @param {number} stock_id - 股票ID
+ * @param {string} status - 股票状态（active/inactive）
+ * @returns {Promise}
+ */
+export const updateStockStatus = async (stock_id, status) => {
+  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}/status`, { status })
+  return res
+}
+
+/**
  * Mock获取买入信号洞察数据
  */
 const mockGetBuySignals = async (params = {}) => {

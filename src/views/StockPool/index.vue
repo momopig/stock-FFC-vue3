@@ -140,9 +140,15 @@
             </el-tag>
           </span>
           <span v-else-if="item.key === 'status'">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ row.status === 'active' ? '活跃' : '失效' }}
-            </el-tag>
+            <el-switch
+              v-model="row.status"
+              :active-value="'active'"
+              :inactive-value="'inactive'"
+              active-text="活跃"
+              inactive-text="失效"
+              @change="(val) => handleStatusChange(row, val)"
+              :loading="row.statusLoading"
+            />
           </span>
           <span v-else-if="item.key === 'priorityLevel'">
             {{ row.priorityLevel !== null && row.priorityLevel !== undefined ? `优先级 ${row.priorityLevel}` : '--' }}
@@ -227,7 +233,8 @@ import {
   addStock,
   updateStock,
   deleteStock,
-  getBuySignals
+  getBuySignals,
+  updateStockStatus
 } from '@/api/modules/stockPool'
 import StockDialog from './components/StockDialog.vue'
 import { formatDateTime } from '@/utils/time'
@@ -294,7 +301,7 @@ const columns = reactive([
     key: 'status',
     label: '状态',
     prop: 'status',
-    width: 100
+    width: 150
   },
   {
     key: 'priorityLevel',
@@ -320,14 +327,14 @@ const columns = reactive([
     key: 'addTime',
     label: '加入时间',
     prop: 'addTime',
-    width: 160,
+    width: 200,
     sortable: true
   },
   {
     key: 'daysAdded',
     label: '加入天数',
     prop: 'daysAdded',
-    width: 100,
+    width: 120,
     sortable: true
   },
   {
@@ -424,10 +431,11 @@ const getStockList = async () => {
           initialPrice: stock.initial_price ? Number(stock.initial_price) : null,
           reason: stock.add_reason || '',
           creator: stock.created_by || '',
-          status: stock.status || '',
+          status: stock.status || 'active',
           priorityLevel: stock.priority_level || null,
           notes: stock.notes || '',
-          updatedTime: stock.updated_time || ''
+          updatedTime: stock.updated_time || '',
+          statusLoading: false // 状态切换加载状态
         }
 
         // 计算加入天数
@@ -734,6 +742,35 @@ const getAddMethodLabel = (addMethod) => {
     other: '其他'
   }
   return labelMap[addMethod] || addMethod || '--'
+}
+
+// 处理状态变更
+const handleStatusChange = async (row, newStatus) => {
+  const oldStatus = newStatus === 'active' ? 'inactive' : 'active'
+
+  try {
+    // 设置加载状态
+    row.statusLoading = true
+
+    const result = await updateStockStatus(row.id, newStatus)
+
+    if (result && result.success !== false) {
+      ElMessage.success(`状态已${newStatus === 'active' ? '激活' : '失效'}`)
+      // 更新洞察数据
+      calculateInsightsFromList()
+    } else {
+      // 恢复原状态
+      row.status = oldStatus
+      ElMessage.error(result?.message || '状态变更失败')
+    }
+  } catch (error) {
+    // 恢复原状态
+    row.status = oldStatus
+    console.error('状态变更失败:', error)
+    ElMessage.error('状态变更失败，请稍后重试')
+  } finally {
+    row.statusLoading = false
+  }
 }
 </script>
 
