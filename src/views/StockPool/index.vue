@@ -165,6 +165,34 @@
           <span v-else-if="item.key === 'initialPrice'">
             {{ formatPrice(getFieldValue(row, item.prop)) }}
           </span>
+          <span v-else-if="item.key === 'lastPrice'">
+            <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
+              {{ formatPrice(row.quote?.last_price) }}
+            </span>
+          </span>
+          <span v-else-if="item.key === 'changeRate'">
+            <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
+              {{ formatChangePercent(row.quote?.change_rate) }}
+            </span>
+          </span>
+          <span v-else-if="item.key === 'highPrice'">
+            {{ formatPrice(row.quote?.high_price) }}
+          </span>
+          <span v-else-if="item.key === 'lowPrice'">
+            {{ formatPrice(row.quote?.low_price) }}
+          </span>
+          <span v-else-if="item.key === 'volume'">
+            {{ formatVolume(row.quote?.volume) }}
+          </span>
+          <span v-else-if="item.key === 'turnover'">
+            {{ formatTurnover(row.quote?.turnover) }}
+          </span>
+          <span v-else-if="item.key === 'turnoverRate'">
+            {{ row.quote?.turnover_rate !== null && row.quote?.turnover_rate !== undefined ? `${(row.quote.turnover_rate * 100).toFixed(2)}%` : '--' }}
+          </span>
+          <!-- <span v-else-if="item.key === 'quoteTime'">
+            {{ row.quote?.time || '--' }}
+          </span> -->
           <span v-else class="ellipsis" :title="row[item.prop] || '--'">
             {{ row[item.prop] || '--' }}
           </span>
@@ -223,10 +251,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   getStockPoolList,
+  getStockPoolListWithQuotes,
   getStockDetail,
   addStock,
   updateStock,
@@ -296,6 +325,55 @@ const columns = reactive([
     width: 100
   },
   {
+    key: 'lastPrice',
+    label: '最新价',
+    prop: 'lastPrice',
+    width: 100
+  },
+  {
+    key: 'changeRate',
+    label: '涨跌幅',
+    prop: 'changeRate',
+    width: 100
+  },
+  {
+    key: 'highPrice',
+    label: '最高价',
+    prop: 'highPrice',
+    width: 100
+  },
+  {
+    key: 'lowPrice',
+    label: '最低价',
+    prop: 'lowPrice',
+    width: 100
+  },
+  {
+    key: 'volume',
+    label: '成交量',
+    prop: 'volume',
+    width: 120
+  },
+  {
+    key: 'turnover',
+    label: '成交额',
+    prop: 'turnover',
+    width: 120
+  },
+  {
+    key: 'turnoverRate',
+    label: '换手率',
+    prop: 'turnoverRate',
+    width: 100
+  },
+  {
+    key: 'initialPrice',
+    label: '初始价格',
+    prop: 'initialPrice',
+    width: 110,
+    sortable: true
+  },
+  {
     key: 'status',
     label: '是否活跃',
     prop: 'status',
@@ -308,13 +386,12 @@ const columns = reactive([
     width: 100,
     sortable: true
   },
-  {
-    key: 'initialPrice',
-    label: '初始价格',
-    prop: 'initialPrice',
-    width: 110,
-    sortable: true
-  },
+  // {
+  //   key: 'quoteTime',
+  //   label: '行情时间',
+  //   prop: 'quoteTime',
+  //   width: 160
+  // },
   {
     key: 'addMethod',
     label: '加入方式',
@@ -376,6 +453,8 @@ const initStockForm = () => {
 
 const stockForm = ref(initStockForm())
 
+// WebSocket 连接管理器
+let wsManager = null
 
 // 页面加载时获取股票列表和洞察数据
 onMounted(() => {
@@ -383,39 +462,55 @@ onMounted(() => {
   // loadInsights()
 })
 
-// 获取股票列表
+// 组件卸载时关闭 WebSocket 连接
+onBeforeUnmount(() => {
+  if (wsManager) {
+    wsManager.close()
+    wsManager = null
+  }
+})
+
+// 获取股票列表（首次使用 HTTP 接口，然后建立 WebSocket 连接更新行情）
 const getStockList = async () => {
+  // 如果已有 WebSocket 连接，先关闭
+  if (wsManager) {
+    wsManager.close()
+    wsManager = null
+  }
+
+  tableLoading.value = true
+
+  const params = {
+    page: page.pageNo,
+    page_size: page.pageSize,
+    ...filterParams,
+    ...sortParams
+  }
+
+  // 处理搜索关键词：根据输入判断是股票代码还是名称
+  // 如果输入是纯数字，认为是股票代码；否则认为是股票名称
+  if (searchQuery.value) {
+    const query = searchQuery.value.trim()
+    if (/^\d+$/.test(query)) {
+      // 纯数字，认为是股票代码
+      params.stock_code = query
+    } else {
+      // 非纯数字，认为是股票名称
+      params.stock_name = query
+    }
+  }
+
+  // 移除空值
+  Object.keys(params).forEach(key => {
+    if (params[key] === '' || params[key] === null || params[key] === undefined) {
+      delete params[key]
+    }
+  })
+
   try {
-    tableLoading.value = true
-    const params = {
-      page: page.pageNo,
-      page_size: page.pageSize,
-      ...filterParams,
-      ...sortParams
-    }
-
-    // 处理搜索关键词：根据输入判断是股票代码还是名称
-    // 如果输入是纯数字，认为是股票代码；否则认为是股票名称
-    if (searchQuery.value) {
-      const query = searchQuery.value.trim()
-      if (/^\d+$/.test(query)) {
-        // 纯数字，认为是股票代码
-        params.stock_code = query
-      } else {
-        // 非纯数字，认为是股票名称
-        params.stock_name = query
-      }
-    }
-
-    // 移除空值
-    Object.keys(params).forEach(key => {
-      if (params[key] === '' || params[key] === null || params[key] === undefined) {
-        delete params[key]
-      }
-    })
-
+    // 首次调用 HTTP 接口获取完整数据
     const response = await getStockPoolList(params)
-    if (response.success) {
+    if (response?.success) {
       stockList.value = (response.payload?.items || []).map(stock => {
         // 字段映射：后端字段 -> 前端显示字段
         const mappedStock = {
@@ -433,7 +528,9 @@ const getStockList = async () => {
           priorityLevel: stock.priority_level || null,
           notes: stock.notes || '',
           updatedTime: stock.updated_time || '',
-          statusLoading: false // 状态切换加载状态
+          statusLoading: false, // 状态切换加载状态
+          // 行情数据（初始为空，等待 WebSocket 更新）
+          quote: null
         }
 
         // 计算加入天数
@@ -447,15 +544,57 @@ const getStockList = async () => {
       page.total = response.payload?.total || 0
       // 更新洞察数据
       calculateInsightsFromList()
+      tableLoading.value = false
+
+      // HTTP 接口调用成功后，建立 WebSocket 连接用于实时更新行情数据
+      connectWebSocketForQuotes(params)
     } else {
-      ElMessage.error(response.message || '获取股票列表失败')
+      ElMessage.error(response?.message || '获取股票列表失败')
+      tableLoading.value = false
     }
   } catch (error) {
     console.error('获取股票列表失败:', error)
     ElMessage.error('获取股票列表失败，请稍后重试')
-  } finally {
     tableLoading.value = false
   }
+}
+
+// 建立 WebSocket 连接用于更新行情数据
+const connectWebSocketForQuotes = (params) => {
+  // 创建 WebSocket 连接
+  wsManager = getStockPoolListWithQuotes(params, {
+    onMessage: (response) => {
+      // WebSocket 只更新行情数据，不替换整个列表
+      // 兼容两种数据格式：response.items 或 response.payload.items
+      const items = response?.items || response?.payload?.items
+      if (items && Array.isArray(items)) {
+        // 创建一个以股票ID为key的映射，便于快速查找
+        const quoteMap = new Map()
+        items.forEach(stock => {
+          if (stock.id && stock.quote) {
+            quoteMap.set(stock.id, stock.quote)
+          }
+        })
+
+        // 只更新现有股票的行情数据
+        stockList.value.forEach(stock => {
+          if (quoteMap.has(stock.id)) {
+            stock.quote = quoteMap.get(stock.id)
+          }
+        })
+      }
+    },
+    onOpen: () => {
+      console.log('WebSocket 连接已建立，开始接收行情数据')
+    },
+    onClose: () => {
+      console.log('WebSocket 连接已关闭')
+    },
+    onError: (error) => {
+      console.error('WebSocket 连接错误:', error)
+      // WebSocket 错误不影响主流程，只记录日志
+    }
+  })
 }
 
 // 加载买入信号洞察数据
@@ -638,7 +777,6 @@ const submitStock = async (formData) => {
         notes: formData.notes,
         created_by: formData.creator
       }
-      debugger
       result = await addStock(addData)
     }
 
@@ -660,13 +798,22 @@ const submitStock = async (formData) => {
 const formatChangePercent = (value) => {
   if (value === null || value === undefined) return '--'
   const sign = value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(2)}%`
+  // change_rate 可能是小数（如 0.05 表示 5%）或百分比（如 5 表示 5%）
+  // 如果绝对值小于 1，认为是小数格式，需要乘以 100
+  const percentValue = Math.abs(value) < 1 ? value * 100 : value
+  return `${sign}${percentValue.toFixed(2)}%`
 }
 
 // 获取涨幅颜色
 const getChangeColor = (value) => {
   if (value === null || value === undefined) return '#606266'
   return value >= 0 ? '#f56c6c' : '#67c23a'
+}
+
+// 获取行情涨跌幅颜色（涨红跌绿）
+const getQuoteColor = (changeRate) => {
+  if (changeRate === null || changeRate === undefined) return '#606266'
+  return changeRate >= 0 ? '#f56c6c' : '#67c23a'
 }
 
 // 格式化价格

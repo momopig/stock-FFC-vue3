@@ -207,8 +207,7 @@ const dialogTitle = computed(() => {
 const formRules = computed(() => {
   return {
     code: [
-      { required: true, message: '请输入股票代码', trigger: 'blur' },
-      { pattern: /^\d{6}$/, message: '股票代码必须为6位数字', trigger: 'blur' }
+      { required: true, message: '请输入股票代码', trigger: 'blur' }
     ],
     name: [
       { required: true, message: '请输入股票名称', trigger: 'blur' },

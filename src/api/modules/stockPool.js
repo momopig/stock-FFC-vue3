@@ -1,5 +1,6 @@
 import request from '../common'
 import qs from 'qs'
+import { createWebSocket } from '@/utils/websocket'
 
 /**
  * Mock数据开关
@@ -157,7 +158,7 @@ const mockGetStockPoolList = async (params) => {
 }
 
 /**
- * 获取股票池列表
+ * 获取股票池列表（HTTP 方式，已废弃，保留用于兼容）
  * @param {Object} params - 查询参数
  * @param {number} params.page - 页码
  * @param {number} params.page_size - 每页数量
@@ -177,6 +178,72 @@ export const getStockPoolList = async (params) => {
   const queryString = qs.stringify(params)
   const res = await request.get(`/stock-api/api/stock-watchlist/?` + queryString)
   return res
+}
+
+/**
+ * 通过 WebSocket 获取股票池列表（带行情数据）
+ * @param {Object} params - 查询参数
+ * @param {number} params.page - 页码
+ * @param {number} params.page_size - 每页数量
+ * @param {string} params.stock_name - 股票名称模糊查询
+ * @param {string} params.stock_code - 股票代码模糊查询
+ * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US）
+ * @param {string} params.status - 股票状态（active/inactive）
+ * @param {string} params.add_method - 添加方式（manual/strategy/import/other）
+ * @param {number} params.priority_level - 优先级（1-10）
+ * @param {string} params.created_by - 创建者筛选
+ * @param {number} params.interval - 推送间隔（秒），<=0 则只推一次，默认 3
+ * @param {boolean} params.once_if_closed - 非交易时段是否只推一次，默认 false
+ * @param {Object} callbacks - 回调函数
+ * @param {Function} callbacks.onMessage - 消息接收回调，参数为响应数据
+ * @param {Function} callbacks.onOpen - 连接打开回调
+ * @param {Function} callbacks.onClose - 连接关闭回调
+ * @param {Function} callbacks.onError - 错误回调
+ * @returns {Object} WebSocket 连接管理器对象，包含 close 方法用于关闭连接
+ */
+export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
+  // WebSocket 基础 URL
+  // 根据环境判断：开发环境直接连接后端服务器，生产环境使用当前域名
+  const isDev = import.meta.env.DEV
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  // WebSocket 主机地址：只包含主机名和端口，不包含协议
+  const wsHost = isDev
+    ? `119.23.68.187:8000` // 开发环境直接连接后端
+    : window.location.host // 生产环境使用当前域名
+
+  // 构建查询参数
+  const queryParams = {
+    ...params,
+    interval: params.interval ?? 3, // 默认推送间隔 3 秒
+    once_if_closed: params.once_if_closed ?? false
+  }
+
+  // 移除空值参数
+  Object.keys(queryParams).forEach(key => {
+    if (queryParams[key] === '' || queryParams[key] === null || queryParams[key] === undefined) {
+      delete queryParams[key]
+    }
+  })
+
+  const queryString = qs.stringify(queryParams)
+  // WebSocket URL：根据用户提供的示例，WebSocket 直接连接 /api/stock-watchlist/with-quotes
+  // 注意：WebSocket 不使用 /stock-api 前缀，直接使用 /api 路径
+  const wsUrl = `${wsProtocol}//${wsHost}/api/stock-watchlist/with-quotes?${queryString}`
+
+  // 创建 WebSocket 连接
+  const wsManager = createWebSocket(wsUrl, {
+    onMessage: (data) => {
+      // WebSocket 返回的数据格式应该与 HTTP 接口一致
+      callbacks.onMessage?.(data)
+    },
+    onOpen: callbacks.onOpen,
+    onClose: callbacks.onClose,
+    onError: callbacks.onError,
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 5
+  })
+
+  return wsManager
 }
 
 /**

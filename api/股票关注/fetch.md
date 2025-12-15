@@ -122,3 +122,62 @@
   "message": "操作成功",
 }
 ```
+
+
+#### 多条件多分页查询关注股票并补充行情（WebSocket）
+- WebSocket ws://{host}/stock-api/api/stock-watchlist/with-quotes
+- 请求参数（通过 URL 查询参数传递）
+  - exchange_code: 交易所代码（SH/SZ/HK/US），可选
+  - status: 股票状态（active/inactive），可选
+  - add_method: 添加方式（manual/strategy/import/other），可选
+  - priority_level: 优先级（1-10），可选
+  - stock_name: 股票名称模糊查询，可选
+  - stock_code: 股票代码模糊查询，可选
+  - created_by: 创建者筛选，可选
+  - page: 页码，必填
+  - page_size: 每页数量，必填
+  - interval: 推送间隔（秒），<=0 则只推一次，默认 3
+  - once_if_closed: 非交易时段是否只推一次，默认 false
+
+- 响应结果
+```json
+{
+  "success": true,
+  "code": 200,
+  "message": "操作成功",
+  "payload": {
+    "total": 1,
+    "page": 1,
+    "page_size": 10,
+    "items": [
+      {
+        "id": 3,
+        "stock_code": "",
+        "stock_name": "",
+        "exchange_code": "SH",
+        "add_reason": "string",
+        "add_method": "manual",
+        "add_time": "2025-12-10T12:28:05.096250",
+        "initial_price": "0.0000",
+        "status": "active",
+        "priority_level": 1,
+        "notes": "string",
+        "created_by": "system",
+        "updated_time": "2025-12-10T12:28:05.096258",
+        quote: {
+          change_rate:0,
+          code:"sz.002014",
+          high_price:11.99,
+          last_price:11.95,
+          low_price:11.83,
+          name:"永新股份",
+          time:"2025-12-15 11:30:00",
+          turnover:26225008.4,
+          turnover_rate:0.364,
+          volume:2201980
+        }
+      },
+    ]
+  }
+}
+```
