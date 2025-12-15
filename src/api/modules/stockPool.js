@@ -209,7 +209,7 @@ export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
   // WebSocket 主机地址：只包含主机名和端口，不包含协议
   const wsHost = isDev
     ? `119.23.68.187:8000` // 开发环境直接连接后端
-    : window.location.host // 生产环境使用当前域名
+    : window.location.hostname + ':8000' // 生产环境使用当前域名
 
   // 构建查询参数
   const queryParams = {
