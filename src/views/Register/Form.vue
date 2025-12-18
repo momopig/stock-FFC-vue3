@@ -152,7 +152,7 @@ export default defineComponent({
                       }
                       delete form.value.passwordConfirmation;
                       const payload = { ...form.value, id: Number(id) } as any;
-                      updateUser(payload).then((res: any) => {
+                      updateUser(Number(id), payload).then((res: any) => {
                           if (res.success === true) {
                               router.push({
                                   name: 'home'

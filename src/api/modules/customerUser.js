@@ -168,3 +168,8 @@ export const getCurrentUserInfo = async () => {
     success: !!userInfo
   }
 }
+
+export const addUser = async (body) => {
+  const res = await request.post(`/stock-api/api/users/`, body)
+  return res
+}
