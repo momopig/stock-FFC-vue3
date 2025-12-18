@@ -175,6 +175,11 @@
               {{ formatChangePercent(row.quote?.change_rate) }}
             </span>
           </span>
+          <span v-else-if="item.key === 'selfChangeRate'">
+            <span :style="{ color: getQuoteColor(row.selfChangeRate) }">
+              {{ formatChangePercent(row.selfChangeRate) }}
+            </span>
+          </span>
           <span v-else-if="item.key === 'highPrice'">
             {{ formatPrice(row.quote?.high_price) }}
           </span>
@@ -325,53 +330,59 @@ const columns = reactive([
     width: 100
   },
   {
+    key: 'initialPrice',
+    label: '初始价',
+    prop: 'initialPrice',
+    width: 110,
+    sortable: true
+  },
+  {
     key: 'lastPrice',
-    label: '最新价',
+    label: '当前价',
     prop: 'lastPrice',
     width: 100
   },
   {
+    key: 'selfChangeRate',
+    label: '自选涨跌幅',
+    prop: 'selfChangeRate',
+    width: 100
+  },
+  {
     key: 'changeRate',
-    label: '涨跌幅',
+    label: '当日涨跌幅',
     prop: 'changeRate',
     width: 100
   },
-  {
-    key: 'highPrice',
-    label: '最高价',
-    prop: 'highPrice',
-    width: 100
-  },
-  {
-    key: 'lowPrice',
-    label: '最低价',
-    prop: 'lowPrice',
-    width: 100
-  },
-  {
-    key: 'volume',
-    label: '成交量',
-    prop: 'volume',
-    width: 120
-  },
-  {
-    key: 'turnover',
-    label: '成交额',
-    prop: 'turnover',
-    width: 120
-  },
+  // {
+  //   key: 'highPrice',
+  //   label: '最高价',
+  //   prop: 'highPrice',
+  //   width: 100
+  // },
+  // {
+  //   key: 'lowPrice',
+  //   label: '最低价',
+  //   prop: 'lowPrice',
+  //   width: 100
+  // },
+  // {
+  //   key: 'volume',
+  //   label: '成交量',
+  //   prop: 'volume',
+  //   width: 120
+  // },
   {
     key: 'turnoverRate',
-    label: '换手率',
+    label: '当日换手率',
     prop: 'turnoverRate',
     width: 100
   },
   {
-    key: 'initialPrice',
-    label: '初始价格',
-    prop: 'initialPrice',
-    width: 110,
-    sortable: true
+    key: 'turnover',
+    label: '市值',
+    prop: 'turnover',
+    width: 120
   },
   {
     key: 'status',
@@ -530,7 +541,9 @@ const getStockList = async () => {
           updatedTime: stock.updated_time || '',
           statusLoading: false, // 状态切换加载状态
           // 行情数据（初始为空，等待 WebSocket 更新）
-          quote: null
+          quote: null,
+          // 自选涨跌幅（根据初始价格和最新价格计算，在 WebSocket 更新时计算）
+          selfChangeRate: null
         }
 
         // 计算加入天数
@@ -576,10 +589,23 @@ const connectWebSocketForQuotes = (params) => {
           }
         })
 
-        // 只更新现有股票的行情数据
+        // 只更新现有股票的行情数据，并计算自选涨跌幅
         stockList.value.forEach(stock => {
           if (quoteMap.has(stock.id)) {
             stock.quote = quoteMap.get(stock.id)
+            // 根据初始价格和最新价格计算自选涨跌幅
+            // 公式：(最新价格 - 初始价格) / 初始价格 * 100
+            if (stock.initialPrice && stock.quote?.last_price !== null && stock.quote?.last_price !== undefined) {
+              const lastPrice = Number(stock.quote.last_price)
+              const initialPrice = Number(stock.initialPrice)
+              if (initialPrice > 0) {
+                stock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
+              } else {
+                stock.selfChangeRate = null
+              }
+            } else {
+              stock.selfChangeRate = null
+            }
           }
         })
       }

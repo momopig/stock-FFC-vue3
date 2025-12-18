@@ -5,12 +5,12 @@
             <div class="logo-box" >
                 <!-- <img src="@assets/images/login/logo.svg" alt="" /> -->
             </div>
-            <h2>云智猫ERP</h2>
+            <h2>FFC股票智能分析系统</h2>
             <div class="version">v1.0.0</div>
             <div class="login-form">
                 <div class="input-box">
                     <el-icon class="box-icon"><ElIconUser/></el-icon>
-                    <input type="text" placeholder="请输入手机号" v-model="userNo" @input="onChange"/>
+                    <input type="text" placeholder="请输入用户名" v-model="userNo" @input="onChange"/>
                 </div>
                 <div class="input-box">
                     <el-icon class="box-icon"><ElIconLock/></el-icon>
@@ -39,9 +39,8 @@
 
 <script lang="ts">
 import { ref, defineComponent } from 'vue';
-import { customerLogin, guestLogin } from '../../api/modules/customerUser'
+import { login } from '../../api/modules/auth'
 import { setToken } from '../../utils/auth'
-import { getLocal, setLocal } from '../../utils/storage'
 
 export default defineComponent({
     name: 'Login',
@@ -57,16 +56,30 @@ export default defineComponent({
         const loading = ref(false)
 
         const handleLogin = () => {
+            if (!userNo.value || !password.value) {
+                errTipsShow.value = true
+                errTips.value = '请输入用户名和密码'
+                return
+            }
+
             loading.value = true
-            customerLogin({
-                phone: userNo.value,
-                password: password.value
+            errTipsShow.value = false
+            errTips.value = ''
+
+            login({
+              username: userNo.value,
+              password: password.value
             }).then((res: any) => {
-                if (res.success === true) {
-                    setToken(res.result.accessToken)
+                // 当前格式处理：返回 {access_token, token_type}
+                // 统一格式处理（注释）：如果返回 {success, payload: {data: {access_token, token_type}}, ...}
+                // const token = res?.success ? res?.payload?.data?.access_token : res?.access_token || res?.accessToken
+                const token = res?.access_token || res?.accessToken
+
+                if (token) {
+                    setToken(token)
                     setTimeout(() => {
-                    const urlParams = new URLSearchParams(window.location.search)
-                    const next = urlParams.get('next')
+                        const urlParams = new URLSearchParams(window.location.search)
+                        const next = urlParams.get('next')
                         if (next) {
                             window.location.href = next
                         } else {
@@ -75,11 +88,13 @@ export default defineComponent({
                     }, 1000)
                 } else {
                     errTipsShow.value = true
-                    errTips.value = res.errorMsg
+                    errTips.value = '登录失败，未获取到 token'
                 }
             }).catch((error) => {
                 errTipsShow.value = true
-                errTips.value = error.response?.data?.message || '登录错误，请联系管理员'
+                // 当前格式处理：错误信息可能在 error.response?.data?.detail 或 error.response?.data?.message
+                // 统一格式处理（注释）：如果返回 {success: false, message, code}，使用 error.response?.data?.message
+                errTips.value = error.response?.data?.detail || error.response?.data?.message || '登录错误，请联系管理员'
             }).finally(() => {
                 loading.value = false
             })
@@ -100,46 +115,6 @@ export default defineComponent({
             showPassword.value = !showPassword.value;
         };
 
-        const handleGuestLogin = () => {
-            loading.value = true
-            // 检查 Local Storage 中是否已有 deviceId
-            let deviceId = getLocal('deviceId');
-            if (typeof deviceId !== 'string') {
-                deviceId = '';
-            }
-            if (!deviceId) {
-                // 如果没有，则生成一个新的 UUID 并存储
-                deviceId = generateUUID();
-                setLocal('deviceId', deviceId);
-            }
-
-            // 生成 UUID 的函数
-            function generateUUID() {
-                return Math.random().toString(36).substr(2, 8);
-            }
-
-            guestLogin({
-                phone: 'Guest',
-                password: 'guest_password',
-                deviceId,
-            }).then((res: any) => {
-                if (res.success === true) {
-                    setToken(res.result.accessToken)
-                    // 访客模式视为账号登录入口，同样记为 account 优先
-                    // setLocal('preferredLoginMode', 'account')
-                    window.location.href = '/home'
-                } else {
-                    errTipsShow.value = true
-                    errTips.value = res.errorMsg
-                }
-            }).catch((error) => {
-                errTipsShow.value = true
-                errTips.value = error.response?.data?.message || '访客登录错误，请联系管理员'
-            }).finally(() => {
-                loading.value = false
-            })
-        }
-
         return {
             userNo,
             password,
@@ -150,7 +125,6 @@ export default defineComponent({
             onChange,
             togglePasswordVisibility,
             handleRegister,
-            handleGuestLogin,
             loading
         }
     }

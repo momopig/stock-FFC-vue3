@@ -1,10 +1,6 @@
 import { UserStore } from '@/state/user';
 import { usePermissions } from '@/composables/usePermissions';
 import { getCurrentUserInfo } from '@/api/modules/customerUser';
-import { autoLoginByCookie } from '@/api/modules/auth';
-import { setToken } from '@/utils/auth';
-import { getLocal, setLocal } from '@/utils/storage';
-import { ElMessage } from 'element-plus';
 // import { exchangeRateApi } from '@/api/modules/exchangeRate.js'
 
 // 全局初始化状态管理，避免多个路由同时触发初始化
@@ -66,7 +62,7 @@ export function getGlobalInitState() {
 }
 
 /**
- * 全局应用初始化（包含Cookie登录、用户信息获取、权限初始化等）
+ * 全局应用初始化（包含用户信息获取、权限初始化等）
  * @returns {Promise<boolean>} 是否初始化成功
  */
 async function initializeApplication() {
@@ -91,19 +87,22 @@ async function initializeApplication() {
     try {
       console.log('权限守卫：开始全局应用初始化...');
 
-      // 1. 处理URL中的Cookie登录参数
-      await handleCookieLogin();
-
-      // 2. 获取用户信息
+      // 1. 获取用户信息
       const userInfoResult = await getCurrentUserInfo();
 
-      // 4. 初始化权限系统
+      // 2. 初始化权限系统
       const { initPermissions } = usePermissions();
       initPermissions();
       // exchangeRateApi.getRates();
 
       // 检查初始化结果
-      if (userInfoResult?.success && userInfoResult?.result?.id) {
+      // 当前格式处理：直接返回用户对象
+      // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
+      // const userInfo = userInfoResult?.success ? userInfoResult?.payload?.data : userInfoResult?.result || userInfoResult?.data
+      const userInfo = userInfoResult?.result || userInfoResult?.data
+      const hasUserInfo = userInfo && userInfo.id
+
+      if (hasUserInfo) {
         console.log('权限守卫：全局应用初始化成功');
         isGlobalInitialized = true;
         globalInitState.isInitialized = true;
@@ -130,46 +129,6 @@ async function initializeApplication() {
   })();
 
   return await initializationPromise;
-}
-
-/**
- * 处理URL中的Cookie登录参数
- */
-async function handleCookieLogin() {
-  try {
-    const url = new URL(window.location.href);
-    const cookieFlag = url.searchParams.get('cookie');
-
-    // 如果URL中有cookie参数，进行自动登录
-    if (cookieFlag != null) {
-      console.log('权限守卫：检测到URL中的cookie参数，开始自动登录...');
-
-      const res = await autoLoginByCookie(cookieFlag);
-      setLocal('cookie', cookieFlag);
-
-      if (!res?.success) {
-        ElMessage.error(res?.errorMsg || '自动登录失败');
-        return false;
-      }
-
-      const action = res?.result?.action;
-      if (action === 'need_login' && res?.result?.redirect) {
-        // 需要登录，重定向到登录页面
-        window.location.replace(res.result.redirect);
-        return false;
-      } else if (action === 'auto_login' || action === 'bind_success') {
-        // 自动登录成功，设置token
-        setToken(res.result.token.accessToken);
-        console.log('权限守卫：自动登录成功');
-        return true;
-      }
-    }
-
-    return true;
-  } catch (error) {
-    console.error('权限守卫：处理Cookie登录失败:', error);
-    return false;
-  }
 }
 
 /**

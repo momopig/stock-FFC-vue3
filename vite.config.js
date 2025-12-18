@@ -82,7 +82,7 @@ export default defineConfig({
       },
       // 使用正则表达式匹配需要代理的路径
       '^/nest-api/': {
-        target: 'http://119.23.68.187:4000',
+        target: 'http://119.23.68.187:3003',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       }

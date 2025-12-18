@@ -24,61 +24,24 @@
         />
       </el-form-item>
 
-      <el-form-item label="手机号" prop="phone">
+      <el-form-item label="邮箱" prop="email">
         <el-input
-          v-model="formData.phone"
+          v-model="formData.email"
           :disabled="isViewMode"
-          placeholder="请输入手机号"
-          maxlength="11"
+          placeholder="请输入邮箱"
+          type="email"
+          maxlength="100"
         />
       </el-form-item>
 
-      <el-form-item label="公司" prop="company">
+      <el-form-item label="全名" prop="full_name">
         <el-input
-          v-model="formData.company"
-          :disabled="true"
-          placeholder="公司由主账号确定"
+          v-model="formData.full_name"
+          :disabled="isViewMode"
+          placeholder="请输入全名"
           maxlength="100"
           show-word-limit
         />
-      </el-form-item>
-
-      <el-form-item label="备注" prop="remark">
-        <el-input
-          v-model="formData.remark"
-          :disabled="isViewMode"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入备注"
-          maxlength="200"
-          show-word-limit
-        />
-      </el-form-item>
-
-      <!-- 角色选择（主账号不显示） -->
-      <el-form-item
-        v-if="!isMainAccountEdit"
-        label="角色"
-        prop="roleId"
-      >
-        <el-select
-          v-model="formData.roleId"
-          placeholder="请选择角色"
-          style="width: 100%"
-          :disabled="isViewMode"
-        >
-          <el-option
-            v-for="role in availableRoles"
-            :key="role.id"
-            :label="role.displayName"
-            :value="role.id"
-          >
-            <span>{{ role.displayName }}</span>
-            <span style="float: right; color: #8492a6; font-size: 13px">
-              {{ role.name }}
-            </span>
-          </el-option>
-        </el-select>
       </el-form-item>
 
       <!-- 密码字段（新建时必填，编辑时选填） -->
@@ -111,11 +74,20 @@
       </el-form-item>
 
       <!-- 账号状态（编辑时显示） -->
-      <el-form-item v-if="isEditMode && !isMainAccountEdit" label="账号状态">
+      <el-form-item v-if="isEditMode && !isViewMode" label="账号状态">
         <el-switch
-          v-model="formData.isActive"
+          v-model="formData.is_active"
           active-text="启用"
           inactive-text="禁用"
+        />
+      </el-form-item>
+
+      <!-- 超级管理员（编辑时显示） -->
+      <el-form-item v-if="isEditMode && !isViewMode" label="超级管理员">
+        <el-switch
+          v-model="formData.is_superuser"
+          active-text="是"
+          inactive-text="否"
         />
       </el-form-item>
     </el-form>
@@ -139,7 +111,6 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserStore } from '@/state/user'
 
 const props = defineProps({
   visible: {
@@ -157,10 +128,6 @@ const props = defineProps({
   isEditMode: {
     type: Boolean,
     default: false
-  },
-  availableRoles: {
-    type: Array,
-    default: () => []
   }
 })
 
@@ -168,11 +135,6 @@ const emit = defineEmits(['update:visible', 'submit'])
 
 const formRef = ref()
 const loading = ref(false)
-
-// 是否为主账号编辑
-const isMainAccountEdit = computed(() => {
-  return props.isEditMode && !props.formData.parentId
-})
 
 // 对话框标题
 const dialogTitle = computed(() => {
@@ -188,19 +150,17 @@ const formRules = computed(() => {
       { required: true, message: '请输入用户名', trigger: 'blur' },
       { min: 2, max: 50, message: '用户名长度在2-50个字符', trigger: 'blur' }
     ],
-    phone: [
-      { required: true, message: '请输入手机号', trigger: 'blur' },
-      { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+    email: [
+      { required: true, message: '请输入邮箱', trigger: 'blur' },
+      { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    ],
+    full_name: [
+      { max: 100, message: '全名长度不能超过100个字符', trigger: 'blur' }
     ]
   }
 
-  // 新建用户时，角色为必填，密码为必填
+  // 新建用户时，密码为必填
   if (!props.isEditMode && !props.isViewMode) {
-    if (!isMainAccountEdit.value) {
-      rules.roleId = [
-        { required: true, message: '请选择角色', trigger: 'change' }
-      ]
-    }
     rules.password = [
       { required: true, message: '请输入密码', trigger: 'blur' },
       { min: 6, max: 20, message: '密码长度在6-20个字符', trigger: 'blur' }
@@ -244,30 +204,12 @@ const formRules = computed(() => {
   return rules
 })
 
-// 获取角色标签类型
-const getRoleTagType = (roleName) => {
-  const roleTypes = {
-    master: 'danger',
-    warehouseManager: 'warning',
-    shopOperator: 'success'
-  }
-  return roleTypes[roleName] || 'info'
-}
-
 // 监听对话框显示状态
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
     nextTick(() => {
       formRef.value?.clearValidate()
     })
-    // 新建用户时，自动预填当前主账号公司，并保持只读
-    if (!props.isEditMode && !props.isViewMode) {
-      const userStore = UserStore()
-      const masterCompany = userStore?.userInfo?.company || ''
-      if (masterCompany) {
-        props.formData.company = masterCompany
-      }
-    }
   }
 })
 

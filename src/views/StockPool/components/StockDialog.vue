@@ -14,25 +14,74 @@
       label-width="120px"
       v-loading="loading"
     >
-      <el-form-item label="股票代码" prop="code">
-        <el-input
-          v-model="formData.code"
-          :disabled="isViewMode"
-          placeholder="请输入股票代码，如：000001"
-          maxlength="10"
-          show-word-limit
-        />
-      </el-form-item>
+      <!-- 非查看模式下显示股票搜索 -->
+      <template v-if="!isViewMode">
+        <el-form-item label="股票搜索" prop="stockSearch">
+          <div style="display: flex; gap: 10px; width: 100%">
+            <el-select
+              v-model="selectedStockOption"
+              value-key="key"
+              filterable
+              remote
+              reserve-keyword
+              placeholder="查询（名称/代码/拼音）"
+              :remote-method="suggestStocks"
+              @change="onChangeStock"
+              style="flex: 1"
+              :loading="stockSearchLoading"
+            >
+              <el-option
+                v-for="stock in stockSelectOptions"
+                :key="stock.key"
+                :label="stock.label"
+                :value="stock"
+              >
+              </el-option>
+            </el-select>
+            <el-button @click="refreshStock">刷新</el-button>
+          </div>
+        </el-form-item>
 
-      <el-form-item label="股票名称" prop="name">
-        <el-input
-          v-model="formData.name"
-          :disabled="isViewMode"
-          placeholder="请输入股票名称"
-          maxlength="50"
-          show-word-limit
-        />
-      </el-form-item>
+        <!-- 显示已选择的股票信息 -->
+        <el-row :gutter="20" v-if="selectedStockOption">
+          <el-col :span="12">
+            <el-form-item label="股票代码" prop="code">
+              <el-input
+                v-model="formData.code"
+                :disabled="true"
+                placeholder="自动填充"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="股票名称" prop="name">
+              <el-input
+                v-model="formData.name"
+                :disabled="true"
+                placeholder="自动填充"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </template>
+
+      <!-- 查看模式下显示股票代码和名称 -->
+      <template v-if="isViewMode">
+        <el-form-item label="股票代码" prop="code">
+          <el-input
+            v-model="formData.code"
+            :disabled="true"
+            placeholder="--"
+          />
+        </el-form-item>
+        <el-form-item label="股票名称" prop="name">
+          <el-input
+            v-model="formData.name"
+            :disabled="true"
+            placeholder="--"
+          />
+        </el-form-item>
+      </template>
 
       <el-row :gutter="20">
         <el-col :span="12">
@@ -171,6 +220,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserStore } from '@/state/user'
 import { formatDateTime } from '@/utils/time'
+import { getStock } from '@/api/modules/stockPool'
 
 const props = defineProps({
   visible: {
@@ -196,6 +246,11 @@ const emit = defineEmits(['update:visible', 'submit'])
 const formRef = ref()
 const loading = ref(false)
 
+// 股票搜索相关
+const selectedStockOption = ref(null)
+const stockSelectOptions = ref([])
+const stockSearchLoading = ref(false)
+
 // 对话框标题
 const dialogTitle = computed(() => {
   if (props.isViewMode) return '查看股票'
@@ -206,6 +261,9 @@ const dialogTitle = computed(() => {
 // 表单验证规则
 const formRules = computed(() => {
   return {
+    stockSearch: [
+      { required: !props.isViewMode, message: '请搜索并选择股票', trigger: 'change' }
+    ],
     code: [
       { required: true, message: '请输入股票代码', trigger: 'blur' }
     ],
@@ -229,14 +287,104 @@ const formRules = computed(() => {
   }
 })
 
+// 股票搜索方法
+const suggestStocks = async (query) => {
+  if (query !== '') {
+    stockSearchLoading.value = true
+    try {
+      const result = await getStock(query, false)
+      const stockList = result?.Result?.stock || []
+      stockSelectOptions.value = stockList
+        .filter((stock) => stock.type === 'stock')
+        .map((stock) => {
+          // 将交易所代码映射到标准格式
+          const exchangeMap = {
+            'SH': 'SH',
+            'SZ': 'SZ',
+            'HK': 'HK',
+            'US': 'US',
+            'SSE': 'SH', // 上交所
+            'SZSE': 'SZ', // 深交所
+            'hk': 'HK',
+            'us': 'US'
+          }
+          const exchangeCode = exchangeMap[stock.exchange] || stock.exchange || ''
+
+          return {
+            ...stock,
+            label: `${stock.name}: ${exchangeCode}${stock.code}`,
+            key: `${exchangeCode}_${stock.code}`,
+            exchange_code: exchangeCode
+          }
+        })
+    } catch (error) {
+      console.error('搜索股票失败:', error)
+      ElMessage.error('搜索股票失败，请稍后重试')
+      stockSelectOptions.value = []
+    } finally {
+      stockSearchLoading.value = false
+    }
+  } else {
+    stockSelectOptions.value = []
+  }
+}
+
+// 选择股票后填充表单
+const onChangeStock = (stock) => {
+  if (stock) {
+    // 填充股票代码和名称
+    props.formData.code = stock.code || ''
+    props.formData.name = stock.name || ''
+    // 填充交易所代码（如果接口返回了 exchange_code，优先使用）
+    if (stock.exchange_code) {
+      props.formData.exchange_code = stock.exchange_code
+    } else if (stock.exchange) {
+      // 映射交易所代码
+      const exchangeMap = {
+        'SH': 'SH',
+        'SZ': 'SZ',
+        'HK': 'HK',
+        'US': 'US',
+        'SSE': 'SH',
+        'SZSE': 'SZ',
+        'hk': 'HK',
+        'us': 'US'
+      }
+      props.formData.exchange_code = exchangeMap[stock.exchange] || stock.exchange
+    }
+
+    // 清除验证错误
+    nextTick(() => {
+      formRef.value?.clearValidate(['code', 'name', 'exchange_code', 'stockSearch'])
+    })
+  }
+}
+
+// 刷新股票搜索
+const refreshStock = () => {
+  if (selectedStockOption.value) {
+    const currentQuery = selectedStockOption.value.name || selectedStockOption.value.code || ''
+    if (currentQuery) {
+      suggestStocks(currentQuery)
+    }
+  } else {
+    ElMessage.info('请先选择股票')
+  }
+}
+
 // 监听对话框显示状态
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
     nextTick(() => {
       formRef.value?.clearValidate()
     })
-    // 新建股票时，自动填充创建人和默认值
+
+    // 重置股票搜索选项列表
+    stockSelectOptions.value = []
+
+    // 新建股票时，重置选中项并自动填充创建人和默认值
     if (!props.isEditMode && !props.isViewMode) {
+      selectedStockOption.value = null
       const userStore = UserStore()
       const username = userStore?.userInfo?.username || userStore?.userInfo?.name || '当前用户'
       if (!props.formData.creator) {
@@ -245,6 +393,18 @@ watch(() => props.visible, async (newVal) => {
       if (!props.formData.addMethod) {
         props.formData.addMethod = 'manual'
       }
+    } else if (props.formData.code && props.formData.name) {
+      // 编辑模式时，如果有股票信息，设置选中项以便显示
+      selectedStockOption.value = {
+        code: props.formData.code,
+        name: props.formData.name,
+        exchange_code: props.formData.exchange_code,
+        label: `${props.formData.name}: ${props.formData.exchange_code || ''}${props.formData.code}`,
+        key: `${props.formData.exchange_code || ''}_${props.formData.code}`
+      }
+    } else {
+      // 没有股票信息时，重置选中项
+      selectedStockOption.value = null
     }
   }
 })

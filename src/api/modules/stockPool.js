@@ -465,3 +465,26 @@ export const getBuySignals = async (params = {}) => {
   return res
 }
 
+/**
+ * 获取股票搜索列表（第三方接口）
+ * @param {string} search - 搜索关键词（股票代码/名称/拼音）
+ * @param {boolean} onlyA - 是否只返回A股（market === 'ab'），默认 false
+ * @returns {Promise}
+ */
+export const getStock = async (search, onlyA = false) => {
+  const result = await request.get(`/nest-api/stock?search=${search}`)
+  let data = result
+  // 根据接口返回格式处理数据
+  if (data?.Result?.stock) {
+    data.Result.stock = data?.Result?.stock?.filter((stock) => {
+      const isStock = stock.type === 'stock'
+      if (onlyA) {
+        // 香港的market对应hk，A股的market对应ab
+        return isStock && stock.market === 'ab'
+      }
+      return isStock
+    })
+  }
+  return data
+}
+

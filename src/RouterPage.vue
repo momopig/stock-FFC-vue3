@@ -12,15 +12,8 @@
       </div>
     </template>
     <template v-else>
-      <!-- Cookie初始化加载状态 -->
-      <div class="global-loading" v-if="isInitializing">
-        <div class="loading-content">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>正在初始化认证信息...</span>
-        </div>
-      </div>
       <LeftHeader v-model:collapsed="collapsed" :top-offset="0" />
-      <main class="content" :style="contentInlineStyle" v-if="!isInitializing && isPermissionsReady">
+      <main class="content" :style="contentInlineStyle">
         <TopHeader :left-offset="collapsed ? 80 : 256" />
         <div class="content-container">
           <router-view v-slot="{ Component, route }">

@@ -57,14 +57,14 @@
 
     <!-- 右侧操作区 -->
     <div class="actions">
-      <div class="subject-item">
+      <!-- <div class="subject-item">
         {{ userStore.userInfo?.subject }}
-      </div>
+      </div> -->
       <!-- 帮助中心按钮 -->
-      <div @click="openHelp" class="help-btn" title="帮助中心">
+      <!-- <div @click="openHelp" class="help-btn" title="帮助中心">
         <el-icon><QuestionFilled /></el-icon>
         帮助中心
-      </div>
+      </div> -->
       <!-- 用户信息下拉菜单 -->
       <el-dropdown trigger="hover" :teleported="false" v-if="displayName">
         <div class="user-info">
@@ -79,14 +79,6 @@
         </div>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item @click="jumpToTemu('seller')">
-              <el-icon><ShoppingBag /></el-icon>
-              TEMU后台
-            </el-dropdown-item>
-            <el-dropdown-item @click="jumpToTemu('agent')">
-              <el-icon><ShoppingBag /></el-icon>
-              TEMU新后台
-            </el-dropdown-item>
             <el-dropdown-item @click="handleLogout">
               <el-icon><SwitchButton /></el-icon>
               退出登录
@@ -285,24 +277,16 @@ const authorizedRecentMenus = computed(() => {
 // 展示当前登录用户：注册用户名或 cookie 方式的用户手机尾号
 const displayName = computed(() => {
   const info = userStore?.userInfo || {};
-  const name = info.nickName || '';
-  const phone = info.maskOwnerMobile;
+  const name = info.username;
   // 优先显示注册/账号登录的用户名
   if (name) return name;
   // 否则尝试从手机号展示尾号
-  return `尾号${phone}`;
+  return info.email;
 });
 
-// 获取用户角色信息
 const userRole = computed(() => {
   const info = userStore?.userInfo || {};
-  // 根据用户信息判断角色
-  if (info.isMaster) return '超级管理员';
-  if (info.isWarehouseManager) return '仓库管理员';
-  if (info.isShopOperator) return '店铺运营';
-  // 如果有角色信息，显示角色名称
-  if (userStore?.userInfo?.role?.displayName) return userStore.userInfo.role.displayName;
-  return '用户';
+  return info.is_superuser ? '超级管理员' : '';
 });
 
 // 退出登录处理

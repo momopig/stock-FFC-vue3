@@ -7,6 +7,7 @@ const routes = [
   { path: '/', redirect: '/home' },
   { path: '/login', component: lazy(() => import('@/views/Login/index.vue')), meta: { layout: 'blank', requiresAuth: false } },
   { path: '/register', component: lazy(() => import('@/views/Register/index.vue')), meta: { layout: 'blank', requiresAuth: false } },
+  { path: '/user-mgt', component: lazy(() => import('@/views/UserMgt/index.vue'))},
   { path: '/home', component: lazy(() => import('@/App.vue'))},
   { path: '/stock-pool', component: lazy(() => import('@/views/StockPool/index.vue'))},
 ];

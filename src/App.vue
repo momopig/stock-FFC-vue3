@@ -1,7 +1,7 @@
 <template>
   <div>
     <div>
-      <h2>欢迎使用 云智猫-stock</h2>
+      <h2>欢迎使用 FFC股票只能分析系统(Find, Follow, Catch)</h2>
     </div>
   </div>
 </template>

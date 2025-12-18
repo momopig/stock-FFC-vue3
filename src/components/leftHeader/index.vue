@@ -2,7 +2,7 @@
   <aside class="left-sider" :class="{ collapsed: isCollapsed }" :style="siderInlineStyle">
     <div class="menu-header">
       <!-- <img class="logo-img" src="/logo.webp" /> -->
-      <div :class="['logo-text']">云智猫</div>
+      <div :class="['logo-text']">FFC</div>
     </div>
     <div class="menu-scroll" @mouseleave="onMouseLeaveAll">
       <ul class="menu-list">

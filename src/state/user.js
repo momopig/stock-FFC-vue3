@@ -3,15 +3,16 @@ import { defineStore } from 'pinia';
 export const UserStore = defineStore('user', {
   state: () => ({
     name: '123',
+    // 保留这些字段以兼容其他模块，但新接口不再使用
     mallList: [],
     mallIds: [],
     mallId_map_mallName: {},
     selectedMall: {},
     cookie: '',
     agentCookie: '',
-    userInfo: {},
+    userInfo: {}, // 基础用户信息（新接口：username, email, full_name, id, is_active, is_superuser, created_at, updated_at）
     initMonitorConfig: {},
-    // 新增权限相关状态
+    // 权限相关状态（保留以兼容权限系统，但新接口不提供）
     permissions: [], // 用户权限列表
     role: null, // 用户角色信息
     isMainAccount: false, // 是否为主账号
