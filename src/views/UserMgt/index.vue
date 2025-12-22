@@ -168,38 +168,32 @@ const columns = reactive([
     key: 'username',
     label: '用户名',
     prop: 'username',
-    width: 150
   },
   {
     key: 'email',
     label: '邮箱',
     prop: 'email',
-    width: 200
   },
   {
     key: 'full_name',
     label: '全名',
     prop: 'full_name',
-    width: 150
   },
   {
     key: 'isActive',
     label: '状态',
     prop: 'is_active',
-    width: 100
   },
   {
     key: 'isSuperuser',
     label: '类型',
     prop: 'is_superuser',
-    width: 120
   },
   {
     key: 'createdAt',
     label: '创建时间',
     prop: 'created_at',
     sortable: true,
-    width: 160
   }
 ])
 
