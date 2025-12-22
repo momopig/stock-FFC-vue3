@@ -17,7 +17,7 @@
       <el-form-item label="用户名" prop="username">
         <el-input
           v-model="formData.username"
-          :disabled="isViewMode"
+          :disabled="isViewMode || isEditMode"
           placeholder="请输入用户名"
           maxlength="50"
           show-word-limit

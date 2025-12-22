@@ -21,10 +21,8 @@ export const getUserList = async (params) => {
 
   // 当前格式处理：返回 {total, page, page_size, items: [...]}
   // 统一格式处理（注释）：如果返回 {success, payload: {data: [...], total}, ...}
-  // const items = res?.success ? res?.payload?.data : res?.data?.items
-  // const total = res?.success ? res?.payload?.total : res?.data?.total
-  const items = res?.items || []
-  const total = res?.total || 0
+  const items = res?.success ? res?.payload?.items : []
+  const total = res?.success ? res?.payload?.total : res?.data?.total
 
   return {
     ...res,
@@ -56,11 +54,9 @@ export const createUser = async (body) => {
 
   // 当前格式处理：直接返回用户对象 response.data
   // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-  // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res
+  const userInfo = res?.success ? res?.payload : {}
 
   return {
-    ...res,
     data: userInfo,
     // 为了兼容性，同时提供 result
     result: userInfo,
@@ -78,8 +74,7 @@ export const getUserDetail = async (userId) => {
 
   // 当前格式处理：直接返回用户对象 response.data
   // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-  // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res
+  const userInfo = res?.success ? res?.payload : {}
 
   return {
     ...res,
@@ -107,11 +102,9 @@ export const updateUser = async (userId, body) => {
 
   // 当前格式处理：直接返回用户对象 response.data
   // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-  // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res
+  const userInfo = res?.success ? res?.payload : {}
 
   return {
-    ...res,
     data: userInfo,
     // 为了兼容性，同时提供 result
     result: userInfo,
@@ -129,8 +122,7 @@ export const deleteUser = async (userId) => {
 
   // 当前格式处理：返回 {message: "用户已删除"}
   // 统一格式处理（注释）：如果返回 {success, payload, message, ...}
-  // const result = res?.success ? res?.payload : res?.data
-  const result = res
+  const result = res?.success ? res?.payload : res?.data
 
   return {
     ...res,

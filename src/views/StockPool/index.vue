@@ -46,6 +46,7 @@
         placeholder="搜索股票代码、名称"
         clearable
         @keyup.enter="searchHandler"
+        @change="searchHandler"
       />
       <el-select
         v-model="filterParams.exchange_code"
@@ -193,7 +194,7 @@
             {{ formatTurnover(row.quote?.turnover) }}
           </span>
           <span v-else-if="item.key === 'turnoverRate'">
-            {{ row.quote?.turnover_rate !== null && row.quote?.turnover_rate !== undefined ? `${(row.quote.turnover_rate * 100).toFixed(2)}%` : '--' }}
+            {{ row.quote?.turnover_rate !== null && row.quote?.turnover_rate !== undefined ? `${(row.quote.turnover_rate).toFixed(2)}%` : '--' }}
           </span>
           <!-- <span v-else-if="item.key === 'quoteTime'">
             {{ row.quote?.time || '--' }}
@@ -289,7 +290,7 @@ const insightsData = ref({
 // 分页参数
 const page = reactive({
   pageNo: 1,
-  pageSize: 10,
+  pageSize: 20,
   total: 0
 })
 
@@ -340,19 +341,22 @@ const columns = reactive([
     key: 'lastPrice',
     label: '当前价',
     prop: 'lastPrice',
-    width: 100
+    width: 100,
+    sortable: true
   },
   {
     key: 'selfChangeRate',
     label: '自选涨跌幅',
     prop: 'selfChangeRate',
-    width: 100
+    width: 120,
+    sortable: true
   },
   {
     key: 'changeRate',
     label: '当日涨跌幅',
     prop: 'changeRate',
-    width: 100
+    width: 120,
+    sortable: true
   },
   // {
   //   key: 'highPrice',
@@ -376,13 +380,15 @@ const columns = reactive([
     key: 'turnoverRate',
     label: '当日换手率',
     prop: 'turnoverRate',
-    width: 100
+    width: 120,
+    sortable: true
   },
   {
     key: 'turnover',
     label: '市值',
     prop: 'turnover',
-    width: 120
+    width: 120,
+    sortable: true
   },
   {
     key: 'status',
@@ -433,7 +439,7 @@ const columns = reactive([
     key: 'notes',
     label: '备注',
     prop: 'notes',
-    minWidth: 150
+    minWidth: 300
   },
   {
     key: 'creator',
@@ -1023,9 +1029,12 @@ const handleStatusChange = async (row, newStatus) => {
 .ellipsis {
   display: inline-block;
   max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 </style>
 
