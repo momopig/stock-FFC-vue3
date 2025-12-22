@@ -129,7 +129,7 @@
           <span v-if="item.key === 'index'">
             {{ $index + 1 + (page.pageNo - 1) * page.pageSize }}
           </span>
-          <span v-else-if="item.key === 'code'" class="code-cell">
+          <span v-else-if="item.key === 'code'" class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
             {{ row[item.prop] || '--' }}
           </span>
           <span v-else-if="item.key === 'exchange'">
@@ -166,12 +166,12 @@
           <span v-else-if="item.key === 'initialPrice'">
             {{ formatPrice(getFieldValue(row, item.prop)) }}
           </span>
-          <span v-else-if="item.key === 'lastPrice'">
+          <span v-else-if="item.key === 'last_price'">
             <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
               {{ formatPrice(row.quote?.last_price) }}
             </span>
           </span>
-          <span v-else-if="item.key === 'changeRate'">
+          <span v-else-if="item.key === 'change_rate'">
             <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
               {{ formatChangePercent(row.quote?.change_rate) }}
             </span>
@@ -193,8 +193,8 @@
           <span v-else-if="item.key === 'turnover'">
             {{ formatTurnover(row.quote?.turnover) }}
           </span>
-          <span v-else-if="item.key === 'turnoverRate'">
-            {{ row.quote?.turnover_rate !== null && row.quote?.turnover_rate !== undefined ? `${(row.quote.turnover_rate).toFixed(2)}%` : '--' }}
+          <span v-else-if="item.key === 'turnover_rate'">
+            {{ formatChangePercent(row.quote?.turnover_rate) }}
           </span>
           <!-- <span v-else-if="item.key === 'quoteTime'">
             {{ row.quote?.time || '--' }}
@@ -239,10 +239,12 @@
     <el-pagination
       class="pagination"
       v-model:current-page="page.pageNo"
-      :page-size="page.pageSize"
+      v-model:page-size="page.pageSize"
+      :page-sizes="[10, 20, 50, 100]"
       :total="page.total"
-      layout="total, prev, pager, next"
+      layout="total, sizes, prev, pager, next"
       @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     />
 
     <!-- 股票添加/编辑对话框 -->
@@ -302,8 +304,11 @@ const filterParams = reactive({
   priority_level: ''
 })
 
-// 排序参数
-const sortParams = reactive({})
+// 排序参数（前端排序）
+const sortParams = reactive({
+  prop: null,
+  order: null // 'ascending' 或 'descending'
+})
 
 // 表格列配置
 const columns = reactive([
@@ -338,9 +343,9 @@ const columns = reactive([
     sortable: true
   },
   {
-    key: 'lastPrice',
+    key: 'last_price',
     label: '当前价',
-    prop: 'lastPrice',
+    prop: 'last_price',
     width: 100,
     sortable: true
   },
@@ -352,9 +357,9 @@ const columns = reactive([
     sortable: true
   },
   {
-    key: 'changeRate',
+    key: 'change_rate',
     label: '当日涨跌幅',
-    prop: 'changeRate',
+    prop: 'change_rate',
     width: 120,
     sortable: true
   },
@@ -377,32 +382,19 @@ const columns = reactive([
   //   width: 120
   // },
   {
-    key: 'turnoverRate',
+    key: 'turnover_rate',
     label: '当日换手率',
-    prop: 'turnoverRate',
+    prop: 'turnover_rate',
     width: 120,
     sortable: true
   },
-  {
-    key: 'turnover',
-    label: '市值',
-    prop: 'turnover',
-    width: 120,
-    sortable: true
-  },
-  {
-    key: 'status',
-    label: '是否活跃',
-    prop: 'status',
-    width: 100
-  },
-  {
-    key: 'priorityLevel',
-    label: '优先级',
-    prop: 'priorityLevel',
-    width: 100,
-    sortable: true
-  },
+  // {
+  //   key: 'turnover',
+  //   label: '市值',
+  //   prop: 'turnover',
+  //   width: 120,
+  //   sortable: true
+  // },
   // {
   //   key: 'quoteTime',
   //   label: '行情时间',
@@ -446,7 +438,20 @@ const columns = reactive([
     label: '创建人',
     prop: 'creator',
     width: 100
-  }
+  },
+  {
+    key: 'status',
+    label: '是否活跃',
+    prop: 'status',
+    width: 100
+  },
+  {
+    key: 'priorityLevel',
+    label: '优先级',
+    prop: 'priorityLevel',
+    width: 100,
+    sortable: true
+  },
 ])
 
 // 初始化股票表单
@@ -487,6 +492,12 @@ onBeforeUnmount(() => {
   }
 })
 
+const handleCodeClick = (row) => {
+  // 去掉非数字
+  const numberCode = row.code.replace(/[^0-9]/g, '')
+  window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
+}
+
 // 获取股票列表（首次使用 HTTP 接口，然后建立 WebSocket 连接更新行情）
 const getStockList = async () => {
   // 如果已有 WebSocket 连接，先关闭
@@ -500,8 +511,8 @@ const getStockList = async () => {
   const params = {
     page: page.pageNo,
     page_size: page.pageSize,
-    ...filterParams,
-    ...sortParams
+    ...filterParams
+    // 移除排序参数，改为前端排序
   }
 
   // 处理搜索关键词：根据输入判断是股票代码还是名称
@@ -561,6 +572,12 @@ const getStockList = async () => {
         return mappedStock
       })
       page.total = response.payload?.total || 0
+
+      // 前端排序：如果有排序参数，对当前页数据进行排序
+      if (sortParams.prop && sortParams.order) {
+        sortCurrentPageData()
+      }
+
       // 更新洞察数据
       calculateInsightsFromList()
       tableLoading.value = false
@@ -601,10 +618,12 @@ const connectWebSocketForQuotes = (params) => {
             stock.quote = quoteMap.get(stock.id)
             // 根据初始价格和最新价格计算自选涨跌幅
             // 公式：(最新价格 - 初始价格) / 初始价格 * 100
+            // 注意：selfChangeRate 存储为百分比数值（如 -0.56 表示 -0.56%），不是小数格式
             if (stock.initialPrice && stock.quote?.last_price !== null && stock.quote?.last_price !== undefined) {
               const lastPrice = Number(stock.quote.last_price)
               const initialPrice = Number(stock.initialPrice)
               if (initialPrice > 0) {
+                // 计算百分比：结果已经是百分比格式（如 -0.56 表示 -0.56%）
                 stock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
               } else {
                 stock.selfChangeRate = null
@@ -614,6 +633,11 @@ const connectWebSocketForQuotes = (params) => {
             }
           }
         })
+
+        // WebSocket 更新后，如果当前有排序，重新排序
+        if (sortParams.prop && sortParams.order) {
+          sortCurrentPageData()
+        }
       }
     },
     onOpen: () => {
@@ -690,21 +714,115 @@ const calculateInsightsFromList = () => {
   }
 }
 
-// 排序处理
+// 字段类型映射：快速查找字段类型，避免多次 includes 检查
+const FIELD_TYPE_MAP = {
+  // 数值类型字段（从 quote 对象获取）
+  last_price: { type: 'number', source: 'quote' },
+  change_rate: { type: 'number', source: 'quote' },
+  turnover_rate: { type: 'number', source: 'quote' },
+  // 数值类型字段（从 row 直接获取）
+  initialPrice: { type: 'number', source: 'row' },
+  priorityLevel: { type: 'number', source: 'row' },
+  daysAdded: { type: 'number', source: 'row' },
+  selfChangeRate: { type: 'number', source: 'row' },
+  // 日期类型字段
+  addTime: { type: 'date', source: 'row' }
+}
+
+// 获取字段值用于排序（优化版本：使用映射快速查找，减少重复检查）
+const getSortValue = (row, prop) => {
+  const fieldConfig = FIELD_TYPE_MAP[prop]
+
+  // 获取原始值
+  let value
+  if (fieldConfig?.source === 'quote') {
+    value = row.quote?.[prop]
+  } else {
+    value = row[prop]
+  }
+
+  // null/undefined 处理
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  // 根据字段类型转换
+  if (fieldConfig?.type === 'number') {
+    const num = Number(value)
+    return isNaN(num) ? null : num
+  }
+
+  if (fieldConfig?.type === 'date') {
+    return new Date(value).getTime() || 0
+  }
+
+  // 默认返回原值
+  return value
+}
+
+// 前端排序：对当前页数据进行排序（优化版本：简化比较逻辑）
+const sortCurrentPageData = () => {
+  if (!sortParams.prop || !sortParams.order) {
+    return
+  }
+
+  const prop = sortParams.prop
+  const order = sortParams.order === 'ascending' ? 1 : -1
+  const fieldConfig = FIELD_TYPE_MAP[prop]
+
+  // 创建数组副本进行排序
+  const sortedList = [...stockList.value].sort((a, b) => {
+    const valueA = getSortValue(a, prop)
+    const valueB = getSortValue(b, prop)
+
+    // null 值排在最后
+    if (valueA === null && valueB === null) return 0
+    if (valueA === null) return 1
+    if (valueB === null) return -1
+
+    // 数值类型直接比较（getSortValue 已确保返回数字）
+    if (fieldConfig?.type === 'number') {
+      return (valueA - valueB) * order
+    }
+
+    // 日期类型直接比较（getSortValue 已确保返回时间戳）
+    if (fieldConfig?.type === 'date') {
+      return (valueA - valueB) * order
+    }
+
+    // 字符串类型比较
+    const strA = String(valueA)
+    const strB = String(valueB)
+    return strA.localeCompare(strB, 'zh-CN', { numeric: true }) * order
+  })
+
+  // 更新列表
+  stockList.value = sortedList
+}
+
+// 排序处理（前端排序）
 const handleSortChange = (sort) => {
   if (sort.prop) {
-    sortParams.sortBy = sort.prop
-    sortParams.sortOrder = sort.order === 'ascending' ? 'ASC' : 'DESC'
+    sortParams.prop = sort.prop
+    sortParams.order = sort.order
   } else {
-    delete sortParams.sortBy
-    delete sortParams.sortOrder
+    sortParams.prop = null
+    sortParams.order = null
   }
-  searchHandler()
+  // 对当前页数据进行排序
+  sortCurrentPageData()
 }
 
 // 分页处理
 const handlePageChange = (newPage) => {
   page.pageNo = newPage
+  getStockList()
+}
+
+// 每页数量变化处理
+const handlePageSizeChange = (newPageSize) => {
+  page.pageSize = newPageSize
+  page.pageNo = 1 // 重置到第一页
   getStockList()
 }
 
@@ -721,8 +839,8 @@ const reset = () => {
   filterParams.status = ''
   filterParams.add_method = ''
   filterParams.priority_level = ''
-  delete sortParams.sortBy
-  delete sortParams.sortOrder
+  sortParams.prop = null
+  sortParams.order = null
   searchHandler()
 }
 
@@ -830,9 +948,8 @@ const submitStock = async (formData) => {
 const formatChangePercent = (value) => {
   if (value === null || value === undefined) return '--'
   const sign = value >= 0 ? '+' : ''
-  // change_rate 可能是小数（如 0.05 表示 5%）或百分比（如 5 表示 5%）
-  // 如果绝对值小于 1，认为是小数格式，需要乘以 100
-  const percentValue = Math.abs(value) < 1 ? value * 100 : value
+  let percentValue = value
+  // 否则直接使用原值（已经是百分比格式）
   return `${sign}${percentValue.toFixed(2)}%`
 }
 
@@ -953,7 +1070,7 @@ const handleStatusChange = async (row, newStatus) => {
 
 <style scoped lang="less">
 .stock-pool-container {
-  height: 100vh;
+  height: calc(100vh - 130px);
   background-color: #fff;
   padding: 20px;
 
