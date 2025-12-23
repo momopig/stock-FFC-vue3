@@ -309,12 +309,12 @@ const suggestStocks = async (query) => {
             'us': 'US'
           }
           const exchangeCode = exchangeMap[stock.exchange] || stock.exchange || ''
-
           return {
             ...stock,
             label: `${stock.name}: ${exchangeCode}${stock.code}`,
             key: `${exchangeCode}_${stock.code}`,
-            exchange_code: exchangeCode
+            exchange_code: exchangeCode,
+            initialPrice: Number(stock.price) || 0
           }
         })
     } catch (error) {
@@ -333,8 +333,8 @@ const suggestStocks = async (query) => {
 const onChangeStock = (stock) => {
   if (stock) {
     // 填充股票代码和名称
-    props.formData.code = stock.code || ''
     props.formData.name = stock.name || ''
+    props.formData.initialPrice = stock.initialPrice || 0
     // 填充交易所代码（如果接口返回了 exchange_code，优先使用）
     if (stock.exchange_code) {
       props.formData.exchange_code = stock.exchange_code
@@ -352,11 +352,17 @@ const onChangeStock = (stock) => {
       }
       props.formData.exchange_code = exchangeMap[stock.exchange] || stock.exchange
     }
+    props.formData.code = stock.code + '.' + stock.exchange_code || ''
+    // 设置 stockSearch 字段，用于表单验证
+    props.formData.stockSearch = stock.key || `${stock.exchange_code}_${stock.code}` || ''
 
     // 清除验证错误
     nextTick(() => {
       formRef.value?.clearValidate(['code', 'name', 'exchange_code', 'stockSearch'])
     })
+  } else {
+    // 清空选择时，也清空 stockSearch 字段
+    props.formData.stockSearch = ''
   }
 }
 
@@ -385,6 +391,7 @@ watch(() => props.visible, async (newVal) => {
     // 新建股票时，重置选中项并自动填充创建人和默认值
     if (!props.isEditMode && !props.isViewMode) {
       selectedStockOption.value = null
+      props.formData.stockSearch = ''
       const userStore = UserStore()
       const username = userStore?.userInfo?.username || userStore?.userInfo?.name || '当前用户'
       if (!props.formData.creator) {
@@ -395,16 +402,20 @@ watch(() => props.visible, async (newVal) => {
       }
     } else if (props.formData.code && props.formData.name) {
       // 编辑模式时，如果有股票信息，设置选中项以便显示
+      const stockKey = `${props.formData.exchange_code || ''}_${props.formData.code}`
       selectedStockOption.value = {
         code: props.formData.code,
         name: props.formData.name,
         exchange_code: props.formData.exchange_code,
         label: `${props.formData.name}: ${props.formData.exchange_code || ''}${props.formData.code}`,
-        key: `${props.formData.exchange_code || ''}_${props.formData.code}`
+        key: stockKey
       }
+      // 设置 stockSearch 字段，用于表单验证
+      props.formData.stockSearch = stockKey
     } else {
       // 没有股票信息时，重置选中项
       selectedStockOption.value = null
+      props.formData.stockSearch = ''
     }
   }
 })
