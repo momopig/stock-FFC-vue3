@@ -558,7 +558,7 @@ const getStockList = async () => {
           updatedTime: stock.updated_time || '',
           statusLoading: false, // 状态切换加载状态
           // 行情数据（初始为空，等待 WebSocket 更新）
-          quote: null,
+          quote: stock?.quote,
           // 自选涨跌幅（根据初始价格和最新价格计算，在 WebSocket 更新时计算）
           selfChangeRate: null
         }
@@ -583,7 +583,7 @@ const getStockList = async () => {
       tableLoading.value = false
 
       // HTTP 接口调用成功后，建立 WebSocket 连接用于实时更新行情数据
-      connectWebSocketForQuotes(params)
+      // connectWebSocketForQuotes(params)
     } else {
       ElMessage.error(response?.message || '获取股票列表失败')
       tableLoading.value = false

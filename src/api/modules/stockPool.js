@@ -176,7 +176,7 @@ export const getStockPoolList = async (params) => {
     return await mockGetStockPoolList(params)
   }
   const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/api/stock-watchlist/?` + queryString)
+  const res = await request.get(`/stock-api/api/stock-watchlist/with-quotes?` + queryString)
   return res
 }
 
