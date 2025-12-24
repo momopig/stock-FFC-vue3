@@ -129,15 +129,15 @@
           <span v-if="item.key === 'index'">
             {{ $index + 1 + (page.pageNo - 1) * page.pageSize }}
           </span>
-          <span v-else-if="item.key === 'code'" class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
-            {{ row[item.prop] || '--' }}
+          <span v-else-if="item.key === 'stock_code'" class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
+            {{ row.stock_code || '--' }}
           </span>
-          <span v-else-if="item.key === 'exchange'">
-            {{ row.exchange === 'SH' ? '上交所' : row.exchange === 'SZ' ? '深交所' : row.exchange === 'HK' ? '港交所' : row.exchange === 'US' ? '美股' : row[item.prop] || '--' }}
+          <span v-else-if="item.key === 'exchange_code'">
+            {{ row.exchange_code === 'SH' ? '上交所' : row.exchange_code === 'SZ' ? '深交所' : row.exchange_code === 'HK' ? '港交所' : row.exchange_code === 'US' ? '美股' : row.exchange_code || '--' }}
           </span>
-          <span v-else-if="item.key === 'addMethod'">
-            <el-tag :type="getAddMethodTagType(row.addMethod)">
-              {{ getAddMethodLabel(row.addMethod) }}
+          <span v-else-if="item.key === 'add_method'">
+            <el-tag :type="getAddMethodTagType(row.add_method)">
+              {{ getAddMethodLabel(row.add_method) }}
             </el-tag>
           </span>
           <span v-else-if="item.key === 'status'">
@@ -149,22 +149,22 @@
               :loading="row.statusLoading"
             />
           </span>
-          <span v-else-if="item.key === 'priorityLevel'">
-            {{ row.priorityLevel !== null && row.priorityLevel !== undefined ? `优先级 ${row.priorityLevel}` : '--' }}
+          <span v-else-if="item.key === 'priority_level'">
+            {{ row.priority_level !== null && row.priority_level !== undefined ? `优先级 ${row.priority_level}` : '--' }}
           </span>
           <span v-else-if="item.key === 'notes'">
             <span class="ellipsis" :title="row.notes || '--'">
               {{ row.notes || '--' }}
             </span>
           </span>
-          <span v-else-if="item.key === 'addTime'">
-            {{ row[item.prop] ? formatDateTime(row[item.prop]) : '--' }}
+          <span v-else-if="item.key === 'add_time'">
+            {{ row.add_time ? formatDateTime(row.add_time) : '--' }}
           </span>
-          <span v-else-if="item.key === 'daysAdded'">
-            {{ row[item.prop] !== undefined ? `${row[item.prop]} 天` : '--' }}
+          <span v-else-if="item.key === 'days_added'">
+            {{ row.days_added !== undefined ? `${row.days_added} 天` : '--' }}
           </span>
-          <span v-else-if="item.key === 'initialPrice'">
-            {{ formatPrice(getFieldValue(row, item.prop)) }}
+          <span v-else-if="item.key === 'initial_price'">
+            {{ formatPrice(row.initial_price) }}
           </span>
           <span v-else-if="item.key === 'last_price'">
             <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
@@ -181,10 +181,10 @@
               {{ formatChangePercent(row.selfChangeRate) }}
             </span>
           </span>
-          <span v-else-if="item.key === 'highPrice'">
+          <span v-else-if="item.key === 'high_price'">
             {{ formatPrice(row.quote?.high_price) }}
           </span>
-          <span v-else-if="item.key === 'lowPrice'">
+          <span v-else-if="item.key === 'low_price'">
             {{ formatPrice(row.quote?.low_price) }}
           </span>
           <span v-else-if="item.key === 'volume'">
@@ -318,27 +318,27 @@ const columns = reactive([
     width: 80
   },
   {
-    key: 'code',
+    key: 'stock_code',
     label: '股票代码',
-    prop: 'code',
+    prop: 'stock_code',
     width: 120
   },
   {
-    key: 'symbol',
+    key: 'stock_name',
     label: '股票名称',
-    prop: 'symbol',
+    prop: 'stock_name',
     minWidth: 120
   },
   {
-    key: 'exchange',
+    key: 'exchange_code',
     label: '交易所',
-    prop: 'exchange',
+    prop: 'exchange_code',
     width: 100
   },
   {
-    key: 'initialPrice',
+    key: 'initial_price',
     label: '初始价',
-    prop: 'initialPrice',
+    prop: 'initial_price',
     width: 110,
     sortable: true
   },
@@ -364,15 +364,15 @@ const columns = reactive([
     sortable: true
   },
   // {
-  //   key: 'highPrice',
+  //   key: 'high_price',
   //   label: '最高价',
-  //   prop: 'highPrice',
+  //   prop: 'high_price',
   //   width: 100
   // },
   // {
-  //   key: 'lowPrice',
+  //   key: 'low_price',
   //   label: '最低价',
-  //   prop: 'lowPrice',
+  //   prop: 'low_price',
   //   width: 100
   // },
   // {
@@ -402,29 +402,29 @@ const columns = reactive([
   //   width: 160
   // },
   {
-    key: 'addMethod',
+    key: 'add_method',
     label: '加入方式',
-    prop: 'addMethod',
+    prop: 'add_method',
     width: 110
   },
   {
-    key: 'addTime',
+    key: 'add_time',
     label: '加入时间',
-    prop: 'addTime',
+    prop: 'add_time',
     width: 200,
     sortable: true
   },
   {
-    key: 'daysAdded',
+    key: 'days_added',
     label: '加入天数',
-    prop: 'daysAdded',
+    prop: 'days_added',
     width: 120,
     sortable: true
   },
   {
-    key: 'reason',
+    key: 'add_reason',
     label: '加入原因',
-    prop: 'reason',
+    prop: 'add_reason',
     minWidth: 150
   },
   {
@@ -434,9 +434,9 @@ const columns = reactive([
     minWidth: 300
   },
   {
-    key: 'creator',
+    key: 'created_by',
     label: '创建人',
-    prop: 'creator',
+    prop: 'created_by',
     width: 100
   },
   {
@@ -446,9 +446,9 @@ const columns = reactive([
     width: 100
   },
   {
-    key: 'priorityLevel',
+    key: 'priority_level',
     label: '优先级',
-    prop: 'priorityLevel',
+    prop: 'priority_level',
     width: 100,
     sortable: true
   },
@@ -458,18 +458,18 @@ const columns = reactive([
 const initStockForm = () => {
   return {
     id: null,
-    code: '',
-    name: '',
+    stock_code: '',
+    stock_name: '',
     exchange_code: '',
     status: 'active',
-    priorityLevel: null,
-    initialPrice: null,
-    addMethod: 'manual',
-    addTime: null,
-    daysAdded: 0,
-    reason: '',
+    priority_level: null,
+    initial_price: null,
+    add_method: 'manual',
+    add_time: null,
+    days_added: 0,
+    add_reason: '',
     notes: '',
-    creator: ''
+    created_by: ''
   }
 }
 
@@ -481,7 +481,6 @@ let wsManager = null
 // 页面加载时获取股票列表和洞察数据
 onMounted(() => {
   getStockList()
-  // loadInsights()
 })
 
 // 组件卸载时关闭 WebSocket 连接
@@ -494,11 +493,11 @@ onBeforeUnmount(() => {
 
 const handleCodeClick = (row) => {
   // 去掉非数字
-  const numberCode = row.code.replace(/[^0-9]/g, '')
+  const numberCode = row.stock_code?.replace(/[^0-9]/g, '') || ''
   window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
 }
 
-// 获取股票列表（首次使用 HTTP 接口，然后建立 WebSocket 连接更新行情）
+// 获取股票列表（直接使用 WebSocket 获取全部数据）
 const getStockList = async () => {
   // 如果已有 WebSocket 连接，先关闭
   if (wsManager) {
@@ -543,30 +542,36 @@ const getStockList = async () => {
         // 字段映射：后端字段 -> 前端显示字段
         const mappedStock = {
           id: stock.id,
-          code: stock.stock_code || '',
-          symbol: stock.stock_name || '',
-          name: stock.stock_name || '',
-          exchange: stock.exchange_code || '',
-          addMethod: stock.add_method || '',
-          addTime: stock.add_time || '',
-          initialPrice: stock.initial_price ? Number(stock.initial_price) : null,
-          reason: stock.add_reason || '',
-          creator: stock.created_by || '',
+          stock_code: stock.stock_code || '',
+          stock_name: stock.stock_name || '',
+          exchange_code: stock.exchange_code || '',
+          add_method: stock.add_method || '',
+          add_time: stock.add_time || '',
+          initial_price: stock.initial_price ? Number(stock.initial_price) : null,
+          add_reason: stock.add_reason || '',
+          created_by: stock.created_by || '',
           status: stock.status || 'active',
-          priorityLevel: stock.priority_level || null,
+          priority_level: stock.priority_level || null,
           notes: stock.notes || '',
-          updatedTime: stock.updated_time || '',
+          updated_time: stock.updated_time || '',
           statusLoading: false, // 状态切换加载状态
-          // 行情数据（初始为空，等待 WebSocket 更新）
           quote: stock?.quote,
-          // 自选涨跌幅（根据初始价格和最新价格计算，在 WebSocket 更新时计算）
           selfChangeRate: null
         }
 
         // 计算加入天数
-        if (mappedStock.addTime) {
-          const days = moment().diff(moment(mappedStock.addTime), 'days')
-          mappedStock.daysAdded = days
+        if (mappedStock.add_time) {
+          const days = moment().diff(moment(mappedStock.add_time), 'days')
+          mappedStock.days_added = days
+        }
+
+        // 计算自选涨跌幅
+        if (mappedStock.initial_price && mappedStock.quote?.last_price !== null && mappedStock.quote?.last_price !== undefined) {
+          const lastPrice = Number(mappedStock.quote.last_price)
+          const initialPrice = Number(mappedStock.initial_price)
+          if (initialPrice > 0) {
+            mappedStock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
+          }
         }
 
         return mappedStock
@@ -593,86 +598,122 @@ const getStockList = async () => {
     ElMessage.error('获取股票列表失败，请稍后重试')
     tableLoading.value = false
   }
+
+  // 直接使用 WebSocket 连接获取全部数据
+  // connectWebSocketForQuotes(params)
 }
 
-// 建立 WebSocket 连接用于更新行情数据
+// 建立 WebSocket 连接用于获取和更新股票数据
 const connectWebSocketForQuotes = (params) => {
   // 创建 WebSocket 连接
   wsManager = getStockPoolListWithQuotes(params, {
     onMessage: (response) => {
-      // WebSocket 只更新行情数据，不替换整个列表
       // 兼容两种数据格式：response.items 或 response.payload.items
       const items = response?.items || response?.payload?.items
-      if (items && Array.isArray(items)) {
-        // 创建一个以股票ID为key的映射，便于快速查找
-        const quoteMap = new Map()
-        items.forEach(stock => {
-          if (stock.id && stock.quote) {
-            quoteMap.set(stock.id, stock.quote)
-          }
-        })
+      const total = response?.total || response?.payload?.total || 0
 
-        // 只更新现有股票的行情数据，并计算自选涨跌幅
-        stockList.value.forEach(stock => {
-          if (quoteMap.has(stock.id)) {
-            stock.quote = quoteMap.get(stock.id)
-            // 根据初始价格和最新价格计算自选涨跌幅
-            // 公式：(最新价格 - 初始价格) / 初始价格 * 100
-            // 注意：selfChangeRate 存储为百分比数值（如 -0.56 表示 -0.56%），不是小数格式
-            if (stock.initialPrice && stock.quote?.last_price !== null && stock.quote?.last_price !== undefined) {
-              const lastPrice = Number(stock.quote.last_price)
-              const initialPrice = Number(stock.initialPrice)
+      if (items && Array.isArray(items)) {
+        if (response.type === 'init') {
+          // 首次消息：初始化整个列表（包含所有字段）
+          stockList.value = items.map(stock => {
+            // 直接使用后端字段，不做映射
+            const stockData = {
+              ...stock,
+              statusLoading: false, // 状态切换加载状态
+              // 自选涨跌幅（根据初始价格和最新价格计算）
+              selfChangeRate: null
+            }
+
+            // 计算加入天数
+            if (stockData.add_time) {
+              const days = moment().diff(moment(stockData.add_time), 'days')
+              stockData.days_added = days
+            }
+
+            // 计算自选涨跌幅
+            if (stockData.initial_price && stockData.quote?.last_price !== null && stockData.quote?.last_price !== undefined) {
+              const lastPrice = Number(stockData.quote.last_price)
+              const initialPrice = Number(stockData.initial_price)
               if (initialPrice > 0) {
-                // 计算百分比：结果已经是百分比格式（如 -0.56 表示 -0.56%）
-                stock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
+                stockData.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
+              }
+            }
+
+            return stockData
+          })
+          page.total = total
+          tableLoading.value = false
+
+          // 前端排序：如果有排序参数，对当前页数据进行排序
+          if (sortParams.prop && sortParams.order) {
+            sortCurrentPageData()
+          }
+
+          // 更新洞察数据
+          calculateInsightsFromList()
+        } else {
+          // 后续消息：只更新行情数据和自选涨跌幅
+          // 创建一个以股票ID为key的映射，便于快速查找
+          const stockMap = new Map()
+          items.forEach(stock => {
+            if (stock.id) {
+              stockMap.set(stock.id, stock)
+            }
+          })
+
+          // 更新现有股票的行情数据，并计算自选涨跌幅
+          stockList.value.forEach(stock => {
+            if (stockMap.has(stock.id)) {
+              const updatedStock = stockMap.get(stock.id)
+              // 更新行情数据
+              if (updatedStock.quote) {
+                stock.quote = updatedStock.quote
+              }
+              // 更新其他可能变化的字段（如果有）
+              if (updatedStock.status !== undefined) {
+                stock.status = updatedStock.status
+              }
+
+              // 重新计算自选涨跌幅
+              if (stock.initial_price && stock.quote?.last_price !== null && stock.quote?.last_price !== undefined) {
+                const lastPrice = Number(stock.quote.last_price)
+                const initialPrice = Number(stock.initial_price)
+                if (initialPrice > 0) {
+                  stock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
+                } else {
+                  stock.selfChangeRate = null
+                }
               } else {
                 stock.selfChangeRate = null
               }
-            } else {
-              stock.selfChangeRate = null
-            }
-          }
-        })
 
-        // WebSocket 更新后，如果当前有排序，重新排序
-        if (sortParams.prop && sortParams.order) {
-          sortCurrentPageData()
+              // 更新加入天数
+              if (stock.add_time) {
+                const days = moment().diff(moment(stock.add_time), 'days')
+                stock.days_added = days
+              }
+            }
+          })
+
+          // WebSocket 更新后，如果当前有排序，重新排序
+          if (sortParams.prop && sortParams.order) {
+            sortCurrentPageData()
+          }
         }
       }
     },
     onOpen: () => {
-      console.log('WebSocket 连接已建立，开始接收行情数据')
+      console.log('WebSocket 连接已建立，开始接收股票数据')
     },
     onClose: () => {
       console.log('WebSocket 连接已关闭')
     },
     onError: (error) => {
       console.error('WebSocket 连接错误:', error)
-      // WebSocket 错误不影响主流程，只记录日志
+      ElMessage.error('获取股票列表失败，请稍后重试')
+      tableLoading.value = false
     }
   })
-}
-
-// 加载买入信号洞察数据
-const loadInsights = async () => {
-  try {
-    const response = await getBuySignals()
-    if (response.success) {
-      insightsData.value = {
-        totalCount: response.result?.totalCount || 0,
-        upCount: response.result?.upCount || 0,
-        downCount: response.result?.downCount || 0,
-        avgDays: response.result?.avgDays || 0
-      }
-    } else {
-      // 如果接口失败，从列表数据计算
-      calculateInsightsFromList()
-    }
-  } catch (error) {
-    console.error('获取买入信号洞察失败:', error)
-    // 从列表数据计算
-    calculateInsightsFromList()
-  }
 }
 
 // 从列表数据计算洞察数据
@@ -699,8 +740,8 @@ const calculateInsightsFromList = () => {
     } else if (stock.status === 'inactive') {
       inactiveCount++
     }
-    if (stock.daysAdded !== null && stock.daysAdded !== undefined) {
-      totalDays += stock.daysAdded
+    if (stock.days_added !== null && stock.days_added !== undefined) {
+      totalDays += stock.days_added
       validDaysCount++
     }
   })
@@ -721,12 +762,12 @@ const FIELD_TYPE_MAP = {
   change_rate: { type: 'number', source: 'quote' },
   turnover_rate: { type: 'number', source: 'quote' },
   // 数值类型字段（从 row 直接获取）
-  initialPrice: { type: 'number', source: 'row' },
-  priorityLevel: { type: 'number', source: 'row' },
-  daysAdded: { type: 'number', source: 'row' },
+  initial_price: { type: 'number', source: 'row' },
+  priority_level: { type: 'number', source: 'row' },
+  days_added: { type: 'number', source: 'row' },
   selfChangeRate: { type: 'number', source: 'row' },
   // 日期类型字段
-  addTime: { type: 'date', source: 'row' }
+  add_time: { type: 'date', source: 'row' }
 }
 
 // 获取字段值用于排序（优化版本：使用映射快速查找，减少重复检查）
@@ -854,20 +895,20 @@ const operateHandler = (type, id) => {
           ElMessage.error(res.message || '获取股票详情失败')
           return
         }
-        // 字段映射：后端字段 -> 前端表单字段
+        // 直接使用后端字段，不做映射
         const payload = res.payload || {}
         const formData = {
           id: payload.id,
-          code: payload.stock_code || '',
-          name: payload.stock_name || '',
+          stock_code: payload.stock_code || '',
+          stock_name: payload.stock_name || '',
           exchange_code: payload.exchange_code || '',
-          addMethod: payload.add_method || 'manual',
-          addTime: payload.add_time || '',
-          initialPrice: payload.initial_price ? Number(payload.initial_price) : null,
-          reason: payload.add_reason || '',
-          creator: payload.created_by || '',
+          add_method: payload.add_method || 'manual',
+          add_time: payload.add_time || '',
+          initial_price: payload.initial_price ? Number(payload.initial_price) : null,
+          add_reason: payload.add_reason || '',
+          created_by: payload.created_by || '',
           status: payload.status || 'active',
-          priorityLevel: payload.priority_level || null,
+          priority_level: payload.priority_level || null,
           notes: payload.notes || ''
         }
         stockForm.value = formData
@@ -884,7 +925,6 @@ const operateHandler = (type, id) => {
         }
         ElMessage.success('删除股票成功')
         searchHandler()
-        loadInsights()
       })
       break
     default:
@@ -908,24 +948,24 @@ const submitStock = async (formData) => {
       // 更新股票：只更新允许的字段（status, priority_level, notes, add_reason）
       const updateData = {
         status: formData.status,
-        priority_level: formData.priorityLevel,
+        priority_level: formData.priority_level,
         notes: formData.notes,
-        add_reason: formData.reason
+        add_reason: formData.add_reason
       }
       result = await updateStock(formData.id, updateData)
     } else {
-      // 添加新股票：字段映射到后端字段
+      // 添加新股票：直接使用后端字段
       const addData = {
-        stock_code: formData.code,
-        stock_name: formData.name,
+        stock_code: formData.stock_code,
+        stock_name: formData.stock_name,
         exchange_code: formData.exchange_code,
-        add_method: formData.addMethod,
-        initial_price: formData.initialPrice,
-        add_reason: formData.reason,
+        add_method: formData.add_method,
+        initial_price: formData.initial_price,
+        add_reason: formData.add_reason,
         status: formData.status || 'active',
-        priority_level: formData.priorityLevel,
+        priority_level: formData.priority_level,
         notes: formData.notes,
-        created_by: formData.creator
+        created_by: formData.created_by
       }
       result = await addStock(addData)
     }
@@ -1006,14 +1046,6 @@ const formatTurnover = (value) => {
     return `${(turnover / 10000).toFixed(2)}万`
   }
   return turnover.toLocaleString('zh-CN')
-}
-
-// 获取字段值（使用RiceQuant字段）
-const getFieldValue = (row, prop) => {
-  if (row[prop] !== null && row[prop] !== undefined) {
-    return row[prop]
-  }
-  return null
 }
 
 // 获取加入方式标签类型

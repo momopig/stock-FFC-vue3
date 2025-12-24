@@ -145,20 +145,15 @@ export const getCurrentUserInfo = async () => {
   // 当前格式处理：直接返回用户对象 response.data
   // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
   // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res?.data
+  const userInfo = res?.payload?.data
 
-  if (userInfo) {
+  if (res?.success && userInfo) {
     const userStore = getUserStore();
     // 设置用户基础信息（简化处理，移除复杂的权限、角色、主账号等逻辑）
     userStore.setUserInfo(userInfo)
   }
 
-  return {
-    ...res,
-    data: userInfo,
-    result: userInfo,
-    success: !!userInfo
-  }
+  return res
 }
 
 export const addUser = async (body) => {

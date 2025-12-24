@@ -45,18 +45,18 @@
         <!-- 显示已选择的股票信息 -->
         <el-row :gutter="20" v-if="selectedStockOption">
           <el-col :span="12">
-            <el-form-item label="股票代码" prop="code">
+            <el-form-item label="股票代码" prop="stock_code">
               <el-input
-                v-model="formData.code"
+                v-model="formData.stock_code"
                 :disabled="true"
                 placeholder="自动填充"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="股票名称" prop="name">
+            <el-form-item label="股票名称" prop="stock_name">
               <el-input
-                v-model="formData.name"
+                v-model="formData.stock_name"
                 :disabled="true"
                 placeholder="自动填充"
               />
@@ -67,16 +67,16 @@
 
       <!-- 查看模式下显示股票代码和名称 -->
       <template v-if="isViewMode">
-        <el-form-item label="股票代码" prop="code">
+        <el-form-item label="股票代码" prop="stock_code">
           <el-input
-            v-model="formData.code"
+            v-model="formData.stock_code"
             :disabled="true"
             placeholder="--"
           />
         </el-form-item>
-        <el-form-item label="股票名称" prop="name">
+        <el-form-item label="股票名称" prop="stock_name">
           <el-input
-            v-model="formData.name"
+            v-model="formData.stock_name"
             :disabled="true"
             placeholder="--"
           />
@@ -100,9 +100,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="初始价格" prop="initialPrice">
+          <el-form-item label="初始价格" prop="initial_price">
             <el-input-number
-              v-model="formData.initialPrice"
+              v-model="formData.initial_price"
               :disabled="isViewMode"
               :precision="2"
               :min="0"
@@ -128,9 +128,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="优先级" prop="priorityLevel">
+          <el-form-item label="优先级" prop="priority_level">
             <el-select
-              v-model="formData.priorityLevel"
+              v-model="formData.priority_level"
               :disabled="isViewMode"
               placeholder="请选择优先级"
               clearable
@@ -147,8 +147,8 @@
         </el-col>
       </el-row>
 
-      <el-form-item label="加入方式" prop="addMethod">
-        <el-radio-group v-model="formData.addMethod" :disabled="isViewMode">
+      <el-form-item label="加入方式" prop="add_method">
+        <el-radio-group v-model="formData.add_method" :disabled="isViewMode">
           <el-radio label="manual">手动加入</el-radio>
           <el-radio label="strategy">策略加入</el-radio>
           <el-radio label="import">导入</el-radio>
@@ -156,9 +156,9 @@
         </el-radio-group>
       </el-form-item>
 
-      <el-form-item label="加入原因" prop="reason">
+      <el-form-item label="加入原因" prop="add_reason">
         <el-input
-          v-model="formData.reason"
+          v-model="formData.add_reason"
           :disabled="isViewMode"
           type="textarea"
           :rows="3"
@@ -180,9 +180,9 @@
         />
       </el-form-item>
 
-      <el-form-item label="创建人" prop="creator">
+      <el-form-item label="创建人" prop="created_by">
         <el-input
-          v-model="formData.creator"
+          v-model="formData.created_by"
           :disabled="true"
           placeholder="自动填充当前用户"
         />
@@ -191,10 +191,10 @@
       <!-- 查看模式或编辑模式时显示额外信息 -->
       <template v-if="(isViewMode || isEditMode) && formData.id">
         <el-form-item label="加入时间">
-          <span>{{ formData.addTime ? formatDateTime(formData.addTime) : '--' }}</span>
+          <span>{{ formData.add_time ? formatDateTime(formData.add_time) : '--' }}</span>
         </el-form-item>
         <el-form-item label="加入天数">
-          <span>{{ formData.daysAdded !== null && formData.daysAdded !== undefined ? `${formData.daysAdded} 天` : '--' }}</span>
+          <span>{{ formData.days_added !== null && formData.days_added !== undefined ? `${formData.days_added} 天` : '--' }}</span>
         </el-form-item>
       </template>
     </el-form>
@@ -264,21 +264,21 @@ const formRules = computed(() => {
     stockSearch: [
       { required: !props.isViewMode, message: '请搜索并选择股票', trigger: 'change' }
     ],
-    code: [
+    stock_code: [
       { required: true, message: '请输入股票代码', trigger: 'blur' }
     ],
-    name: [
+    stock_name: [
       { required: true, message: '请输入股票名称', trigger: 'blur' },
       { min: 1, max: 50, message: '股票名称长度在1-50个字符', trigger: 'blur' }
     ],
     exchange_code: [
       { required: true, message: '请选择交易所', trigger: 'change' }
     ],
-    initialPrice: [
+    initial_price: [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
       { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
     ],
-    addMethod: [
+    add_method: [
       { required: true, message: '请选择加入方式', trigger: 'change' }
     ],
     status: [
@@ -333,8 +333,8 @@ const suggestStocks = async (query) => {
 const onChangeStock = (stock) => {
   if (stock) {
     // 填充股票代码和名称
-    props.formData.name = stock.name || ''
-    props.formData.initialPrice = stock.initialPrice || 0
+    props.formData.stock_name = stock.name || ''
+    props.formData.initial_price = stock.initialPrice || 0
     // 填充交易所代码（如果接口返回了 exchange_code，优先使用）
     if (stock.exchange_code) {
       props.formData.exchange_code = stock.exchange_code
@@ -352,13 +352,13 @@ const onChangeStock = (stock) => {
       }
       props.formData.exchange_code = exchangeMap[stock.exchange] || stock.exchange
     }
-    props.formData.code = stock.code + '.' + stock.exchange_code || ''
+    props.formData.stock_code = stock.code + '.' + stock.exchange_code || ''
     // 设置 stockSearch 字段，用于表单验证
     props.formData.stockSearch = stock.key || `${stock.exchange_code}_${stock.code}` || ''
 
     // 清除验证错误
     nextTick(() => {
-      formRef.value?.clearValidate(['code', 'name', 'exchange_code', 'stockSearch'])
+      formRef.value?.clearValidate(['stock_code', 'stock_name', 'exchange_code', 'stockSearch'])
     })
   } else {
     // 清空选择时，也清空 stockSearch 字段
@@ -394,20 +394,20 @@ watch(() => props.visible, async (newVal) => {
       props.formData.stockSearch = ''
       const userStore = UserStore()
       const username = userStore?.userInfo?.username || userStore?.userInfo?.name || '当前用户'
-      if (!props.formData.creator) {
-        props.formData.creator = username
+      if (!props.formData.created_by) {
+        props.formData.created_by = username
       }
-      if (!props.formData.addMethod) {
-        props.formData.addMethod = 'manual'
+      if (!props.formData.add_method) {
+        props.formData.add_method = 'manual'
       }
-    } else if (props.formData.code && props.formData.name) {
+    } else if (props.formData.stock_code && props.formData.stock_name) {
       // 编辑模式时，如果有股票信息，设置选中项以便显示
-      const stockKey = `${props.formData.exchange_code || ''}_${props.formData.code}`
+      const stockKey = `${props.formData.exchange_code || ''}_${props.formData.stock_code}`
       selectedStockOption.value = {
-        code: props.formData.code,
-        name: props.formData.name,
+        code: props.formData.stock_code,
+        name: props.formData.stock_name,
         exchange_code: props.formData.exchange_code,
-        label: `${props.formData.name}: ${props.formData.exchange_code || ''}${props.formData.code}`,
+        label: `${props.formData.stock_name}: ${props.formData.exchange_code || ''}${props.formData.stock_code}`,
         key: stockKey
       }
       // 设置 stockSearch 字段，用于表单验证
@@ -436,11 +436,11 @@ const handleSubmit = async () => {
     const submitData = { ...props.formData }
 
     // 确保数值类型正确
-    if (submitData.initialPrice !== null && submitData.initialPrice !== undefined) {
-      submitData.initialPrice = Number(submitData.initialPrice)
+    if (submitData.initial_price !== null && submitData.initial_price !== undefined) {
+      submitData.initial_price = Number(submitData.initial_price)
     }
-    if (submitData.priorityLevel !== null && submitData.priorityLevel !== undefined) {
-      submitData.priorityLevel = Number(submitData.priorityLevel)
+    if (submitData.priority_level !== null && submitData.priority_level !== undefined) {
+      submitData.priority_level = Number(submitData.priority_level)
     }
 
     emit('submit', submitData)

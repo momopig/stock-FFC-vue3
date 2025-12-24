@@ -46,6 +46,12 @@ request.interceptors.response.use(
         type: 'error',
       });
     }
+    if (!res?.payload && res?.success === undefined) {
+      return {
+        success: true,
+        payload: res
+      }
+    }
     // 对响应数据做点什么
     return res;
   },

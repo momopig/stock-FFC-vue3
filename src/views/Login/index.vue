@@ -70,13 +70,8 @@ export default defineComponent({
               username: userNo.value,
               password: password.value
             }).then((res: any) => {
-                // 当前格式处理：返回 {access_token, token_type}
-                // 统一格式处理（注释）：如果返回 {success, payload: {data: {access_token, token_type}}, ...}
-                // const token = res?.success ? res?.payload?.data?.access_token : res?.access_token || res?.accessToken
-                const token = res?.access_token || res?.accessToken
-
-                if (token) {
-                    setToken(token)
+              if (res?.success) {
+                    setToken(res?.payload?.access_token)
                     setTimeout(() => {
                         const urlParams = new URLSearchParams(window.location.search)
                         const next = urlParams.get('next')

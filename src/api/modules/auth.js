@@ -21,18 +21,8 @@ export const login = async (body) => {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
   })
-  // 当前格式处理：返回 {access_token, token_type}
-  // 统一格式处理（注释）：如果返回 {success, payload: {data: {access_token, token_type}}, ...}
-  // const token = res?.success ? res?.payload?.data?.access_token : res?.data?.access_token
-  const token = res?.access_token
 
-  return {
-    ...res,
-    // 为了兼容性，同时提供 access_token 和 accessToken
-    access_token: token,
-    accessToken: token,
-    token_type: res?.token_type || 'bearer'
-  }
+  return res
 }
 
 /**
@@ -42,15 +32,5 @@ export const login = async (body) => {
 export const getCurrentUser = async () => {
   const res = await request.get(`/stock-api/api/auth/me`)
 
-  // 当前格式处理：直接返回用户对象 response.data
-  // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-  // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res
-
-  return {
-    ...res,
-    data: userInfo,
-    // 为了兼容性，同时提供 result
-    result: userInfo
-  }
+  return res
 }

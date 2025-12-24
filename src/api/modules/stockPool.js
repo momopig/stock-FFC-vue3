@@ -214,7 +214,7 @@ export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
   // 构建查询参数
   const queryParams = {
     ...params,
-    interval: params.interval ?? 3, // 默认推送间隔 3 秒
+    interval: params.interval ?? 5, // 默认推送间隔 3 秒
     once_if_closed: params.once_if_closed ?? false
   }
 
@@ -247,22 +247,6 @@ export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
 }
 
 /**
- * Mock获取股票详情
- */
-const mockGetStockDetail = async (id) => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 200))
-
-  const stock = generateMockStock(id - 1)
-  stock.id = id
-
-  return {
-    success: true,
-    result: stock
-  }
-}
-
-/**
  * 根据ID获取关注股票详情
  * @param {number} stock_id - 股票ID
  * @returns {Promise}
@@ -273,62 +257,6 @@ export const getStockDetail = async (stock_id) => {
   }
   const res = await request.get(`/stock-api/api/stock-watchlist/${stock_id}`)
   return res
-}
-
-/**
- * Mock添加股票到池中
- */
-const mockAddStock = async (data) => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  const now = new Date()
-  const basePrice = data.initialPrice || 10
-  const currentPrice = data.currentPrice || basePrice
-  const changeRate = data.currentPrice && data.initialPrice
-    ? ((data.currentPrice - data.initialPrice) / data.initialPrice) * 100
-    : 0
-
-  // 生成完整的股票数据，包含所有必要字段
-  const stockData = {
-    ...data,
-    id: Math.floor(Math.random() * 10000),
-    // 核心行情数据（使用RiceQuant字段）
-    order_book_id: (data.code || '000001') + (data.exchange === 'SSE' ? '.SH' : '.SZ'),
-    symbol: data.name || '股票',
-    datetime: now.toISOString(),
-    open: currentPrice,
-    high: currentPrice * 1.02,
-    low: currentPrice * 0.98,
-    close: currentPrice,
-    volume: 0,
-    total_turnover: 0,
-    pct_change: changeRate,
-    change: currentPrice - basePrice,
-    prev_close: basePrice,
-    bid1: currentPrice * 0.999,
-    ask1: currentPrice * 1.001,
-    open_interest: null,
-    // 合约基础信息
-    exchange: data.exchange || 'SZSE',
-    tick_size: 0.01,
-    contract_multiplier: 100,
-    maturity_date: null,
-    instrument_type: 'stock',
-    // 股票池管理字段
-    code: data.code || '000001',
-    currentPrice: currentPrice,
-    changePercent: changeRate,
-    addTime: now.toISOString(),
-    daysAdded: 0,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString()
-  }
-
-  return {
-    success: true,
-    result: stockData
-  }
 }
 
 /**
@@ -345,22 +273,6 @@ export const addStock = async (data) => {
   return res
 }
 
-/**
- * Mock更新股票信息
- */
-const mockUpdateStock = async (id, data) => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  return {
-    success: true,
-    result: {
-      ...data,
-      id,
-      updatedAt: new Date().toISOString()
-    }
-  }
-}
 
 /**
  * 根据ID更新关注股票
@@ -376,18 +288,6 @@ export const updateStock = async (stock_id, data) => {
   return res
 }
 
-/**
- * Mock从池中删除股票
- */
-const mockDeleteStock = async (id) => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 300))
-
-  return {
-    success: true,
-    result: { id }
-  }
-}
 
 /**
  * 根据ID删除关注股票
@@ -414,44 +314,6 @@ export const updateStockStatus = async (stock_id, status) => {
 }
 
 /**
- * Mock获取买入信号洞察数据
- */
-const mockGetBuySignals = async (params = {}) => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 200))
-
-  // 生成所有mock数据来计算统计
-  const allStocks = Array.from({ length: 50 }, (_, i) => generateMockStock(i))
-
-  let upCount = 0
-  let downCount = 0
-  let totalDays = 0
-  let validDaysCount = 0
-
-  allStocks.forEach(stock => {
-    if (stock.changePercent > 0) {
-      upCount++
-    } else if (stock.changePercent < 0) {
-      downCount++
-    }
-    if (stock.daysAdded !== null && stock.daysAdded !== undefined) {
-      totalDays += stock.daysAdded
-      validDaysCount++
-    }
-  })
-
-  return {
-    success: true,
-    result: {
-      totalCount: allStocks.length,
-      upCount,
-      downCount,
-      avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0
-    }
-  }
-}
-
-/**
  * 获取买入信号洞察数据
  * @param {Object} params - 查询参数（可选）
  * @returns {Promise}
@@ -473,7 +335,7 @@ export const getBuySignals = async (params = {}) => {
  */
 export const getStock = async (search, onlyA = false) => {
   const result = await request.get(`/nest-api/stock?search=${search}`)
-  let data = result
+  let data = result?.payload
   // 根据接口返回格式处理数据
   if (data?.Result?.stock) {
     data.Result.stock = data?.Result?.stock?.filter((stock) => {

@@ -93,16 +93,8 @@ async function initializeApplication() {
       // 2. 初始化权限系统
       const { initPermissions } = usePermissions();
       initPermissions();
-      // exchangeRateApi.getRates();
 
-      // 检查初始化结果
-      // 当前格式处理：直接返回用户对象
-      // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-      // const userInfo = userInfoResult?.success ? userInfoResult?.payload?.data : userInfoResult?.result || userInfoResult?.data
-      const userInfo = userInfoResult?.result || userInfoResult?.data
-      const hasUserInfo = userInfo && userInfo.id
-
-      if (hasUserInfo) {
+      if (userInfoResult?.success && userInfoResult?.payload?.data?.id) {
         console.log('权限守卫：全局应用初始化成功');
         isGlobalInitialized = true;
         globalInitState.isInitialized = true;
