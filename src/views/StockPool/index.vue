@@ -194,7 +194,13 @@
             {{ formatTurnover(row.quote?.turnover) }}
           </span>
           <span v-else-if="item.key === 'turnover_rate'">
-            {{ formatChangePercent(row.quote?.turnover_rate) }}
+            {{ formatChangePercent(row.quote?.turnover_rate, false) }}
+          </span>
+          <span v-else-if="item.key === 'volume_ratio'">
+            {{ formatChangePercent(row.quote?.volume_ratio, false) }}
+          </span>
+          <span v-else-if="item.key === 'circular_market_val_yi'">
+            {{ formatmarket_value(row.quote?.circular_market_val_yi) }}
           </span>
           <!-- <span v-else-if="item.key === 'quoteTime'">
             {{ row.quote?.time || '--' }}
@@ -386,6 +392,20 @@ const columns = reactive([
     label: '当日换手率',
     prop: 'turnover_rate',
     width: 120,
+    sortable: true
+  },
+  {
+    key: 'volume_ratio',
+    label: '量比',
+    prop: 'volume_ratio',
+    width: 120,
+    sortable: true
+  },
+  {
+    key: 'circular_market_val_yi',
+    label: '流通市值(亿)',
+    prop: 'circular_market_val_yi',
+    width: 130,
     sortable: true
   },
   // {
@@ -761,6 +781,8 @@ const FIELD_TYPE_MAP = {
   last_price: { type: 'number', source: 'quote' },
   change_rate: { type: 'number', source: 'quote' },
   turnover_rate: { type: 'number', source: 'quote' },
+  volume_ratio: { type: 'number', source: 'quote' },
+  circular_market_val_yi: { type: 'number', source: 'quote' },
   // 数值类型字段（从 row 直接获取）
   initial_price: { type: 'number', source: 'row' },
   priority_level: { type: 'number', source: 'row' },
@@ -985,9 +1007,9 @@ const submitStock = async (formData) => {
 }
 
 // 格式化涨幅
-const formatChangePercent = (value) => {
+const formatChangePercent = (value, showSign = true) => {
   if (value === null || value === undefined) return '--'
-  const sign = value >= 0 ? '+' : ''
+  const sign = showSign && value >= 0 ? '+' : ''
   let percentValue = value
   // 否则直接使用原值（已经是百分比格式）
   return `${sign}${percentValue.toFixed(2)}%`
