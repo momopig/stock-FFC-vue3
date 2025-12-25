@@ -191,16 +191,16 @@
             {{ formatVolume(row.quote?.volume) }}
           </span>
           <span v-else-if="item.key === 'turnover'">
-            {{ formatTurnover(row.quote?.turnover) }}
+            {{ formatVolume(row.quote?.turnover) }}
           </span>
           <span v-else-if="item.key === 'turnover_rate'">
             {{ formatChangePercent(row.quote?.turnover_rate, false) }}
           </span>
           <span v-else-if="item.key === 'volume_ratio'">
-            {{ formatChangePercent(row.quote?.volume_ratio, false) }}
+            {{ formatVolume(row.quote?.volume_ratio, false) }}
           </span>
           <span v-else-if="item.key === 'circular_market_val_yi'">
-            {{ formatmarket_value(row.quote?.circular_market_val_yi) }}
+            {{ row.quote?.circular_market_val_yi || formatVolume(row.quote?.circular_market_val) }}
           </span>
           <!-- <span v-else-if="item.key === 'quoteTime'">
             {{ row.quote?.time || '--' }}
@@ -398,7 +398,7 @@ const columns = reactive([
     key: 'volume_ratio',
     label: '量比',
     prop: 'volume_ratio',
-    width: 120,
+    width: 100,
     sortable: true
   },
   {
@@ -783,6 +783,7 @@ const FIELD_TYPE_MAP = {
   turnover_rate: { type: 'number', source: 'quote' },
   volume_ratio: { type: 'number', source: 'quote' },
   circular_market_val_yi: { type: 'number', source: 'quote' },
+  circular_market_val: { type: 'number', source: 'quote' },
   // 数值类型字段（从 row 直接获取）
   initial_price: { type: 'number', source: 'row' },
   priority_level: { type: 'number', source: 'row' },
