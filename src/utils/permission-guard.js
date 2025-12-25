@@ -94,7 +94,7 @@ async function initializeApplication() {
       const { initPermissions } = usePermissions();
       initPermissions();
 
-      if (userInfoResult?.success && userInfoResult?.payload?.data?.id) {
+      if (userInfoResult?.success && userInfoResult?.payload?.id) {
         console.log('权限守卫：全局应用初始化成功');
         isGlobalInitialized = true;
         globalInitState.isInitialized = true;

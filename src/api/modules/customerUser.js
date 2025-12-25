@@ -142,10 +142,7 @@ export const getCurrentUserInfo = async () => {
   const { getCurrentUser } = await import('./auth')
   const res = await getCurrentUser()
 
-  // 当前格式处理：直接返回用户对象 response.data
-  // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
-  // const userInfo = res?.success ? res?.payload?.data : res?.data
-  const userInfo = res?.payload?.data
+  const userInfo = res?.payload
 
   if (res?.success && userInfo) {
     const userStore = getUserStore();
