@@ -11,7 +11,7 @@
       ref="formRef"
       :model="formData"
       :rules="formRules"
-      label-width="120px"
+      label-width="80px"
       v-loading="loading"
     >
       <!-- 非查看模式下显示股票搜索 -->
@@ -457,6 +457,10 @@ const handleSubmit = async () => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin: 0 24px 14px 0;
+}
+.el-form {
+  padding: 24px 24px 0 24px;
 }
 </style>
 

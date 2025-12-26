@@ -1,34 +1,79 @@
 <template>
   <div class="stock-pool-container">
-    <!-- 买入信号洞察区域 -->
+    <!-- 洞察数据区域 -->
     <div class="insights-section">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-card class="insight-card">
+      <el-row :gutter="16">
+        <!-- 自选以来 - 三角形布局 -->
+        <el-col :span="9">
+          <el-card class="insight-card triangle-card">
+            <div class="triangle-content">
+              <div class="triangle-title">📈 自选以来</div>
+              <div class="triangle-layout">
+                <div class="triangle-top">
+                  <span class="label">AVG</span>
+                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfAvgChange) }">
+                    {{ formatChangePercent(insightsData.selfAvgChange) }}
+                  </span>
+                </div>
+                <div class="triangle-bottom">
+                  <div class="triangle-left">
+                    <span class="label">High</span>
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMaxChange) }">
+                      {{ formatChangePercent(insightsData.selfMaxChange) }}
+                    </span>
+                  </div>
+                  <div class="triangle-right">
+                    <span class="label">Low</span>
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMinChange) }">
+                      {{ formatChangePercent(insightsData.selfMinChange) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <!-- 当日 - 三角形布局 -->
+        <el-col :span="9">
+          <el-card class="insight-card triangle-card">
+            <div class="triangle-content">
+              <div class="triangle-title">📊 当日行情</div>
+              <div class="triangle-layout">
+                <div class="triangle-top">
+                  <span class="label">AVG</span>
+                  <span class="value" :style="{ color: getQuoteColor(insightsData.todayAvgChange) }">
+                    {{ formatChangePercent(insightsData.todayAvgChange) }}
+                  </span>
+                </div>
+                <div class="triangle-bottom">
+                  <div class="triangle-left">
+                    <span class="label">High</span>
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMaxChange) }">
+                      {{ formatChangePercent(insightsData.todayMaxChange) }}
+                    </span>
+                  </div>
+                  <div class="triangle-right">
+                    <span class="label">Low</span>
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMinChange) }">
+                      {{ formatChangePercent(insightsData.todayMinChange) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <!-- 基础统计 -->
+        <el-col :span="3">
+          <el-card class="insight-card basic-card">
             <div class="insight-content">
               <div class="insight-label">股票池总数</div>
               <div class="insight-value">{{ insightsData.totalCount || 0 }}</div>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="insight-card">
-            <div class="insight-content">
-              <div class="insight-label">活跃股票</div>
-              <div class="insight-value" style="color: #409eff">{{ insightsData.activeCount || 0 }}</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="insight-card">
-            <div class="insight-content">
-              <div class="insight-label">失效股票</div>
-              <div class="insight-value" style="color: #909399">{{ insightsData.inactiveCount || 0 }}</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="insight-card">
+        <el-col :span="3">
+          <el-card class="insight-card basic-card">
             <div class="insight-content">
               <div class="insight-label">平均加入天数</div>
               <div class="insight-value">{{ insightsData.avgDays || 0 }} 天</div>
@@ -110,18 +155,22 @@
     <!-- 股票列表表格 -->
     <el-table
       class="stock-table"
-      max-height="calc(100vh - 380px)"
+      max-height="calc(100vh - 475px)"
       :data="stockList"
       v-loading="tableLoading"
       element-loading-text="加载股票数据中..."
-      @sort-change="handleSortChange"
+      :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
     >
       <el-table-column
         v-for="item in columns"
         :key="item.key"
         :prop="item.prop"
         :label="item.label"
-        :sortable="!!item.sortable"
+        :sortable="item.sortable"
+        :sort-method="item.sortable ? (a, b) => sortNumber(a[item.prop], b[item.prop]) : undefined"
+        :filters="item.key === 'add_reason' ? addReasonFilters : item.filters"
+        :filter-method="item.filterMethod"
+        :column-key="item.columnKey"
         :width="item.width"
         :min-width="item.minWidth"
       >
@@ -167,13 +216,13 @@
             {{ formatPrice(row.initial_price) }}
           </span>
           <span v-else-if="item.key === 'last_price'">
-            <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
-              {{ formatPrice(row.quote?.last_price) }}
+            <span :style="{ color: getQuoteColor(row.change_rate) }">
+              {{ formatPrice(row.last_price) }}
             </span>
           </span>
           <span v-else-if="item.key === 'change_rate'">
-            <span :style="{ color: getQuoteColor(row.quote?.change_rate) }">
-              {{ formatChangePercent(row.quote?.change_rate) }}
+            <span :style="{ color: getQuoteColor(row.change_rate) }">
+              {{ formatChangePercent(row.change_rate) }}
             </span>
           </span>
           <span v-else-if="item.key === 'selfChangeRate'">
@@ -182,25 +231,25 @@
             </span>
           </span>
           <span v-else-if="item.key === 'high_price'">
-            {{ formatPrice(row.quote?.high_price) }}
+            {{ formatPrice(row.high_price) }}
           </span>
           <span v-else-if="item.key === 'low_price'">
-            {{ formatPrice(row.quote?.low_price) }}
+            {{ formatPrice(row.low_price) }}
           </span>
           <span v-else-if="item.key === 'volume'">
-            {{ formatVolume(row.quote?.volume) }}
+            {{ formatVolume(row.volume) }}
           </span>
           <span v-else-if="item.key === 'turnover'">
-            {{ formatVolume(row.quote?.turnover) }}
+            {{ formatVolume(row.turnover) }}
           </span>
           <span v-else-if="item.key === 'turnover_rate'">
-            {{ formatChangePercent(row.quote?.turnover_rate, false) }}
+            {{ formatChangePercent(row.turnover_rate, false) }}
           </span>
           <span v-else-if="item.key === 'volume_ratio'">
-            {{ formatVolume(row.quote?.volume_ratio, false) }}
+            {{ row.volume_ratio?.toFixed(2) ?? '--' }}
           </span>
           <span v-else-if="item.key === 'circular_market_val_yi'">
-            {{ row.quote?.circular_market_val_yi || formatVolume(row.quote?.circular_market_val) }}
+            {{ row.circular_market_val_yi ?? '--' }}
           </span>
           <!-- <span v-else-if="item.key === 'quoteTime'">
             {{ row.quote?.time || '--' }}
@@ -274,7 +323,6 @@ import {
   addStock,
   updateStock,
   deleteStock,
-  getBuySignals,
   updateStockStatus
 } from '@/api/modules/stockPool'
 import StockDialog from './components/StockDialog.vue'
@@ -290,9 +338,13 @@ const isViewMode = ref(false)
 const isEditMode = ref(false)
 const insightsData = ref({
   totalCount: 0,
-  activeCount: 0,
-  inactiveCount: 0,
-  avgDays: 0
+  avgDays: 0,
+  selfAvgChange: null,  // 自选平均涨跌幅
+  selfMaxChange: null,  // 自选最大涨跌幅
+  selfMinChange: null,  // 自选最小涨跌幅
+  todayAvgChange: null, // 当日平均涨跌幅
+  todayMaxChange: null, // 当日最大涨跌幅
+  todayMinChange: null  // 当日最小涨跌幅
 })
 
 // 分页参数
@@ -306,14 +358,20 @@ const page = reactive({
 const filterParams = reactive({
   exchange_code: '',
   status: '',
-  add_method: '',
   priority_level: ''
 })
 
-// 排序参数（前端排序）
-const sortParams = reactive({
-  prop: null,
-  order: null // 'ascending' 或 'descending'
+// 动态生成加入原因的筛选项
+const addReasonFilters = computed(() => {
+  const reasons = new Set()
+  stockList.value.forEach(stock => {
+    if (stock.add_reason && stock.add_reason.trim()) {
+      reasons.add(stock.add_reason.trim())
+    }
+  })
+  return Array.from(reasons)
+    .sort()
+    .map(reason => ({ text: reason, value: reason }))
 })
 
 // 表格列配置
@@ -425,7 +483,15 @@ const columns = reactive([
     key: 'add_method',
     label: '加入方式',
     prop: 'add_method',
-    width: 110
+    width: 110,
+    columnKey: 'add_method',
+    filters: [
+      { text: '手动加入', value: 'manual' },
+      { text: '策略加入', value: 'strategy' },
+      { text: '导入', value: 'import' },
+      { text: '其他', value: 'other' }
+    ],
+    filterMethod: (value, row) => row.add_method === value
   },
   {
     key: 'add_time',
@@ -445,7 +511,9 @@ const columns = reactive([
     key: 'add_reason',
     label: '加入原因',
     prop: 'add_reason',
-    minWidth: 150
+    minWidth: 150,
+    columnKey: 'add_reason',
+    filterMethod: (value, row) => row.add_reason === value
   },
   {
     key: 'notes',
@@ -517,7 +585,7 @@ const handleCodeClick = (row) => {
   window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
 }
 
-// 获取股票列表（直接使用 WebSocket 获取全部数据）
+// 获取股票列表
 const getStockList = async () => {
   // 如果已有 WebSocket 连接，先关闭
   if (wsManager) {
@@ -531,7 +599,6 @@ const getStockList = async () => {
     page: page.pageNo,
     page_size: page.pageSize,
     ...filterParams
-    // 移除排序参数，改为前端排序
   }
 
   // 处理搜索关键词：根据输入判断是股票代码还是名称
@@ -555,59 +622,15 @@ const getStockList = async () => {
   })
 
   try {
-    // 首次调用 HTTP 接口获取完整数据
     const response = await getStockPoolList(params)
     if (response?.success) {
-      stockList.value = (response.payload?.items || []).map(stock => {
-        // 字段映射：后端字段 -> 前端显示字段
-        const mappedStock = {
-          id: stock.id,
-          stock_code: stock.stock_code || '',
-          stock_name: stock.stock_name || '',
-          exchange_code: stock.exchange_code || '',
-          add_method: stock.add_method || '',
-          add_time: stock.add_time || '',
-          initial_price: stock.initial_price ? Number(stock.initial_price) : null,
-          add_reason: stock.add_reason || '',
-          created_by: stock.created_by || '',
-          status: stock.status || 'active',
-          priority_level: stock.priority_level || null,
-          notes: stock.notes || '',
-          updated_time: stock.updated_time || '',
-          statusLoading: false, // 状态切换加载状态
-          quote: stock?.quote,
-          selfChangeRate: null
-        }
-
-        // 计算加入天数
-        if (mappedStock.add_time) {
-          const days = moment().diff(moment(mappedStock.add_time), 'days')
-          mappedStock.days_added = days
-        }
-
-        // 计算自选涨跌幅
-        if (mappedStock.initial_price && mappedStock.quote?.last_price !== null && mappedStock.quote?.last_price !== undefined) {
-          const lastPrice = Number(mappedStock.quote.last_price)
-          const initialPrice = Number(mappedStock.initial_price)
-          if (initialPrice > 0) {
-            mappedStock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
-          }
-        }
-
-        return mappedStock
-      })
+      // 使用统一的数据扁平化函数处理
+      stockList.value = (response.payload?.items || []).map(flattenStockData)
       page.total = response.payload?.total || 0
-
-      // 前端排序：如果有排序参数，对当前页数据进行排序
-      if (sortParams.prop && sortParams.order) {
-        sortCurrentPageData()
-      }
-
-      // 更新洞察数据
       calculateInsightsFromList()
       tableLoading.value = false
 
-      // HTTP 接口调用成功后，建立 WebSocket 连接用于实时更新行情数据
+      // 可选：建立 WebSocket 连接用于实时更新行情数据
       // connectWebSocketForQuotes(params)
     } else {
       ElMessage.error(response?.message || '获取股票列表失败')
@@ -623,114 +646,108 @@ const getStockList = async () => {
   // connectWebSocketForQuotes(params)
 }
 
-// 建立 WebSocket 连接用于获取和更新股票数据
+/**
+ * 将股票数据扁平化处理（统一 HTTP 和 WebSocket 的数据格式）
+ * @param {Object} stock - 原始股票数据
+ * @returns {Object} - 扁平化后的股票数据
+ */
+const flattenStockData = (stock) => {
+  const quote = stock?.quote || {}
+  const initialPrice = stock.initial_price ? Number(stock.initial_price) : null
+  const lastPrice = quote.last_price != null ? Number(quote.last_price) : null
+
+  const mappedStock = {
+    id: stock.id,
+    stock_code: stock.stock_code || '',
+    stock_name: stock.stock_name || '',
+    exchange_code: stock.exchange_code || '',
+    add_method: stock.add_method || '',
+    add_time: stock.add_time || '',
+    initial_price: initialPrice,
+    add_reason: stock.add_reason || '',
+    created_by: stock.created_by || '',
+    status: stock.status || 'active',
+    priority_level: stock.priority_level || null,
+    notes: stock.notes || '',
+    updated_time: stock.updated_time || '',
+    statusLoading: false,
+    // 扁平化 quote 字段
+    last_price: lastPrice,
+    change_rate: quote.change_rate != null ? Number(quote.change_rate) : null,
+    high_price: quote.high_price != null ? Number(quote.high_price) : null,
+    low_price: quote.low_price != null ? Number(quote.low_price) : null,
+    volume: quote.volume != null ? Number(quote.volume) : null,
+    turnover: quote.turnover != null ? Number(quote.turnover) : null,
+    turnover_rate: quote.turnover_rate != null ? Number(quote.turnover_rate) : null,
+    volume_ratio: quote.volume_ratio != null ? Number(quote.volume_ratio) : null,
+    circular_market_val_yi: quote.circular_market_val_yi || null,
+    // 计算自选涨跌幅
+    selfChangeRate: (initialPrice && lastPrice && initialPrice > 0)
+      ? ((lastPrice - initialPrice) / initialPrice) * 100
+      : null
+  }
+
+  // 计算加入天数
+  if (mappedStock.add_time) {
+    mappedStock.days_added = moment().diff(moment(mappedStock.add_time), 'days')
+  }
+
+  return mappedStock
+}
+
+/**
+ * 建立 WebSocket 连接用于实时更新股票行情数据
+ * @param {Object} params - 查询参数
+ */
 const connectWebSocketForQuotes = (params) => {
-  // 创建 WebSocket 连接
   wsManager = getStockPoolListWithQuotes(params, {
     onMessage: (response) => {
-      // 兼容两种数据格式：response.items 或 response.payload.items
       const items = response?.items || response?.payload?.items
       const total = response?.total || response?.payload?.total || 0
 
-      if (items && Array.isArray(items)) {
-        if (response.type === 'init') {
-          // 首次消息：初始化整个列表（包含所有字段）
-          stockList.value = items.map(stock => {
-            // 直接使用后端字段，不做映射
-            const stockData = {
-              ...stock,
-              statusLoading: false, // 状态切换加载状态
-              // 自选涨跌幅（根据初始价格和最新价格计算）
-              selfChangeRate: null
-            }
+      if (!items?.length) return
 
-            // 计算加入天数
-            if (stockData.add_time) {
-              const days = moment().diff(moment(stockData.add_time), 'days')
-              stockData.days_added = days
-            }
+      if (response.type === 'init') {
+        // 首次消息：初始化整个列表
+        stockList.value = items.map(flattenStockData)
+        page.total = total
+        tableLoading.value = false
+        calculateInsightsFromList()
+      } else {
+        // 后续消息：增量更新行情数据
+        const stockMap = new Map(items.map(s => [s.id, s]))
 
-            // 计算自选涨跌幅
-            if (stockData.initial_price && stockData.quote?.last_price !== null && stockData.quote?.last_price !== undefined) {
-              const lastPrice = Number(stockData.quote.last_price)
-              const initialPrice = Number(stockData.initial_price)
-              if (initialPrice > 0) {
-                stockData.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
-              }
-            }
+        stockList.value.forEach(stock => {
+          const updated = stockMap.get(stock.id)
+          if (!updated) return
 
-            return stockData
-          })
-          page.total = total
-          tableLoading.value = false
+          const quote = updated.quote || {}
+          // 更新扁平化的行情字段
+          stock.last_price = quote.last_price != null ? Number(quote.last_price) : stock.last_price
+          stock.change_rate = quote.change_rate != null ? Number(quote.change_rate) : stock.change_rate
+          stock.turnover_rate = quote.turnover_rate != null ? Number(quote.turnover_rate) : stock.turnover_rate
+          stock.volume_ratio = quote.volume_ratio != null ? Number(quote.volume_ratio) : stock.volume_ratio
 
-          // 前端排序：如果有排序参数，对当前页数据进行排序
-          if (sortParams.prop && sortParams.order) {
-            sortCurrentPageData()
+          // 更新状态（如有变化）
+          if (updated.status !== undefined) {
+            stock.status = updated.status
           }
 
-          // 更新洞察数据
-          calculateInsightsFromList()
-        } else {
-          // 后续消息：只更新行情数据和自选涨跌幅
-          // 创建一个以股票ID为key的映射，便于快速查找
-          const stockMap = new Map()
-          items.forEach(stock => {
-            if (stock.id) {
-              stockMap.set(stock.id, stock)
-            }
-          })
-
-          // 更新现有股票的行情数据，并计算自选涨跌幅
-          stockList.value.forEach(stock => {
-            if (stockMap.has(stock.id)) {
-              const updatedStock = stockMap.get(stock.id)
-              // 更新行情数据
-              if (updatedStock.quote) {
-                stock.quote = updatedStock.quote
-              }
-              // 更新其他可能变化的字段（如果有）
-              if (updatedStock.status !== undefined) {
-                stock.status = updatedStock.status
-              }
-
-              // 重新计算自选涨跌幅
-              if (stock.initial_price && stock.quote?.last_price !== null && stock.quote?.last_price !== undefined) {
-                const lastPrice = Number(stock.quote.last_price)
-                const initialPrice = Number(stock.initial_price)
-                if (initialPrice > 0) {
-                  stock.selfChangeRate = ((lastPrice - initialPrice) / initialPrice) * 100
-                } else {
-                  stock.selfChangeRate = null
-                }
-              } else {
-                stock.selfChangeRate = null
-              }
-
-              // 更新加入天数
-              if (stock.add_time) {
-                const days = moment().diff(moment(stock.add_time), 'days')
-                stock.days_added = days
-              }
-            }
-          })
-
-          // WebSocket 更新后，如果当前有排序，重新排序
-          if (sortParams.prop && sortParams.order) {
-            sortCurrentPageData()
+          // 重新计算自选涨跌幅
+          if (stock.initial_price && stock.last_price && stock.initial_price > 0) {
+            stock.selfChangeRate = ((stock.last_price - stock.initial_price) / stock.initial_price) * 100
           }
-        }
+        })
+
+        // 更新洞察数据
+        calculateInsightsFromList()
       }
     },
-    onOpen: () => {
-      console.log('WebSocket 连接已建立，开始接收股票数据')
-    },
-    onClose: () => {
-      console.log('WebSocket 连接已关闭')
-    },
+    onOpen: () => console.log('WebSocket 连接已建立'),
+    onClose: () => console.log('WebSocket 连接已关闭'),
     onError: (error) => {
       console.error('WebSocket 连接错误:', error)
-      ElMessage.error('获取股票列表失败，请稍后重试')
+      ElMessage.error('实时行情连接失败')
       tableLoading.value = false
     }
   })
@@ -738,143 +755,73 @@ const connectWebSocketForQuotes = (params) => {
 
 // 从列表数据计算洞察数据
 const calculateInsightsFromList = () => {
-  // 如果列表为空，使用总数统计
-  if (stockList.value.length === 0 && page.total === 0) {
+  if (stockList.value.length === 0) {
     insightsData.value = {
-      totalCount: 0,
-      activeCount: 0,
-      inactiveCount: 0,
-      avgDays: 0
+      totalCount: page.total,
+      avgDays: 0,
+      selfAvgChange: null,
+      selfMaxChange: null,
+      selfMinChange: null,
+      todayAvgChange: null,
+      todayMaxChange: null,
+      todayMinChange: null
     }
     return
   }
 
-  let activeCount = 0
-  let inactiveCount = 0
   let totalDays = 0
   let validDaysCount = 0
+  const selfChanges = []  // 自选涨跌幅数组
+  const todayChanges = [] // 当日涨跌幅数组
 
   stockList.value.forEach(stock => {
-    if (stock.status === 'active') {
-      activeCount++
-    } else if (stock.status === 'inactive') {
-      inactiveCount++
-    }
-    if (stock.days_added !== null && stock.days_added !== undefined) {
+    // 统计加入天数
+    if (stock.days_added != null) {
       totalDays += stock.days_added
       validDaysCount++
     }
+    // 收集自选涨跌幅
+    if (stock.selfChangeRate != null) {
+      selfChanges.push(stock.selfChangeRate)
+    }
+    // 收集当日涨跌幅
+    if (stock.change_rate != null) {
+      todayChanges.push(stock.change_rate)
+    }
   })
 
-  // 使用总数而不是当前页数量
+  // 计算统计数据
+  const calcStats = (arr) => {
+    if (arr.length === 0) return { avg: null, max: null, min: null }
+    const sum = arr.reduce((a, b) => a + b, 0)
+    return {
+      avg: sum / arr.length,
+      max: Math.max(...arr),
+      min: Math.min(...arr)
+    }
+  }
+
+  const selfStats = calcStats(selfChanges)
+  const todayStats = calcStats(todayChanges)
+
   insightsData.value = {
     totalCount: page.total,
-    activeCount,
-    inactiveCount,
-    avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0
+    avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0,
+    selfAvgChange: selfStats.avg,
+    selfMaxChange: selfStats.max,
+    selfMinChange: selfStats.min,
+    todayAvgChange: todayStats.avg,
+    todayMaxChange: todayStats.max,
+    todayMinChange: todayStats.min
   }
 }
 
-// 字段类型映射：快速查找字段类型，避免多次 includes 检查
-const FIELD_TYPE_MAP = {
-  // 数值类型字段（从 quote 对象获取）
-  last_price: { type: 'number', source: 'quote' },
-  change_rate: { type: 'number', source: 'quote' },
-  turnover_rate: { type: 'number', source: 'quote' },
-  volume_ratio: { type: 'number', source: 'quote' },
-  circular_market_val_yi: { type: 'number', source: 'quote' },
-  circular_market_val: { type: 'number', source: 'quote' },
-  // 数值类型字段（从 row 直接获取）
-  initial_price: { type: 'number', source: 'row' },
-  priority_level: { type: 'number', source: 'row' },
-  days_added: { type: 'number', source: 'row' },
-  selfChangeRate: { type: 'number', source: 'row' },
-  // 日期类型字段
-  add_time: { type: 'date', source: 'row' }
-}
-
-// 获取字段值用于排序（优化版本：使用映射快速查找，减少重复检查）
-const getSortValue = (row, prop) => {
-  const fieldConfig = FIELD_TYPE_MAP[prop]
-
-  // 获取原始值
-  let value
-  if (fieldConfig?.source === 'quote') {
-    value = row.quote?.[prop]
-  } else {
-    value = row[prop]
-  }
-
-  // null/undefined 处理
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  // 根据字段类型转换
-  if (fieldConfig?.type === 'number') {
-    const num = Number(value)
-    return isNaN(num) ? null : num
-  }
-
-  if (fieldConfig?.type === 'date') {
-    return new Date(value).getTime() || 0
-  }
-
-  // 默认返回原值
-  return value
-}
-
-// 前端排序：对当前页数据进行排序（优化版本：简化比较逻辑）
-const sortCurrentPageData = () => {
-  if (!sortParams.prop || !sortParams.order) {
-    return
-  }
-
-  const prop = sortParams.prop
-  const order = sortParams.order === 'ascending' ? 1 : -1
-  const fieldConfig = FIELD_TYPE_MAP[prop]
-
-  // 创建数组副本进行排序
-  const sortedList = [...stockList.value].sort((a, b) => {
-    const valueA = getSortValue(a, prop)
-    const valueB = getSortValue(b, prop)
-
-    // null 值排在最后
-    if (valueA === null && valueB === null) return 0
-    if (valueA === null) return 1
-    if (valueB === null) return -1
-
-    // 数值类型直接比较（getSortValue 已确保返回数字）
-    if (fieldConfig?.type === 'number') {
-      return (valueA - valueB) * order
-    }
-
-    // 日期类型直接比较（getSortValue 已确保返回时间戳）
-    if (fieldConfig?.type === 'date') {
-      return (valueA - valueB) * order
-    }
-
-    // 字符串类型比较
-    const strA = String(valueA)
-    const strB = String(valueB)
-    return strA.localeCompare(strB, 'zh-CN', { numeric: true }) * order
-  })
-
-  // 更新列表
-  stockList.value = sortedList
-}
-
-// 排序处理（前端排序）
-const handleSortChange = (sort) => {
-  if (sort.prop) {
-    sortParams.prop = sort.prop
-    sortParams.order = sort.order
-  } else {
-    sortParams.prop = null
-    sortParams.order = null
-  }
-  // 对当前页数据进行排序
-  sortCurrentPageData()
+// 数值排序方法：用于表格列排序，null 值排最后
+const sortNumber = (a, b) => {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  return a - b
 }
 
 // 分页处理
@@ -903,8 +850,6 @@ const reset = () => {
   filterParams.status = ''
   filterParams.add_method = ''
   filterParams.priority_level = ''
-  sortParams.prop = null
-  sortParams.order = null
   searchHandler()
 }
 
@@ -1016,40 +961,21 @@ const formatChangePercent = (value, showSign = true) => {
   return `${sign}${percentValue.toFixed(2)}%`
 }
 
-// 获取涨幅颜色
-const getChangeColor = (value) => {
-  if (value === null || value === undefined) return '#606266'
-  return value >= 0 ? '#f56c6c' : '#67c23a'
-}
-
 // 获取行情涨跌幅颜色（涨红跌绿）
 const getQuoteColor = (changeRate) => {
-  if (changeRate === null || changeRate === undefined) return '#606266'
+  if (changeRate == null) return '#606266'
   return changeRate >= 0 ? '#f56c6c' : '#67c23a'
 }
 
 // 格式化价格
 const formatPrice = (value) => {
-  if (value === null || value === undefined) return '--'
+  if (value == null) return '--'
   return Number(value).toFixed(2)
 }
 
-// 格式化市值
-const formatmarket_value = (value) => {
-  if (value === null || value === undefined) return '--'
-  return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-// 格式化涨跌额
-const formatPriceChange = (value) => {
-  if (value === null || value === undefined) return '--'
-  const sign = value >= 0 ? '+' : ''
-  return `${sign}${Number(value).toFixed(2)}`
-}
-
-// 格式化成交量（手）
+// 格式化成交量
 const formatVolume = (value) => {
-  if (value === null || value === undefined) return '--'
+  if (value == null) return '--'
   const volume = Number(value)
   if (volume >= 100000000) {
     return `${(volume / 100000000).toFixed(2)}亿`
@@ -1057,18 +983,6 @@ const formatVolume = (value) => {
     return `${(volume / 10000).toFixed(2)}万`
   }
   return volume.toLocaleString('zh-CN')
-}
-
-// 格式化成交额（元）
-const formatTurnover = (value) => {
-  if (value === null || value === undefined) return '--'
-  const turnover = Number(value)
-  if (turnover >= 100000000) {
-    return `${(turnover / 100000000).toFixed(2)}亿`
-  } else if (turnover >= 10000) {
-    return `${(turnover / 10000).toFixed(2)}万`
-  }
-  return turnover.toLocaleString('zh-CN')
 }
 
 // 获取加入方式标签类型
@@ -1133,29 +1047,93 @@ const handleStatusChange = async (row, newStatus) => {
     margin-bottom: 20px;
 
     .insight-card {
-      cursor: pointer;
       transition: all 0.3s ease;
+      // height: 100%;
 
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       }
 
-      .insight-content {
-        text-align: center;
-        padding: 10px 0;
+      // 基础卡片样式
+      &.basic-card {
+        .insight-content {
+          text-align: center;
+          padding: 10px 0;
 
-        .insight-label {
-          font-size: 14px;
-          color: #909399;
-          margin-bottom: 12px;
+          .insight-label {
+            font-size: 14px;
+            color: #909399;
+            margin-bottom: 12px;
+          }
+
+          .insight-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #303133;
+            line-height: 1.2;
+          }
         }
+      }
 
-        .insight-value {
-          font-size: 28px;
-          font-weight: bold;
-          color: #303133;
-          line-height: 1.2;
+      // 三角形布局卡片
+      &.triangle-card {
+        .triangle-content {
+          // padding: 8px 0;
+
+          .triangle-title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: #606266;
+            margin-bottom: 12px;
+          }
+
+          .triangle-layout {
+            .triangle-top {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              margin-bottom: 8px;
+
+              .label {
+                font-size: 14px;
+                font-weight: 500;
+                color: #909399;
+                margin-bottom: 2px;
+              }
+
+              .value {
+                font-size: 30px;
+                font-weight: bold;
+              }
+            }
+
+            .triangle-bottom {
+              display: flex;
+              justify-content: space-between;
+              padding: 0 20px;
+
+              .triangle-left,
+              .triangle-right {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+
+                .label {
+                  font-size: 14px;
+                  color: #909399;
+                  margin-bottom: 2px;
+                  font-weight: 500;
+                }
+
+                .value {
+                  font-size: 25px;
+                  font-weight: 600;
+                }
+              }
+            }
+          }
         }
       }
     }
