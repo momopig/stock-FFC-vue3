@@ -147,14 +147,14 @@
         </el-col>
       </el-row>
 
-      <el-form-item label="加入方式" prop="add_method">
+      <!-- <el-form-item label="加入方式" prop="add_method">
         <el-radio-group v-model="formData.add_method" :disabled="isViewMode">
           <el-radio label="manual">手动加入</el-radio>
           <el-radio label="strategy">策略加入</el-radio>
           <el-radio label="import">导入</el-radio>
           <el-radio label="other">其他</el-radio>
         </el-radio-group>
-      </el-form-item>
+      </el-form-item> -->
 
       <el-form-item label="加入原因" prop="add_reason">
         <el-input
@@ -278,9 +278,9 @@ const formRules = computed(() => {
       { required: true, message: '请输入初始价格', trigger: 'blur' },
       { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
     ],
-    add_method: [
-      { required: true, message: '请选择加入方式', trigger: 'change' }
-    ],
+    // add_method: [
+    //   { required: true, message: '请选择加入方式', trigger: 'change' }
+    // ],
     status: [
       { required: true, message: '请选择状态', trigger: 'change' }
     ]
@@ -397,9 +397,6 @@ watch(() => props.visible, async (newVal) => {
       if (!props.formData.created_by) {
         props.formData.created_by = username
       }
-      if (!props.formData.add_method) {
-        props.formData.add_method = 'manual'
-      }
     } else if (props.formData.stock_code && props.formData.stock_name) {
       // 编辑模式时，如果有股票信息，设置选中项以便显示
       const stockKey = `${props.formData.exchange_code || ''}_${props.formData.stock_code}`
@@ -433,7 +430,7 @@ const handleSubmit = async () => {
     loading.value = true
 
     // 准备提交数据
-    const submitData = { ...props.formData }
+    const submitData = { ...props.formData, add_method: 'manual' }
 
     // 确保数值类型正确
     if (submitData.initial_price !== null && submitData.initial_price !== undefined) {

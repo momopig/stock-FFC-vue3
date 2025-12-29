@@ -50,6 +50,28 @@ export const menuList = [
     foldName: '股票池',
     icon: 'Box', // 股票
     path: '/stock-pool',
+    children: [
+      {
+        name: '策略股票池',
+        foldName: '策略股票池',
+        path: '/stock-pool/strategy',
+      },
+      {
+        name: '自选股票池',
+        foldName: '自选股票池',
+        path: '/stock-pool/self-selected',
+      },
+      {
+        name: '买入信号股票池',
+        foldName: '买入信号',
+        path: '/stock-pool/buy-signal',
+      },
+      {
+        name: '卖出信号股票池',
+        foldName: '卖出信号',
+        path: '/stock-pool/sell-signal',
+      },
+    ],
   },
   {
     name: '用户管理',
