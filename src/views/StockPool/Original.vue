@@ -933,7 +933,7 @@ const submitStock = async (formData) => {
         status: formData.status || 'active',
         priority_level: formData.priority_level,
         notes: formData.notes,
-        created_by: formData.created_by
+        created_by: formData.created_by,
       }
       result = await addStock(addData)
     }

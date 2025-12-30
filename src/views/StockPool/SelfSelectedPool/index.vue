@@ -330,7 +330,8 @@ const handleEditStock = (id) => {
       created_by: payload.created_by || '',
       status: payload.status || 'active',
       priority_level: payload.priority_level || null,
-      notes: payload.notes || ''
+      notes: payload.notes || '',
+      is_self_selected: true
     }
     stockForm.value = formData
     isViewMode.value = false
@@ -431,7 +432,8 @@ const submitStock = async (formData) => {
         status: formData.status || 'active',
         priority_level: formData.priority_level,
         notes: formData.notes,
-        created_by: formData.created_by
+        created_by: formData.created_by,
+        is_self_selected: true
       }
       result = await addStock(addData)
     }

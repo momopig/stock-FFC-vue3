@@ -278,6 +278,10 @@ const formRules = computed(() => {
       { required: true, message: '请输入初始价格', trigger: 'blur' },
       { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
     ],
+    add_reason: [
+      { required: true, message: '请输入加入原因', trigger: 'blur' },
+      { min: 1, max: 500, message: '加入原因长度在1-500个字符', trigger: 'blur' }
+    ],
     // add_method: [
     //   { required: true, message: '请选择加入方式', trigger: 'change' }
     // ],
