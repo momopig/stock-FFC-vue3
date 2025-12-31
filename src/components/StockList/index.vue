@@ -459,12 +459,12 @@ const columns = reactive([
     columnKey: 'add_reason',
     filterMethod: (value, row) => row.add_reason === value
   },
-  {
-    key: 'status',
-    label: '是否活跃',
-    prop: 'status',
-    width: 100
-  },
+  // {
+  //   key: 'status',
+  //   label: '是否活跃',
+  //   prop: 'status',
+  //   width: 100
+  // },
   {
     key: 'priority_level',
     label: '优先级',

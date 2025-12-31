@@ -527,12 +527,12 @@ const columns = reactive([
     prop: 'created_by',
     width: 100
   },
-  {
-    key: 'status',
-    label: '是否活跃',
-    prop: 'status',
-    width: 100
-  },
+  // {
+  //   key: 'status',
+  //   label: '是否活跃',
+  //   prop: 'status',
+  //   width: 100
+  // },
   {
     key: 'priority_level',
     label: '优先级',

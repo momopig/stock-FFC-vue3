@@ -114,7 +114,7 @@
       </el-row>
 
       <el-row :gutter="20">
-        <el-col :span="12">
+        <!-- <el-col :span="12">
           <el-form-item label="状态" prop="status">
             <el-select
               v-model="formData.status"
@@ -126,7 +126,7 @@
               <el-option label="失效" value="inactive" />
             </el-select>
           </el-form-item>
-        </el-col>
+        </el-col> -->
         <el-col :span="12">
           <el-form-item label="优先级" prop="priority_level">
             <el-select
@@ -409,7 +409,7 @@ watch(() => props.visible, async (newVal) => {
         name: props.formData.stock_name,
         exchange_code: props.formData.exchange_code,
         label: `${props.formData.stock_name}: ${props.formData.exchange_code || ''}${props.formData.stock_code}`,
-        key: stockKey
+        key: stockKey,
       }
       // 设置 stockSearch 字段，用于表单验证
       props.formData.stockSearch = stockKey
