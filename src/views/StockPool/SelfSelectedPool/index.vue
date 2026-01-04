@@ -111,7 +111,8 @@ const getStockList = async () => {
 
   const params = {
     page: page.pageNo,
-    page_size: page.pageSize
+    page_size: page.pageSize,
+    is_self_selected: true
   }
 
   // 移除空值
