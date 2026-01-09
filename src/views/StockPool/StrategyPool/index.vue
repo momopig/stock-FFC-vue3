@@ -167,19 +167,23 @@ const loadStrategies = async () => {
 }
 
 // 策略切换处理
-const handleStrategyChange = () => {
+const handleStrategyChange = (tab) => {
   page.pageNo = 1
-  getStockList()
+  // 使用 tab.name 获取最新的策略名称，因为此时 activeStrategy.value 可能还未更新
+  getStockList(tab?.props?.name)
 }
 
 // 获取股票列表
-const getStockList = async () => {
+const getStockList = async (strategyName = null) => {
   tableLoading.value = true
+
+  // 如果传入了策略名称，使用传入的值；否则使用 activeStrategy.value
+  const currentStrategy = strategyName ?? activeStrategy.value
 
   const params = {
     page: page.pageNo,
     page_size: page.pageSize,
-    strategy_name: activeStrategy.value
+    strategy_name: currentStrategy
   }
 
   // 移除空值
@@ -243,7 +247,9 @@ const flattenStockData = (stock) => {
     // 计算自选涨跌幅
     selfChangeRate: (initialPrice && lastPrice && initialPrice > 0)
       ? ((lastPrice - initialPrice) / initialPrice) * 100
-      : null
+      : null,
+    kline_data: quote.ma_response?.kline_data || null,
+    ma_data: quote.ma_response?.ma_data || null,
   }
 
   // 计算加入天数

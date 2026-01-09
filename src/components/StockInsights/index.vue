@@ -8,22 +8,28 @@
             <div class="triangle-title">📈 自选以来</div>
             <div class="triangle-layout">
               <div class="triangle-top">
-                <span class="label">AVG</span>
-                <span class="value" :style="{ color: getQuoteColor(insightsData.selfAvgChange) }">
-                  {{ formatChangePercent(insightsData.selfAvgChange) }}
+                <span class="value-container">
+                  AVG
+                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfAvgChange) }">
+                    {{ formatChangePercent(insightsData.selfAvgChange) }}
+                  </span>
                 </span>
               </div>
               <div class="triangle-bottom">
                 <div class="triangle-left">
-                  <span class="label">High</span>
-                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfMaxChange) }">
-                    {{ formatChangePercent(insightsData.selfMaxChange) }}
+                  <span class="value-container">
+                    High
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMaxChange) }">
+                      {{ formatChangePercent(insightsData.selfMaxChange) }}
+                    </span>
                   </span>
                 </div>
                 <div class="triangle-right">
-                  <span class="label">Low</span>
-                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfMinChange) }">
-                    {{ formatChangePercent(insightsData.selfMinChange) }}
+                  <span class="value-container">
+                    Low
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMinChange) }">
+                      {{ formatChangePercent(insightsData.selfMinChange) }}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -38,22 +44,28 @@
             <div class="triangle-title">📊 当日行情</div>
             <div class="triangle-layout">
               <div class="triangle-top">
-                <span class="label">AVG</span>
-                <span class="value" :style="{ color: getQuoteColor(insightsData.todayAvgChange) }">
-                  {{ formatChangePercent(insightsData.todayAvgChange) }}
+                <span class="value-container">
+                  AVG
+                  <span class="value" :style="{ color: getQuoteColor(insightsData.todayAvgChange) }">
+                    {{ formatChangePercent(insightsData.todayAvgChange) }}
+                  </span>
                 </span>
               </div>
               <div class="triangle-bottom">
                 <div class="triangle-left">
-                  <span class="label">High</span>
-                  <span class="value" :style="{ color: getQuoteColor(insightsData.todayMaxChange) }">
-                    {{ formatChangePercent(insightsData.todayMaxChange) }}
+                  <span class="value-container">
+                    High
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMaxChange) }">
+                      {{ formatChangePercent(insightsData.todayMaxChange) }}
+                    </span>
                   </span>
                 </div>
                 <div class="triangle-right">
-                  <span class="label">Low</span>
-                  <span class="value" :style="{ color: getQuoteColor(insightsData.todayMinChange) }">
-                    {{ formatChangePercent(insightsData.todayMinChange) }}
+                  <span class="value-container">
+                    Low
+                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMinChange) }">
+                      {{ formatChangePercent(insightsData.todayMinChange) }}
+                    </span>
                   </span>
                 </div>
               </div>

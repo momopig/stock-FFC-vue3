@@ -176,7 +176,9 @@ const flattenStockData = (stock) => {
     // 计算自选涨跌幅
     selfChangeRate: (initialPrice && lastPrice && initialPrice > 0)
       ? ((lastPrice - initialPrice) / initialPrice) * 100
-      : null
+      : null,
+    kline_data: quote.ma_response?.kline_data || null,
+    ma_data: quote.ma_response?.ma_data || null,
   }
 
   // 计算加入天数

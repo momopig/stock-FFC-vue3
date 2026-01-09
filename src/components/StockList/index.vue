@@ -160,6 +160,25 @@
           <span v-else-if="item.key === 'circular_market_val_yi'">
             {{ row.circular_market_val_yi ?? '--' }}
           </span>
+          <span v-else-if="item.key === 'stability_analysis'">
+            <template v-for="(analysis, idx) in getStabilityAnalysis(row)" :key="idx">
+              <el-tag
+                :class="analysis.matched ? 'tag-matched' : 'tag-unmatched'"
+                size="small"
+                style="margin-right: 4px;"
+              >
+                {{ analysis.text }}
+              </el-tag>
+            </template>
+          </span>
+          <span v-else-if="item.key === 'ma_trend'">
+            <el-tag
+              :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'"
+              size="small"
+            >
+              {{ getMaTrend(row).text }}
+            </el-tag>
+          </span>
           <span v-else class="ellipsis" :title="row[item.prop] || '--'">
             {{ row[item.prop] || '--' }}
           </span>
@@ -420,6 +439,18 @@ const columns = reactive([
     sortable: true
   },
   {
+    key: 'stability_analysis',
+    label: '站稳分析',
+    prop: 'stability_analysis',
+    minWidth: 150
+  },
+  {
+    key: 'ma_trend',
+    label: '均线趋势',
+    prop: 'ma_trend',
+    minWidth: 120
+  },
+  {
     key: 'days_added',
     label: '加入天数',
     prop: 'days_added',
@@ -584,6 +615,70 @@ const handleCodeClick = (row) => {
   const numberCode = row.stock_code?.replace(/[^0-9]/g, '') || ''
   window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
 }
+
+// 获取K线数据（最近3天）
+const getKlineData = (row) => {
+  const klineData = row?.kline_data
+  if (!klineData || !Array.isArray(klineData) || klineData.length < 3) {
+    return null
+  }
+  // 取最近3天的数据（数组最后3个元素）
+  return klineData.slice(-3)
+}
+
+// 站稳分析判断
+const getStabilityAnalysis = (row) => {
+  const results = []
+
+  // 1. 判断 M1 > M3
+  const maData = row.ma_data
+  if (maData?.MA1 != null && maData?.MA3 != null) {
+    if (maData.MA1 > maData.MA3) {
+      results.push({ text: 'M1 > M3', matched: true })
+    }
+  }
+
+  // 2. 判断 3日最低价：底分型（中间那一天是最低的）
+  const klineData = getKlineData(row)
+  if (klineData && klineData.length === 3) {
+    const lows = klineData.map(k => k.low).filter(low => low != null)
+    if (lows.length === 3) {
+      // 底分型：low[1] < low[0] && low[1] < low[2]
+      if (lows[1] < lows[0] && lows[1] < lows[2]) {
+        results.push({ text: '3日最低价：底分型', matched: true })
+      }
+      // 上涨型：low[0] < low[1] < low[2]
+      if (lows[0] < lows[1] && lows[1] < lows[2]) {
+        results.push({ text: '3日最低价：上涨型', matched: true })
+      }
+    }
+  }
+
+  // 如果没有任何匹配项，返回"无"
+  if (results.length === 0) {
+    return [{ text: '无', matched: false }]
+  }
+
+  return results
+}
+
+// 均线趋势判断
+const getMaTrend = (row) => {
+  const maData = row.ma_data
+
+  // 判断多头向上：M1 > M3 > M5 > M10 > M20
+  if (maData?.MA1 != null && maData?.MA3 != null && maData?.MA5 != null &&
+      maData?.MA10 != null && maData?.MA20 != null) {
+    if (maData.MA1 > maData.MA3 &&
+        maData.MA3 > maData.MA5 &&
+        maData.MA5 > maData.MA10 &&
+        maData.MA10 > maData.MA20) {
+      return { text: '多头向上', matched: true }
+    }
+  }
+
+  return { text: '无', matched: false }
+}
 </script>
 
 <style scoped lang="less">
@@ -632,6 +727,19 @@ const handleCodeClick = (row) => {
     float: right;
     margin-top: 20px;
   }
+}
+
+// 标签样式：符合的用红色，不符合的用灰色
+:deep(.tag-matched) {
+  background-color: #f56c6c;
+  border-color: #f56c6c;
+  color: #fff;
+}
+
+:deep(.tag-unmatched) {
+  background-color: #e4e7ed;
+  border-color: #e4e7ed;
+  color: #909399;
 }
 
 .ellipsis {
