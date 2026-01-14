@@ -702,7 +702,7 @@ const calculateYesterdayChangeRate = (row) => {
   }
 
   // 昨天的收盘价（倒数第二个）
-  const yesterdayClose = klineData[klineData.length - 2]?.close
+  const yesterdayClose = klineData[klineData.length - 2]?.last_close
   // 今天的收盘价（最后一个）或当前价
   const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
 
@@ -721,7 +721,7 @@ const calculate3DayChangeRate = (row) => {
   }
 
   // 3天前的收盘价（倒数第三个）
-  const threeDaysAgoClose = klineData[klineData.length - 3]?.close
+  const threeDaysAgoClose = klineData[klineData.length - 3]?.last_close
   // 今天的收盘价（最后一个）或当前价
   const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
 
@@ -740,7 +740,7 @@ const calculate20DayChangeRate = (row) => {
   }
 
   // 20天前的收盘价（倒数第20个）
-  const twentyDaysAgoClose = klineData[klineData.length - 20]?.close
+  const twentyDaysAgoClose = klineData[klineData.length - 20]?.last_close
   // 今天的收盘价（最后一个）或当前价
   const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
 
