@@ -127,7 +127,7 @@
             </el-select>
           </el-form-item>
         </el-col> -->
-        <el-col :span="12">
+        <!-- <el-col :span="12">
           <el-form-item label="优先级" prop="priority_level">
             <el-select
               v-model="formData.priority_level"
@@ -144,7 +144,7 @@
               />
             </el-select>
           </el-form-item>
-        </el-col>
+        </el-col> -->
       </el-row>
 
       <!-- <el-form-item label="加入方式" prop="add_method">

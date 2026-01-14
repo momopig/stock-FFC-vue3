@@ -1,269 +1,240 @@
 <template>
-  <div class="stock-list-container">
-    <!-- 搜索和操作区域 -->
-    <div class="search-title">
-      <el-input
-        class="search-input"
-        v-model="localSearchQuery"
-        placeholder="搜索股票代码、名称"
-        clearable
-        @keyup.enter="handleSearch"
-      />
-      <el-select
-        v-model="localFilterParams.exchange_code"
-        placeholder="交易所"
-        clearable
-        style="width: 150px; margin-right: 10px;"
-      >
-        <el-option label="上交所" value="SH" />
-        <el-option label="深交所" value="SZ" />
-        <el-option label="港交所" value="HK" />
-        <el-option label="美股" value="US" />
-      </el-select>
-      <el-select
-        v-model="localFilterParams.status"
-        placeholder="状态"
-        clearable
-        style="width: 150px; margin-right: 10px;"
-      >
-        <el-option label="活跃" value="active" />
-        <el-option label="失效" value="inactive" />
-      </el-select>
-      <el-select
-        v-model="localFilterParams.priority_level"
-        placeholder="优先级"
-        clearable
-        style="width: 150px; margin-right: 10px;"
-      >
-        <el-option
-          v-for="level in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
-          :key="level"
-          :label="`优先级 ${level}`"
-          :value="level"
-        />
-      </el-select>
-      <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
-      <el-button class="search-btn" @click="handleReset">重置</el-button>
-      <el-button
-        v-if="showAddButton"
-        class="add-stock-btn"
-        type="primary"
-        @click="$emit('add-stock')"
-      >
-        添加股票
-      </el-button>
+  <FullscreenContainer v-slot="{ isFullscreen, toggleFullscreen }">
+    <div class="stock-list-container" :class="{ 'is-fullscreen': isFullscreen }">
+      <div class="top-container">
+        <!-- 搜索和操作区域 -->
+        <div class="search-title">
+          <el-input class="search-input" v-model="localSearchQuery" placeholder="搜索股票代码、名称" clearable
+            @keyup.enter="handleSearch" />
+          <el-select v-model="localFilterParams.exchange_code" placeholder="交易所" clearable
+            style="width: 150px; margin-right: 10px;">
+            <el-option label="上交所" value="SH" />
+            <el-option label="深交所" value="SZ" />
+            <el-option label="港交所" value="HK" />
+            <el-option label="美股" value="US" />
+          </el-select>
+          <!-- <el-select
+          v-model="localFilterParams.status"
+          placeholder="状态"
+          clearable
+          style="width: 150px; margin-right: 10px;"
+        >
+          <el-option label="活跃" value="active" />
+          <el-option label="失效" value="inactive" />
+        </el-select> -->
+          <!-- <el-select
+          v-model="localFilterParams.priority_level"
+          placeholder="优先级"
+          clearable
+          style="width: 150px; margin-right: 10px;"
+        >
+          <el-option
+            v-for="level in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+            :key="level"
+            :label="`优先级 ${level}`"
+            :value="level"
+          />
+        </el-select> -->
+          <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
+          <el-button class="search-btn" @click="handleReset">重置</el-button>
+          <el-button v-if="showAddButton" class="add-stock-btn" type="primary" @click="$emit('add-stock')">
+            添加股票
+          </el-button>
+        </div>
+        <el-button class="fullscreen-btn" @click="toggleFullscreen">
+          <el-icon>
+            <FullScreen v-if="!isFullscreen" />
+            <Aim v-else />
+          </el-icon>
+          <span>
+            {{ isFullscreen ? '退出全屏' : '全屏' }}
+            <span class="shortcut-hint">按 F9 全屏</span>
+          </span>
+        </el-button>
+      </div>
+      <!-- 股票列表表格 -->
+      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 250px)' : 'calc(100vh - 450px)'"
+        :data="filteredStockList" v-loading="loading" element-loading-text="加载股票数据中..."
+        :default-sort="{ prop: 'selfChangeRate', order: 'descending' }">
+        <el-table-column v-for="item in columns" :key="item.key" :prop="item.prop" :label="item.label"
+          :sortable="item.sortable"
+          :sort-method="item.sortable ? (a, b) => sortNumber(a[item.prop], b[item.prop]) : undefined"
+          :filters="getFiltersForColumn(item)" :filter-method="item.filterMethod || getDefaultFilterMethod(item.key)"
+          :column-key="item.columnKey || item.key" :width="item.width" :min-width="item.minWidth">
+          <template #default="{ row, $index }">
+            <span v-if="item.key === 'index'">
+              {{ $index + 1 + (currentPage - 1) * pageSize }}
+            </span>
+            <span v-else-if="item.key === 'stock_name'">
+              <div class="stock-name-container">
+                <div class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
+                  {{ row.stock_code || '--' }}
+                </div>
+                <div class="stock-name-cell">
+                  {{ row.stock_name || '--' }}
+                </div>
+              </div>
+            </span>
+            <span v-else-if="item.key === 'exchange_code'">
+              {{ row.exchange_code === 'SH' ? '上交所' : row.exchange_code === 'SZ' ? '深交所' : row.exchange_code === 'HK' ?
+                '港交所' : row.exchange_code === 'US' ? '美股' : row.exchange_code || '--' }}
+            </span>
+            <span v-else-if="item.key === 'add_method'">
+              <el-tag :type="getAddMethodTagType(row.add_method)">
+                {{ getAddMethodLabel(row.add_method) }}
+              </el-tag>
+            </span>
+            <span v-else-if="item.key === 'status'">
+              <el-switch v-model="row.status" :active-value="'active'" :inactive-value="'inactive'"
+                @change="(val) => $emit('status-change', row, val)" :loading="row.statusLoading" />
+            </span>
+            <span v-else-if="item.key === 'priority_level'">
+              {{ row.priority_level !== null && row.priority_level !== undefined ? `优先级 ${row.priority_level}` : '--' }}
+            </span>
+            <span v-else-if="item.key === 'notes'">
+              <span class="ellipsis" :title="row.notes || '--'">
+                {{ row.notes || '--' }}
+              </span>
+            </span>
+            <span v-else-if="item.key === 'add_time'">
+              {{ row.add_time ? formatDateTime(row.add_time) : '--' }}
+            </span>
+            <span v-else-if="item.key === 'days_added'">
+              {{ row.days_added !== undefined ? `${row.days_added} 天` : '--' }}
+            </span>
+            <span v-else-if="item.key === 'initial_price'">
+              {{ formatPrice(row.initial_price) }}
+            </span>
+            <span v-else-if="item.key === 'last_price'">
+              <span :style="{ color: getQuoteColor(row.change_rate) }">
+                {{ formatPrice(row.last_price) }}
+              </span>
+            </span>
+            <span v-else-if="item.key === 'change_rate'">
+              <span :style="{ color: getQuoteColor(row.change_rate) }">
+                {{ formatChangePercent(row.change_rate) }}
+              </span>
+            </span>
+            <span v-else-if="item.key === 'selfChangeRate'">
+              <span :style="{ color: getQuoteColor(row.selfChangeRate) }">
+                {{ formatChangePercent(row.selfChangeRate) }}
+              </span>
+            </span>
+            <span v-else-if="item.key === 'high_price'">
+              {{ formatPrice(row.high_price) }}
+            </span>
+            <span v-else-if="item.key === 'low_price'">
+              {{ formatPrice(row.low_price) }}
+            </span>
+            <span v-else-if="item.key === 'volume'">
+              {{ formatVolume(row.volume) }}
+            </span>
+            <span v-else-if="item.key === 'turnover'">
+              {{ formatVolume(row.turnover) }}
+            </span>
+            <span v-else-if="item.key === 'turnover_rate'">
+              {{ formatChangePercent(row.turnover_rate, false) }}
+            </span>
+            <span v-else-if="item.key === 'volume_ratio'">
+              {{ row.volume_ratio?.toFixed(2) ?? '--' }}
+            </span>
+            <span v-else-if="item.key === 'circular_market_val_yi'">
+              {{ row.circular_market_val_yi ?? '--' }}
+            </span>
+            <span v-else-if="item.key === 'stability_analysis'">
+              <template v-for="(analysis, idx) in getStabilityAnalysis(row)" :key="idx">
+                <el-tag :class="analysis.matched ? 'tag-matched' : 'tag-unmatched'" size="small"
+                  style="margin-right: 4px;">
+                  {{ analysis.text }}
+                </el-tag>
+              </template>
+            </span>
+            <span v-else-if="item.key === 'ma_trend'">
+              <el-tooltip :content="getMaTrend(row).tooltip" placement="top" :disabled="!getMaTrend(row).tooltip">
+                <el-tag :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'" size="small">
+                  {{ getMaTrend(row).text }}
+                </el-tag>
+              </el-tooltip>
+            </span>
+            <span v-else class="ellipsis" :title="row[item.prop] || '--'">
+              {{ row[item.prop] || '--' }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <!-- 昨日涨幅、3日涨幅、20日涨幅列（冻结在右侧，操作列之前） -->
+        <el-table-column fixed="right" prop="yesterday_change_rate" label="昨日涨跌幅" width="110" sortable
+          :sort-method="(a, b) => sortNumber(calculateYesterdayChangeRate(a), calculateYesterdayChangeRate(b))">
+          <template #default="{ row }">
+            <span :style="{ color: getQuoteColor(calculateYesterdayChangeRate(row)) }">
+              {{ formatChangePercent(calculateYesterdayChangeRate(row)) }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌幅" width="110" sortable
+          :sort-method="(a, b) => sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))">
+          <template #default="{ row }">
+            <span :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }">
+              {{ formatChangePercent(calculate3DayChangeRate(row)) }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column fixed="right" prop="twenty_day_change_rate" label="20日涨跌幅" width="115" sortable
+          :sort-method="(a, b) => sortNumber(calculate20DayChangeRate(a), calculate20DayChangeRate(b))">
+          <template #default="{ row }">
+            <span :style="{ color: getQuoteColor(calculate20DayChangeRate(row)) }">
+              {{ formatChangePercent(calculate20DayChangeRate(row)) }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column fixed="right" label="操作" :width="showAddToSelfButton || showRemoveFromSelfButton ? 280 : 200">
+          <template v-slot="scope">
+            <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
+              查看
+            </el-button>
+            <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
+              编辑
+            </el-button>
+            <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
+            <el-button v-if="showAddToSelfButton && !scope.row.is_self_selected" link type="success"
+              @click="$emit('add-to-self', scope.row)">
+              添加自选
+            </el-button>
+            <el-button v-if="showAddToSelfButton && scope.row.is_self_selected" link type="warning"
+              @click="$emit('remove-from-self', scope.row)">
+              取消自选
+            </el-button>
+            <!-- 自选股票池：显示取消自选按钮 -->
+            <el-button v-if="showRemoveFromSelfButton" link type="warning"
+              @click="$emit('remove-from-self', scope.row)">
+              取消自选
+            </el-button>
+            <el-popconfirm title="确定要删除该股票吗？" confirm-button-text="确定" cancel-button-text="取消"
+              @confirm="$emit('delete-stock', scope.row.id)">
+              <template #reference>
+                <el-button link type="danger">删除</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <el-pagination class="pagination" :current-page="currentPage" :page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next"
+        @current-change="$emit('page-change', $event)" @size-change="$emit('size-change', $event)" />
     </div>
-
-    <!-- 股票列表表格 -->
-    <el-table
-      class="stock-table"
-      max-height="calc(100vh - 495px)"
-      :data="filteredStockList"
-      v-loading="loading"
-      element-loading-text="加载股票数据中..."
-      :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
-    >
-      <el-table-column
-        v-for="item in columns"
-        :key="item.key"
-        :prop="item.prop"
-        :label="item.label"
-        :sortable="item.sortable"
-        :sort-method="item.sortable ? (a, b) => sortNumber(a[item.prop], b[item.prop]) : undefined"
-        :filters="getFiltersForColumn(item)"
-        :filter-method="item.filterMethod || getDefaultFilterMethod(item.key)"
-        :column-key="item.columnKey || item.key"
-        :width="item.width"
-        :min-width="item.minWidth"
-      >
-        <template #default="{ row, $index }">
-          <span v-if="item.key === 'index'">
-            {{ $index + 1 + (currentPage - 1) * pageSize }}
-          </span>
-          <span v-else-if="item.key === 'stock_name'">
-            <div class="stock-name-container">
-              <div class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
-                {{ row.stock_code || '--' }}
-              </div>
-              <div class="stock-name-cell">
-                {{ row.stock_name || '--' }}
-              </div>
-            </div>
-          </span>
-          <span v-else-if="item.key === 'exchange_code'">
-            {{ row.exchange_code === 'SH' ? '上交所' : row.exchange_code === 'SZ' ? '深交所' : row.exchange_code === 'HK' ? '港交所' : row.exchange_code === 'US' ? '美股' : row.exchange_code || '--' }}
-          </span>
-          <span v-else-if="item.key === 'add_method'">
-            <el-tag :type="getAddMethodTagType(row.add_method)">
-              {{ getAddMethodLabel(row.add_method) }}
-            </el-tag>
-          </span>
-          <span v-else-if="item.key === 'status'">
-            <el-switch
-              v-model="row.status"
-              :active-value="'active'"
-              :inactive-value="'inactive'"
-              @change="(val) => $emit('status-change', row, val)"
-              :loading="row.statusLoading"
-            />
-          </span>
-          <span v-else-if="item.key === 'priority_level'">
-            {{ row.priority_level !== null && row.priority_level !== undefined ? `优先级 ${row.priority_level}` : '--' }}
-          </span>
-          <span v-else-if="item.key === 'notes'">
-            <span class="ellipsis" :title="row.notes || '--'">
-              {{ row.notes || '--' }}
-            </span>
-          </span>
-          <span v-else-if="item.key === 'add_time'">
-            {{ row.add_time ? formatDateTime(row.add_time) : '--' }}
-          </span>
-          <span v-else-if="item.key === 'days_added'">
-            {{ row.days_added !== undefined ? `${row.days_added} 天` : '--' }}
-          </span>
-          <span v-else-if="item.key === 'initial_price'">
-            {{ formatPrice(row.initial_price) }}
-          </span>
-          <span v-else-if="item.key === 'last_price'">
-            <span :style="{ color: getQuoteColor(row.change_rate) }">
-              {{ formatPrice(row.last_price) }}
-            </span>
-          </span>
-          <span v-else-if="item.key === 'change_rate'">
-            <span :style="{ color: getQuoteColor(row.change_rate) }">
-              {{ formatChangePercent(row.change_rate) }}
-            </span>
-          </span>
-          <span v-else-if="item.key === 'selfChangeRate'">
-            <span :style="{ color: getQuoteColor(row.selfChangeRate) }">
-              {{ formatChangePercent(row.selfChangeRate) }}
-            </span>
-          </span>
-          <span v-else-if="item.key === 'high_price'">
-            {{ formatPrice(row.high_price) }}
-          </span>
-          <span v-else-if="item.key === 'low_price'">
-            {{ formatPrice(row.low_price) }}
-          </span>
-          <span v-else-if="item.key === 'volume'">
-            {{ formatVolume(row.volume) }}
-          </span>
-          <span v-else-if="item.key === 'turnover'">
-            {{ formatVolume(row.turnover) }}
-          </span>
-          <span v-else-if="item.key === 'turnover_rate'">
-            {{ formatChangePercent(row.turnover_rate, false) }}
-          </span>
-          <span v-else-if="item.key === 'volume_ratio'">
-            {{ row.volume_ratio?.toFixed(2) ?? '--' }}
-          </span>
-          <span v-else-if="item.key === 'circular_market_val_yi'">
-            {{ row.circular_market_val_yi ?? '--' }}
-          </span>
-          <span v-else-if="item.key === 'stability_analysis'">
-            <template v-for="(analysis, idx) in getStabilityAnalysis(row)" :key="idx">
-              <el-tag
-                :class="analysis.matched ? 'tag-matched' : 'tag-unmatched'"
-                size="small"
-                style="margin-right: 4px;"
-              >
-                {{ analysis.text }}
-              </el-tag>
-            </template>
-          </span>
-          <span v-else-if="item.key === 'ma_trend'">
-            <el-tooltip
-              :content="getMaTrend(row).tooltip"
-              placement="top"
-              :disabled="!getMaTrend(row).tooltip"
-            >
-              <el-tag
-                :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'"
-                size="small"
-              >
-                {{ getMaTrend(row).text }}
-              </el-tag>
-            </el-tooltip>
-          </span>
-          <span v-else class="ellipsis" :title="row[item.prop] || '--'">
-            {{ row[item.prop] || '--' }}
-          </span>
-        </template>
-      </el-table-column>
-
-      <el-table-column fixed="right" label="操作" :width="showAddToSelfButton || showRemoveFromSelfButton ? 280 : 200">
-        <template v-slot="scope">
-          <el-button
-            link
-            type="primary"
-            @click="$emit('view-stock', scope.row.id)"
-          >
-            查看
-          </el-button>
-          <el-button
-            link
-            type="primary"
-            @click="$emit('edit-stock', scope.row.id)"
-          >
-            编辑
-          </el-button>
-          <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
-          <el-button
-            v-if="showAddToSelfButton && !scope.row.is_self_selected"
-            link
-            type="success"
-            @click="$emit('add-to-self', scope.row)"
-          >
-            添加自选
-          </el-button>
-          <el-button
-            v-if="showAddToSelfButton && scope.row.is_self_selected"
-            link
-            type="warning"
-            @click="$emit('remove-from-self', scope.row)"
-          >
-            取消自选
-          </el-button>
-          <!-- 自选股票池：显示取消自选按钮 -->
-          <el-button
-            v-if="showRemoveFromSelfButton"
-            link
-            type="warning"
-            @click="$emit('remove-from-self', scope.row)"
-          >
-            取消自选
-          </el-button>
-          <el-popconfirm
-            title="确定要删除该股票吗？"
-            confirm-button-text="确定"
-            cancel-button-text="取消"
-            @confirm="$emit('delete-stock', scope.row.id)"
-          >
-            <template #reference>
-              <el-button link type="danger">删除</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <!-- 分页 -->
-    <el-pagination
-      class="pagination"
-      :current-page="currentPage"
-      :page-size="pageSize"
-      :page-sizes="[10, 20, 50, 100]"
-      :total="total"
-      layout="total, sizes, prev, pager, next"
-      @current-change="$emit('page-change', $event)"
-      @size-change="$emit('size-change', $event)"
-    />
-  </div>
+  </FullscreenContainer>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { formatDateTime } from '@/utils/time'
+import FullscreenContainer from '@/components/FullscreenContainer/index.vue'
+import { FullScreen, Aim } from '@element-plus/icons-vue'
 
 // Props 定义
 const props = defineProps({
@@ -457,55 +428,55 @@ const columns = reactive([
     key: 'stock_name',
     label: '股票名称',
     prop: 'stock_name',
-    minWidth: 110
+    minWidth: 100
   },
   {
     key: 'initial_price',
     label: '初始价',
     prop: 'initial_price',
-    width: 90,
+    width: 85,
     sortable: true
   },
   {
     key: 'last_price',
     label: '当前价',
     prop: 'last_price',
-    width: 90,
+    width: 85,
     sortable: true
   },
   {
     key: 'selfChangeRate',
     label: '自选涨跌幅',
     prop: 'selfChangeRate',
-    width: 120,
+    width: 110,
     sortable: true
   },
   {
     key: 'change_rate',
     label: '当日涨跌幅',
     prop: 'change_rate',
-    width: 120,
+    width: 110,
     sortable: true
   },
   {
     key: 'turnover_rate',
     label: '当日换手率',
     prop: 'turnover_rate',
-    width: 120,
+    width: 110,
     sortable: true
   },
   {
     key: 'volume_ratio',
     label: '量比',
     prop: 'volume_ratio',
-    width: 80,
+    width: 70,
     sortable: true
   },
   {
     key: 'circular_market_val_yi',
     label: '流通市值(亿)',
     prop: 'circular_market_val_yi',
-    width: 130,
+    width: 125,
     sortable: true
   },
   {
@@ -520,7 +491,7 @@ const columns = reactive([
     key: 'ma_trend',
     label: '均线趋势',
     prop: 'ma_trend',
-    minWidth: 120,
+    minWidth: 100,
     columnKey: 'ma_trend',
     filterMethod: filterMaTrend
   },
@@ -528,14 +499,14 @@ const columns = reactive([
     key: 'days_added',
     label: '加入天数',
     prop: 'days_added',
-    width: 110,
+    width: 100,
     sortable: true
   },
   {
     key: 'add_time',
     label: '加入日期',
     prop: 'add_time',
-    width: 110,
+    width: 100,
     sortable: true
   },
   {
@@ -544,23 +515,23 @@ const columns = reactive([
     prop: 'notes',
     minWidth: 300
   },
-  {
-    key: 'created_by',
-    label: '创建人',
-    prop: 'created_by',
-    width: 100
-  },
+  // {
+  //   key: 'created_by',
+  //   label: '创建人',
+  //   prop: 'created_by',
+  //   width: 100
+  // },
   {
     key: 'strategy_name',
     label: '策略名称',
     prop: 'strategy_name',
-    width: 150
+    width: 120
   },
   {
     key: 'add_reason',
     label: '加入原因',
     prop: 'add_reason',
-    minWidth: 150,
+    minWidth: 120,
     columnKey: 'add_reason',
     filterMethod: (value, row) => row.add_reason === value
   },
@@ -570,13 +541,13 @@ const columns = reactive([
   //   prop: 'status',
   //   width: 100
   // },
-  {
-    key: 'priority_level',
-    label: '优先级',
-    prop: 'priority_level',
-    width: 100,
-    sortable: true
-  },
+  // {
+  //   key: 'priority_level',
+  //   label: '优先级',
+  //   prop: 'priority_level',
+  //   width: 100,
+  //   sortable: true
+  // },
 ])
 
 // 根据列配置获取对应的筛选项
@@ -713,14 +684,71 @@ const handleCodeClick = (row) => {
   window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
 }
 
-// 获取K线数据（最近3天）
-const getKlineData = (row) => {
+// 获取K线数据（最近N天）
+const getKlineData = (row, days = 3) => {
+  const klineData = row?.kline_data
+  if (!klineData || !Array.isArray(klineData) || klineData.length < days) {
+    return null
+  }
+  // 取最近N天的数据（数组最后N个元素）
+  return klineData.slice(-days)
+}
+
+// 计算昨日涨幅：使用昨天的收盘价和今天的收盘价（或当前价）
+const calculateYesterdayChangeRate = (row) => {
+  const klineData = row?.kline_data
+  if (!klineData || !Array.isArray(klineData) || klineData.length < 2) {
+    return null
+  }
+
+  // 昨天的收盘价（倒数第二个）
+  const yesterdayClose = klineData[klineData.length - 2]?.close
+  // 今天的收盘价（最后一个）或当前价
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+
+  if (yesterdayClose == null || todayPrice == null || yesterdayClose === 0) {
+    return null
+  }
+
+  return ((todayPrice - yesterdayClose) / yesterdayClose) * 100
+}
+
+// 计算3日涨幅：使用3天前的收盘价和今天的收盘价（或当前价）
+const calculate3DayChangeRate = (row) => {
   const klineData = row?.kline_data
   if (!klineData || !Array.isArray(klineData) || klineData.length < 3) {
     return null
   }
-  // 取最近3天的数据（数组最后3个元素）
-  return klineData.slice(-3)
+
+  // 3天前的收盘价（倒数第三个）
+  const threeDaysAgoClose = klineData[klineData.length - 3]?.close
+  // 今天的收盘价（最后一个）或当前价
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+
+  if (threeDaysAgoClose == null || todayPrice == null || threeDaysAgoClose === 0) {
+    return null
+  }
+
+  return ((todayPrice - threeDaysAgoClose) / threeDaysAgoClose) * 100
+}
+
+// 计算20日涨幅：使用20天前的收盘价和今天的收盘价（或当前价）
+const calculate20DayChangeRate = (row) => {
+  const klineData = row?.kline_data
+  if (!klineData || !Array.isArray(klineData) || klineData.length < 20) {
+    return null
+  }
+
+  // 20天前的收盘价（倒数第20个）
+  const twentyDaysAgoClose = klineData[klineData.length - 20]?.close
+  // 今天的收盘价（最后一个）或当前价
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+
+  if (twentyDaysAgoClose == null || todayPrice == null || twentyDaysAgoClose === 0) {
+    return null
+  }
+
+  return ((todayPrice - twentyDaysAgoClose) / twentyDaysAgoClose) * 100
 }
 
 // 站稳分析判断
@@ -784,9 +812,14 @@ const getMaTrend = (row) => {
 
 <style scoped lang="less">
 .stock-list-container {
+  .top-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
   .search-title {
     overflow: hidden;
-    margin-bottom: 20px;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -802,6 +835,26 @@ const getMaTrend = (row) => {
 
     .add-stock-btn {
       margin-left: auto;
+    }
+  }
+
+  .fullscreen-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    .shortcut-hint {
+      font-size: 12px;
+      color: #909399;
+      margin-left: 4px;
+    }
+  }
+
+  &.is-fullscreen {
+
+    // 全屏状态下的样式调整
+    .stock-table {
+      max-height: calc(100vh - 250px) !important;
     }
   }
 
@@ -852,5 +905,9 @@ const getMaTrend = (row) => {
   -webkit-box-orient: vertical;
   box-orient: vertical;
   overflow: hidden;
+}
+
+.el-table :deep(.cell) {
+  padding: 0 8px;
 }
 </style>
