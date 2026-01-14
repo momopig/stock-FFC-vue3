@@ -53,7 +53,7 @@
         </el-button>
       </div>
       <!-- 股票列表表格 -->
-      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 250px)' : 'calc(100vh - 450px)'"
+      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 100px)' : showAddButton ? 'calc(100vh - 400px)' : 'calc(100vh - 450px)'"
         :data="filteredStockList" v-loading="loading" element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }">
         <el-table-column v-for="item in columns" :key="item.key" :prop="item.prop" :label="item.label"
