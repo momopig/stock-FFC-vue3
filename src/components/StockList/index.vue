@@ -70,7 +70,7 @@
         :label="item.label"
         :sortable="item.sortable"
         :sort-method="item.sortable ? (a, b) => sortNumber(a[item.prop], b[item.prop]) : undefined"
-        :filters="item.filterMethod ? addTypeFilters(item.key) : item.filters"
+        :filters="getFiltersForColumn(item)"
         :filter-method="item.filterMethod || getDefaultFilterMethod(item.key)"
         :column-key="item.columnKey || item.key"
         :width="item.width"
@@ -172,12 +172,18 @@
             </template>
           </span>
           <span v-else-if="item.key === 'ma_trend'">
-            <el-tag
-              :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'"
-              size="small"
+            <el-tooltip
+              :content="getMaTrend(row).tooltip"
+              placement="top"
+              :disabled="!getMaTrend(row).tooltip"
             >
-              {{ getMaTrend(row).text }}
-            </el-tag>
+              <el-tag
+                :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'"
+                size="small"
+              >
+                {{ getMaTrend(row).text }}
+              </el-tag>
+            </el-tooltip>
           </span>
           <span v-else class="ellipsis" :title="row[item.prop] || '--'">
             {{ row[item.prop] || '--' }}
@@ -376,6 +382,70 @@ const addTypeFilters = (type) => {
     .map(item => ({ text: String(item), value: item }))
 }
 
+
+// 生成站稳分析的筛选项
+const getStabilityAnalysisFilters = () => {
+  if (!props.stockList?.length) {
+    return undefined
+  }
+
+  const filterSet = new Set()
+  props.stockList.forEach(stock => {
+    const analysisResults = getStabilityAnalysis(stock)
+    analysisResults?.forEach(result => {
+      if (result?.text) {
+        filterSet.add(result.text)
+      }
+    })
+  })
+
+  if (filterSet.size === 0) {
+    return undefined
+  }
+
+  return Array.from(filterSet)
+    .sort()
+    .map(item => ({ text: String(item), value: item }))
+}
+
+// 生成均线趋势的筛选项
+const getMaTrendFilters = () => {
+  if (!props.stockList?.length) {
+    return undefined
+  }
+
+  const filterSet = new Set()
+  props.stockList.forEach(stock => {
+    const trendResult = getMaTrend(stock)
+    if (trendResult?.text) {
+      filterSet.add(trendResult.text)
+    }
+  })
+
+  if (filterSet.size === 0) {
+    return undefined
+  }
+
+  return Array.from(filterSet)
+    .sort()
+    .map(item => ({ text: String(item), value: item }))
+}
+
+// 站稳分析的筛选方法
+const filterStabilityAnalysis = (value, row) => {
+  if (!value) return true
+  const analysisResults = getStabilityAnalysis(row)
+  return analysisResults?.some(result => result.text === value) || false
+}
+
+// 均线趋势的筛选方法
+const filterMaTrend = (value, row) => {
+  if (!value) return true
+  const trendResult = getMaTrend(row)
+  return trendResult?.text === value
+}
+
+
 // 表格列配置
 const columns = reactive([
   // {
@@ -442,13 +512,17 @@ const columns = reactive([
     key: 'stability_analysis',
     label: '站稳分析',
     prop: 'stability_analysis',
-    minWidth: 150
+    minWidth: 150,
+    columnKey: 'stability_analysis',
+    filterMethod: filterStabilityAnalysis
   },
   {
     key: 'ma_trend',
     label: '均线趋势',
     prop: 'ma_trend',
-    minWidth: 120
+    minWidth: 120,
+    columnKey: 'ma_trend',
+    filterMethod: filterMaTrend
   },
   {
     key: 'days_added',
@@ -504,6 +578,29 @@ const columns = reactive([
     sortable: true
   },
 ])
+
+// 根据列配置获取对应的筛选项
+const getFiltersForColumn = (item) => {
+  // 如果列配置中已经指定了 filters，直接返回
+  if (item.filters) {
+    return item.filters
+  }
+
+  // 根据列类型返回对应的筛选项
+  if (item.key === 'stability_analysis') {
+    return getStabilityAnalysisFilters()
+  }
+  if (item.key === 'ma_trend') {
+    return getMaTrendFilters()
+  }
+
+  // 对于有 filterMethod 的列，使用通用的 addTypeFilters
+  if (item.filterMethod) {
+    return addTypeFilters(item.key)
+  }
+
+  return undefined
+}
 
 // 获取默认的过滤方法
 const getDefaultFilterMethod = (key) => {
@@ -673,7 +770,11 @@ const getMaTrend = (row) => {
         maData.MA3 > maData.MA5 &&
         maData.MA5 > maData.MA10 &&
         maData.MA10 > maData.MA20) {
-      return { text: '多头向上', matched: true }
+      return {
+        text: '多头向上',
+        matched: true,
+        tooltip: 'M1 > M3 > M5 > M10 > M20'
+      }
     }
   }
 
