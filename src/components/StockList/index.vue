@@ -69,12 +69,12 @@
             </span>
             <span v-else-if="item.key === 'stock_name'">
               <div class="stock-name-container">
-                <div class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
+                <span class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
                   {{ row.stock_code || '--' }}
-                </div>
-                <div class="stock-name-cell">
+                </span>
+                <span class="stock-name-cell">
                   {{ row.stock_name || '--' }}
-                </div>
+                </span>
                 <!-- 自选按钮 -->
                 <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton">
                   <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
@@ -83,14 +83,16 @@
                     link
                     type="success"
                     @click.stop="$emit('add-to-self', row)">
-                    + 添加自选
+                    <el-icon style="margin-right: 4px;"><CirclePlus /></el-icon>
+                    <span>添加自选</span>
                   </el-button>
                   <el-button
                     v-if="showAddToSelfButton && row.is_self_selected"
                     link
                     type="warning"
                     @click.stop="$emit('remove-from-self', row)">
-                    - 取消自选
+                    <el-icon style="margin-right: 4px;"><Remove /></el-icon>
+                    <span>取消自选</span>
                   </el-button>
                   <!-- 自选股票池：显示取消自选按钮 -->
                   <el-button
@@ -98,7 +100,8 @@
                     link
                     type="warning"
                     @click.stop="$emit('remove-from-self', row)">
-                    - 删除自选
+                    <el-icon style="margin-right: 4px;"><Remove /></el-icon>
+                    <span>删除自选</span>
                   </el-button>
                 </div>
               </div>
@@ -202,7 +205,7 @@
         </el-table-column>
 
         <!-- 昨日涨幅、3日涨幅、20日涨幅列（冻结在右侧，操作列之前） -->
-        <el-table-column fixed="right" prop="yesterday_change_rate" label="昨日涨跌幅" width="110" sortable
+        <el-table-column fixed="right" prop="yesterday_change_rate" label="昨日涨跌" width="98" sortable
           :sort-method="(a, b) => sortNumber(calculateYesterdayChangeRate(a), calculateYesterdayChangeRate(b))">
           <template #default="{ row }">
             <span :style="{ color: getQuoteColor(calculateYesterdayChangeRate(row)) }">
@@ -211,7 +214,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌幅" width="110" sortable
+        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌" width="98" sortable
           :sort-method="(a, b) => sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))">
           <template #default="{ row }">
             <span :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }">
@@ -220,7 +223,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" prop="twenty_day_change_rate" label="20日涨跌幅" width="115" sortable
+        <el-table-column fixed="right" prop="twenty_day_change_rate" label="20日涨跌" width="100" sortable
           :sort-method="(a, b) => sortNumber(calculate20DayChangeRate(a), calculate20DayChangeRate(b))">
           <template #default="{ row }">
             <span :style="{ color: getQuoteColor(calculate20DayChangeRate(row)) }">
@@ -259,7 +262,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { formatDateTime } from '@/utils/time'
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue'
-import { FullScreen, Aim } from '@element-plus/icons-vue'
+import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue'
 
 // Props 定义
 const props = defineProps({
@@ -443,16 +446,16 @@ const columns = reactive([
   },
   {
     key: 'selfChangeRate',
-    label: '自选涨跌幅',
+    label: '自选涨跌',
     prop: 'selfChangeRate',
-    width: 110,
+    width: 98,
     sortable: true
   },
   {
     key: 'change_rate',
-    label: '当日涨跌幅',
+    label: '当日涨跌',
     prop: 'change_rate',
-    width: 110,
+    width: 98,
     sortable: true
   },
   {
@@ -603,24 +606,24 @@ const handleSearch = () => {
   searchTimer = setTimeout(() => {
     // 构建搜索参数
     const searchParams = {}
-    
+
     // 股票代码搜索
     const stockCode = localSearchQuery.stock_code?.trim() || ''
     if (stockCode) {
       searchParams.stock_code = stockCode
     }
-    
+
     // 股票名称搜索
     const stockName = localSearchQuery.stock_name?.trim() || ''
     if (stockName) {
       searchParams.stock_name = stockName
     }
-    
+
     // 交易所代码
     if (localFilterParams.exchange_code) {
       searchParams.exchange_code = localFilterParams.exchange_code
     }
-    
+
     // 触发搜索事件，由父组件处理并调用接口
     emit('search', searchParams)
   }, 300)
@@ -653,7 +656,7 @@ const formatChangePercent = (value, showSign = true) => {
   return `${sign}${value.toFixed(2)}%`
 }
 
-// 获取行情涨跌幅颜色
+// 获取行情涨跌颜色
 const getQuoteColor = (changeRate) => {
   if (changeRate == null) return '#606266'
   return changeRate >= 0 ? '#f56c6c' : '#67c23a'
@@ -904,12 +907,17 @@ const getRiskSigns = (row) => {
     .stock-name-container {
       display: flex;
       flex-direction: column;
+      justify-content: center;
       gap: 4px;
     }
 
     .code-cell {
       font-weight: 500;
+      font-size: 16px;
       color: #409eff;
+    }
+    .stock-name-cell {
+      font-size: 18px;
     }
 
     .self-select-buttons {
@@ -919,7 +927,7 @@ const getRiskSigns = (row) => {
       :deep(.el-button) {
         padding: 0;
         height: auto;
-        font-size: 14px;
+        font-size: 12px;
         line-height: 1;
       }
     }
