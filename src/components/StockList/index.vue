@@ -232,11 +232,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" :width="200">
+        <el-table-column fixed="right" label="操作" :width="100" v-if="userStore.userInfo?.is_superuser">
           <template v-slot="scope">
-            <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
+            <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
               查看
-            </el-button>
+            </el-button> -->
             <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
               编辑
             </el-button>
@@ -263,6 +263,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { formatDateTime } from '@/utils/time'
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue'
 import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue'
+import { UserStore } from '@/state/user';
 
 // Props 定义
 const props = defineProps({
@@ -302,6 +303,7 @@ const props = defineProps({
   }
 })
 
+const userStore = UserStore();
 // Emits 定义
 const emit = defineEmits(['page-change', 'size-change', 'search', 'reset', 'view-stock', 'edit-stock', 'delete-stock', 'status-change', 'add-stock', 'add-to-self', 'remove-from-self', 'filter-change'])
 
