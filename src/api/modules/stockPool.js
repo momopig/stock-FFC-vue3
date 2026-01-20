@@ -165,6 +165,7 @@ const mockGetStockPoolList = async (params) => {
  * @param {string} params.stock_name - 股票名称模糊查询
  * @param {string} params.stock_code - 股票代码模糊查询
  * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US）
+ * @param {string} params.strategy_name - 策略名称模糊查询
  * @param {string} params.status - 股票状态（active/inactive）
  * @param {string} params.add_method - 添加方式（manual/strategy/import/other）
  * @param {number} params.priority_level - 优先级（1-10）
@@ -188,6 +189,7 @@ export const getStockPoolList = async (params) => {
  * @param {string} params.stock_name - 股票名称模糊查询
  * @param {string} params.stock_code - 股票代码模糊查询
  * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US）
+ * @param {string} params.strategy_name - 策略名称模糊查询
  * @param {string} params.status - 股票状态（active/inactive）
  * @param {string} params.add_method - 添加方式（manual/strategy/import/other）
  * @param {number} params.priority_level - 优先级（1-10）

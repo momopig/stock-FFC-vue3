@@ -684,7 +684,9 @@ const flattenStockData = (stock) => {
     // 计算自选涨跌幅
     selfChangeRate: (initialPrice && lastPrice && initialPrice > 0)
       ? ((lastPrice - initialPrice) / initialPrice) * 100
-      : null
+      : null,
+    // 扁平化风险信号数据
+    risk_signs: quote?.risk_signal?.risk_signs || null,
   }
 
   // 计算加入天数

@@ -74,6 +74,14 @@ const page = reactive({
   total: 0
 })
 
+// 搜索参数
+const searchParams = reactive({
+  stock_code: '',
+  stock_name: '',
+  exchange_code: '',
+  strategy_name: ''
+})
+
 // 初始化股票表单
 const initStockForm = () => {
   return {
@@ -106,13 +114,16 @@ onMounted(() => {
 })
 
 // 获取股票列表
-const getStockList = async () => {
+const getStockList = async (additionalSearchParams = {}) => {
   tableLoading.value = true
 
   const params = {
     page: page.pageNo,
     page_size: page.pageSize,
-    is_self_selected: true
+    is_self_selected: true,
+    // 合并搜索参数
+    ...searchParams,
+    ...additionalSearchParams
   }
 
   // 移除空值
@@ -126,7 +137,7 @@ const getStockList = async () => {
     const response = await getStockPoolList(params)
     if (response?.success) {
       stockList.value = (response.payload?.items || []).map(flattenStockData)
-      page.total = displayStockList.value.length
+      page.total = response.payload?.total || 0
       calculateInsightsFromList()
       tableLoading.value = false
     } else {
@@ -179,6 +190,8 @@ const flattenStockData = (stock) => {
       : null,
     kline_data: quote.ma_response?.kline_data || null,
     ma_data: quote.ma_response?.ma_data || null,
+    // 扁平化风险信号数据
+    risk_signs: quote?.risk_signs || null,
   }
 
   // 计算加入天数
@@ -278,8 +291,24 @@ const handlePageSizeChange = (newPageSize) => {
 }
 
 // 搜索事件处理
-const handleSearchEvent = (searchParams) => {
-  // 这里可以根据需要处理搜索参数
+const handleSearchEvent = (searchParamsFromChild) => {
+  // 更新搜索参数
+  if (searchParamsFromChild) {
+    Object.assign(searchParams, {
+      stock_code: searchParamsFromChild.stock_code || '',
+      stock_name: searchParamsFromChild.stock_name || '',
+      exchange_code: searchParamsFromChild.exchange_code || '',
+      strategy_name: searchParamsFromChild.strategy_name || ''
+    })
+  } else {
+    // 重置搜索参数
+    Object.assign(searchParams, {
+      stock_code: '',
+      stock_name: '',
+      exchange_code: '',
+      strategy_name: ''
+    })
+  }
   page.pageNo = 1
   getStockList()
 }

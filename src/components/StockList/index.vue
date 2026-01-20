@@ -4,8 +4,10 @@
       <div class="top-container">
         <!-- 搜索和操作区域 -->
         <div class="search-title">
-          <el-input class="search-input" v-model="localSearchQuery" placeholder="搜索股票代码、名称" clearable
-            @keyup.enter="handleSearch" />
+          <el-input class="search-input" v-model="localSearchQuery.stock_code" placeholder="搜索股票代码" clearable
+            @keyup.enter="handleSearch" style="width: 150px; margin-right: 10px;" />
+          <el-input class="search-input" v-model="localSearchQuery.stock_name" placeholder="搜索股票名称" clearable
+            @keyup.enter="handleSearch" style="width: 150px; margin-right: 10px;" />
           <el-select v-model="localFilterParams.exchange_code" placeholder="交易所" clearable
             style="width: 150px; margin-right: 10px;">
             <el-option label="上交所" value="SH" />
@@ -54,7 +56,7 @@
       </div>
       <!-- 股票列表表格 -->
       <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 100px)' : showAddButton ? 'calc(100vh - 400px)' : 'calc(100vh - 450px)'"
-        :data="filteredStockList" v-loading="loading" element-loading-text="加载股票数据中..."
+        :data="props.stockList" v-loading="loading" element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }">
         <el-table-column v-for="item in columns" :key="item.key" :prop="item.prop" :label="item.label"
           :sortable="item.sortable"
@@ -72,6 +74,32 @@
                 </div>
                 <div class="stock-name-cell">
                   {{ row.stock_name || '--' }}
+                </div>
+                <!-- 自选按钮 -->
+                <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton">
+                  <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
+                  <el-button
+                    v-if="showAddToSelfButton && !row.is_self_selected"
+                    link
+                    type="success"
+                    @click.stop="$emit('add-to-self', row)">
+                    + 添加自选
+                  </el-button>
+                  <el-button
+                    v-if="showAddToSelfButton && row.is_self_selected"
+                    link
+                    type="warning"
+                    @click.stop="$emit('remove-from-self', row)">
+                    - 取消自选
+                  </el-button>
+                  <!-- 自选股票池：显示取消自选按钮 -->
+                  <el-button
+                    v-if="showRemoveFromSelfButton"
+                    link
+                    type="warning"
+                    @click.stop="$emit('remove-from-self', row)">
+                    - 删除自选
+                  </el-button>
                 </div>
               </div>
             </span>
@@ -156,6 +184,17 @@
                 </el-tag>
               </el-tooltip>
             </span>
+            <span v-else-if="item.key === 'risk_signs'">
+              <template v-if="getRiskSigns(row)?.length">
+                <el-tooltip v-for="(riskSign, idx) in getRiskSigns(row)" :key="idx"
+                  :content="riskSign.explain" placement="top">
+                  <el-tag size="small" class="risk-tag-matched" style="margin-right: 4px;">
+                    {{ riskSign.sign }}
+                  </el-tag>
+                </el-tooltip>
+              </template>
+              <el-tag v-else size="small" class="tag-unmatched" style="margin-right: 4px;">无</el-tag>
+            </span>
             <span v-else class="ellipsis" :title="row[item.prop] || '--'">
               {{ row[item.prop] || '--' }}
             </span>
@@ -190,27 +229,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" :width="showAddToSelfButton || showRemoveFromSelfButton ? 280 : 200">
+        <el-table-column fixed="right" label="操作" :width="200">
           <template v-slot="scope">
             <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
               查看
             </el-button>
             <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
               编辑
-            </el-button>
-            <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
-            <el-button v-if="showAddToSelfButton && !scope.row.is_self_selected" link type="success"
-              @click="$emit('add-to-self', scope.row)">
-              添加自选
-            </el-button>
-            <el-button v-if="showAddToSelfButton && scope.row.is_self_selected" link type="warning"
-              @click="$emit('remove-from-self', scope.row)">
-              取消自选
-            </el-button>
-            <!-- 自选股票池：显示取消自选按钮 -->
-            <el-button v-if="showRemoveFromSelfButton" link type="warning"
-              @click="$emit('remove-from-self', scope.row)">
-              取消自选
             </el-button>
             <el-popconfirm title="确定要删除该股票吗？" confirm-button-text="确定" cancel-button-text="取消"
               @confirm="$emit('delete-stock', scope.row.id)">
@@ -278,7 +303,10 @@ const props = defineProps({
 const emit = defineEmits(['page-change', 'size-change', 'search', 'reset', 'view-stock', 'edit-stock', 'delete-stock', 'status-change', 'add-stock', 'add-to-self', 'remove-from-self', 'filter-change'])
 
 // 本地搜索和筛选状态
-const localSearchQuery = ref('')
+const localSearchQuery = reactive({
+  stock_code: '',
+  stock_name: ''
+})
 const localFilterParams = reactive({
   exchange_code: '',
   status: '',
@@ -286,40 +314,8 @@ const localFilterParams = reactive({
   priority_level: ''
 })
 
-// 前端过滤后的股票列表（搜索框 + 过滤条件）
-const filteredStockList = computed(() => {
-  let result = props.stockList
-
-  // 1. 搜索框过滤（股票代码、名称）
-  if (localSearchQuery.value?.trim()) {
-    const query = localSearchQuery.value.trim().toLowerCase()
-    result = result.filter(stock => {
-      const code = stock?.stock_code?.toLowerCase() || ''
-      const name = stock?.stock_name?.toLowerCase() || ''
-      return code.includes(query) || name.includes(query)
-    })
-  }
-
-  // 2. 交易所过滤
-  if (localFilterParams.exchange_code) {
-    result = result.filter(stock => stock?.exchange_code === localFilterParams.exchange_code)
-  }
-
-  // 3. 状态过滤
-  if (localFilterParams.status) {
-    result = result.filter(stock => stock?.status === localFilterParams.status)
-  }
-
-  // 4. 优先级过滤
-  if (localFilterParams.priority_level !== '' && localFilterParams.priority_level !== null && localFilterParams.priority_level !== undefined) {
-    result = result.filter(stock => stock?.priority_level === localFilterParams.priority_level)
-  }
-
-  return result
-})
-
-// 监听筛选变化，通知父组件更新洞察数据
-watch(filteredStockList, (newList) => {
+// 监听股票列表变化，通知父组件更新洞察数据
+watch(() => props.stockList, (newList) => {
   emit('filter-change', newList)
 }, { deep: true })
 
@@ -428,7 +424,8 @@ const columns = reactive([
     key: 'stock_name',
     label: '股票名称',
     prop: 'stock_name',
-    minWidth: 100
+    minWidth: 100,
+    align: 'center'
   },
   {
     key: 'initial_price',
@@ -496,6 +493,12 @@ const columns = reactive([
     filterMethod: filterMaTrend
   },
   {
+    key: 'risk_signs',
+    label: '风险信号',
+    prop: 'risk_signs',
+    minWidth: 150
+  },
+  {
     key: 'days_added',
     label: '加入天数',
     prop: 'days_added',
@@ -551,6 +554,7 @@ const columns = reactive([
 ])
 
 // 根据列配置获取对应的筛选项
+// 注意：由于搜索改为后端接口搜索，前端筛选功能保留但主要用于展示，实际筛选通过接口实现
 const getFiltersForColumn = (item) => {
   // 如果列配置中已经指定了 filters，直接返回
   if (item.filters) {
@@ -588,7 +592,7 @@ const getDefaultFilterMethod = (key) => {
 // 防抖定时器
 let searchTimer = null
 
-// 处理搜索（只有搜索框变化时才触发接口调用）
+// 处理搜索（调用接口搜索）
 const handleSearch = () => {
   // 清除之前的定时器
   if (searchTimer) {
@@ -597,24 +601,41 @@ const handleSearch = () => {
 
   // 防抖处理，300ms 后触发
   searchTimer = setTimeout(() => {
-    const searchParams = {
-      searchQuery: localSearchQuery.value,
-      // 注意：过滤条件不传递给接口，只用于前端过滤
+    // 构建搜索参数
+    const searchParams = {}
+    
+    // 股票代码搜索
+    const stockCode = localSearchQuery.stock_code?.trim() || ''
+    if (stockCode) {
+      searchParams.stock_code = stockCode
     }
-    // 触发搜索事件，由父组件处理（只传递搜索关键词）
+    
+    // 股票名称搜索
+    const stockName = localSearchQuery.stock_name?.trim() || ''
+    if (stockName) {
+      searchParams.stock_name = stockName
+    }
+    
+    // 交易所代码
+    if (localFilterParams.exchange_code) {
+      searchParams.exchange_code = localFilterParams.exchange_code
+    }
+    
+    // 触发搜索事件，由父组件处理并调用接口
     emit('search', searchParams)
   }, 300)
 }
 
 // 处理重置
 const handleReset = () => {
-  localSearchQuery.value = ''
+  localSearchQuery.stock_code = ''
+  localSearchQuery.stock_name = ''
   localFilterParams.exchange_code = ''
   localFilterParams.status = ''
   localFilterParams.add_method = ''
   localFilterParams.priority_level = ''
-  // 重置时也需要触发搜索接口，清空搜索条件
-  handleSearch()
+  // 重置时触发搜索接口，清空搜索条件
+  emit('search', {})
 }
 
 // 数值排序方法
@@ -808,6 +829,20 @@ const getMaTrend = (row) => {
 
   return { text: '无', matched: false }
 }
+
+// 获取风险信号数据
+// 支持两种数据格式：1. 扁平化后的risk_signs字段 2. quote.risk_signs字段
+const getRiskSigns = (row) => {
+  // 优先使用扁平化后的字段
+  if (row?.risk_signs && Array.isArray(row.risk_signs)) {
+    return row.risk_signs
+  }
+  // 如果不存在，尝试从quote字段中获取
+  if (row?.quote?.risk_signs && Array.isArray(row.quote.risk_signs)) {
+    return row.quote.risk_signs
+  }
+  return []
+}
 </script>
 
 <style scoped lang="less">
@@ -869,11 +904,24 @@ const getMaTrend = (row) => {
     .stock-name-container {
       display: flex;
       flex-direction: column;
+      gap: 4px;
     }
 
     .code-cell {
       font-weight: 500;
       color: #409eff;
+    }
+
+    .self-select-buttons {
+      display: flex;
+      margin-top: 2px;
+
+      :deep(.el-button) {
+        padding: 0;
+        height: auto;
+        font-size: 14px;
+        line-height: 1;
+      }
     }
   }
 
@@ -888,6 +936,16 @@ const getMaTrend = (row) => {
   background-color: #f56c6c;
   border-color: #f56c6c;
   color: #fff;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+:deep(.risk-tag-matched) {
+  background-color: rgb(103, 194, 58);
+  border-color: rgb(103, 194, 58);
+  color: #fff;
+  cursor: pointer;
+  margin-bottom: 8px;
 }
 
 :deep(.tag-unmatched) {
