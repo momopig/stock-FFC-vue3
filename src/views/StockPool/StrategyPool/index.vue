@@ -51,6 +51,13 @@
       :is-edit-mode="isEditMode"
       @submit="submitStock"
     />
+
+    <!-- 添加到自选分组对话框 -->
+    <AddToGroupDialog
+      v-model:visible="addToGroupDialogVisible"
+      :stock-data="selectedStockData"
+      @submit="handleAddToGroupSubmit"
+    />
   </div>
 </template>
 
@@ -69,6 +76,8 @@ import {
 import StockInsights from '@/components/StockInsights/index.vue'
 import StockList from '@/components/StockList/index.vue'
 import StockDialog from '../components/StockDialog.vue'
+import AddToGroupDialog from '../components/AddToGroupDialog.vue'
+import { addStockToGroups } from '@/api/modules/stockGroup'
 import moment from 'moment'
 
 // 策略列表
@@ -82,6 +91,8 @@ const tableLoading = ref(false)
 const dialogVisible = ref(false)
 const isViewMode = ref(false)
 const isEditMode = ref(false)
+const addToGroupDialogVisible = ref(false)
+const selectedStockData = ref(null)
 const insightsData = ref({
   totalCount: 0,
   avgDays: 0,
@@ -90,13 +101,18 @@ const insightsData = ref({
   selfMinChange: null,
   todayAvgChange: null,
   todayMaxChange: null,
-  todayMinChange: null
+  todayMinChange: null,
+  // 记录极值对应的股票名称，方便在洞察卡片中 hover / 点击交互
+  selfMaxStockName: null,
+  selfMinStockName: null,
+  todayMaxStockName: null,
+  todayMinStockName: null
 })
 
 // 分页参数
 const page = reactive({
   pageNo: 1,
-  pageSize: 20,
+  pageSize: 50,
   total: 0
 })
 
@@ -295,7 +311,11 @@ const calculateInsightsFromList = (filteredList = null) => {
       selfMinChange: null,
       todayAvgChange: null,
       todayMaxChange: null,
-      todayMinChange: null
+      todayMinChange: null,
+      selfMaxStockName: null,
+      selfMinStockName: null,
+      todayMaxStockName: null,
+      todayMinStockName: null
     }
     return
   }
@@ -331,6 +351,34 @@ const calculateInsightsFromList = (filteredList = null) => {
   const selfStats = calcStats(selfChanges)
   const todayStats = calcStats(todayChanges)
 
+  // 这里额外记录“极值对应的股票名称”，方便在洞察卡片中反查是哪只股票贡献了 High / Low
+  let selfMaxStockName = null
+  let selfMinStockName = null
+  let todayMaxStockName = null
+  let todayMinStockName = null
+
+  if (
+    selfStats.max != null ||
+    selfStats.min != null ||
+    todayStats.max != null ||
+    todayStats.min != null
+  ) {
+    listToUse.forEach((stock) => {
+      if (selfMaxStockName == null && selfStats.max != null && stock.selfChangeRate === selfStats.max) {
+        selfMaxStockName = stock.stock_name || stock.stock_code || ''
+      }
+      if (selfMinStockName == null && selfStats.min != null && stock.selfChangeRate === selfStats.min) {
+        selfMinStockName = stock.stock_name || stock.stock_code || ''
+      }
+      if (todayMaxStockName == null && todayStats.max != null && stock.change_rate === todayStats.max) {
+        todayMaxStockName = stock.stock_name || stock.stock_code || ''
+      }
+      if (todayMinStockName == null && todayStats.min != null && stock.change_rate === todayStats.min) {
+        todayMinStockName = stock.stock_name || stock.stock_code || ''
+      }
+    })
+  }
+
   insightsData.value = {
     totalCount: listToUse.length,
     avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0,
@@ -339,7 +387,11 @@ const calculateInsightsFromList = (filteredList = null) => {
     selfMinChange: selfStats.min,
     todayAvgChange: todayStats.avg,
     todayMaxChange: todayStats.max,
-    todayMinChange: todayStats.min
+    todayMinChange: todayStats.min,
+    selfMaxStockName,
+    selfMinStockName,
+    todayMaxStockName,
+    todayMinStockName
   }
 }
 
@@ -480,18 +532,43 @@ const handleStatusChange = async (row, newStatus) => {
   }
 }
 
-// 添加到自选（修改 is_self_selected 为 true）
-const handleAddToSelf = async (row) => {
+// 添加到自选（打开弹窗）
+const handleAddToSelf = (row) => {
+  // 准备股票数据
+  selectedStockData.value = {
+    stock_code: row.stock_code,
+    stock_name: row.stock_name,
+    exchange_code: row.exchange_code,
+    last_price: row.last_price,
+    initial_price: row.initial_price
+  }
+  addToGroupDialogVisible.value = true
+}
+
+// 处理添加到分组的提交
+const handleAddToGroupSubmit = async (submitData) => {
   try {
-    // 使用 updateStock API，只更新 is_self_selected 字段
-    const result = await updateStock(row.id, {
-      is_self_selected: true
-    })
+    if (!selectedStockData.value) {
+      ElMessage.error('股票数据不存在')
+      return
+    }
+
+    const addData = {
+      group_ids: submitData.group_ids,
+      exchange_code: selectedStockData.value.exchange_code,
+      stock_code: selectedStockData.value.stock_code,
+      stock_name: selectedStockData.value.stock_name,
+      initial_price: submitData.initial_price || 0,
+      add_reason: submitData.add_reason || '',
+      remark: submitData.remark || ''
+    }
+
+    const result = await addStockToGroups(addData)
 
     if (result && result.success !== false) {
-      ElMessage.success('已添加到自选股票池')
-      // 更新本地数据
-      row.is_self_selected = true
+      ElMessage.success('已添加到自选分组')
+      addToGroupDialogVisible.value = false
+      selectedStockData.value = null
       // 刷新列表
       getStockList()
     } else {
@@ -581,8 +658,8 @@ const submitStock = async (formData) => {
 
 <style scoped lang="less">
 .strategy-pool-container {
-  height: calc(100vh - 130px);
+  height: calc(100vh - 120px);
   background-color: #fff;
-  padding: 20px;
+  padding: 10px 20px 20px 20px;
 }
 </style>

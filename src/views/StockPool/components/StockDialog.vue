@@ -29,6 +29,7 @@
               @change="onChangeStock"
               style="flex: 1"
               :loading="stockSearchLoading"
+              :disabled="isEditMode"
             >
               <el-option
                 v-for="stock in stockSelectOptions"
@@ -38,7 +39,7 @@
               >
               </el-option>
             </el-select>
-            <el-button @click="refreshStock">刷新</el-button>
+            <el-button @click="refreshStock" :disabled="isEditMode">刷新</el-button>
           </div>
         </el-form-item>
 
@@ -83,12 +84,29 @@
         </el-form-item>
       </template>
 
+      <!-- 新增模式下显示分组选择 -->
+      <el-form-item v-if="!isEditMode && !isViewMode" label="选择分组" prop="group_ids">
+        <el-select
+          v-model="formData.group_ids"
+          multiple
+          placeholder="请选择分组（可多选）"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="group in groups"
+            :key="group.id"
+            :label="group.name"
+            :value="group.id"
+          />
+        </el-select>
+      </el-form-item>
+
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="交易所" prop="exchange_code">
             <el-select
               v-model="formData.exchange_code"
-              :disabled="isViewMode"
+              :disabled="isViewMode || isEditMode"
               placeholder="请选择交易所"
               style="width: 100%"
             >
@@ -238,6 +256,14 @@ const props = defineProps({
   isEditMode: {
     type: Boolean,
     default: false
+  },
+  groups: {
+    type: Array,
+    default: () => []
+  },
+  activeGroupId: {
+    type: [String, Number],
+    default: ''
   }
 })
 
@@ -260,10 +286,7 @@ const dialogTitle = computed(() => {
 
 // 表单验证规则
 const formRules = computed(() => {
-  return {
-    stockSearch: [
-      { required: !props.isViewMode, message: '请搜索并选择股票', trigger: 'change' }
-    ],
+  const rules = {
     stock_code: [
       { required: true, message: '请输入股票代码', trigger: 'blur' }
     ],
@@ -271,24 +294,37 @@ const formRules = computed(() => {
       { required: true, message: '请输入股票名称', trigger: 'blur' },
       { min: 1, max: 50, message: '股票名称长度在1-50个字符', trigger: 'blur' }
     ],
-    exchange_code: [
-      { required: true, message: '请选择交易所', trigger: 'change' }
-    ],
-    initial_price: [
-      { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
-    ],
     add_reason: [
       { required: true, message: '请输入加入原因', trigger: 'blur' },
       { min: 1, max: 500, message: '加入原因长度在1-500个字符', trigger: 'blur' }
-    ],
-    // add_method: [
-    //   { required: true, message: '请选择加入方式', trigger: 'change' }
-    // ],
-    status: [
-      { required: true, message: '请选择状态', trigger: 'change' }
     ]
   }
+
+  // 新增模式下需要验证股票搜索和交易所
+  if (!props.isEditMode && !props.isViewMode) {
+    rules.stockSearch = [
+      { required: true, message: '请搜索并选择股票', trigger: 'change' }
+    ]
+    rules.exchange_code = [
+      { required: true, message: '请选择交易所', trigger: 'change' }
+    ]
+    rules.initial_price = [
+      { required: true, message: '请输入初始价格', trigger: 'blur' },
+      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
+    ]
+    rules.group_ids = [
+      { required: true, message: '请至少选择一个分组', trigger: 'change' },
+      { type: 'array', min: 1, message: '请至少选择一个分组', trigger: 'change' }
+    ]
+  } else if (!props.isViewMode) {
+    // 编辑模式下需要验证初始价格
+    rules.initial_price = [
+      { required: true, message: '请输入初始价格', trigger: 'blur' },
+      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
+    ]
+  }
+
+  return rules
 })
 
 // 股票搜索方法
@@ -400,6 +436,12 @@ watch(() => props.visible, async (newVal) => {
       const username = userStore?.userInfo?.username || userStore?.userInfo?.name || '当前用户'
       if (!props.formData.created_by) {
         props.formData.created_by = username
+      }
+      // 如果没有分组ID，默认使用当前激活的分组
+      if (!props.formData.group_ids || props.formData.group_ids.length === 0) {
+        if (props.activeGroupId && props.activeGroupId !== 'add') {
+          props.formData.group_ids = [Number(props.activeGroupId)]
+        }
       }
     } else if (props.formData.stock_code && props.formData.stock_name) {
       // 编辑模式时，如果有股票信息，设置选中项以便显示

@@ -55,7 +55,7 @@
         </el-button>
       </div>
       <!-- 股票列表表格 -->
-      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 100px)' : showAddButton ? 'calc(100vh - 400px)' : 'calc(100vh - 450px)'"
+      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 100px)' : isSelfSelected ? 'calc(100vh - 400px)' : 'calc(100vh - 440px)'"
         :data="props.stockList" v-loading="loading" element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }">
         <el-table-column v-for="item in columns" :key="item.key" :prop="item.prop" :label="item.label"
@@ -79,30 +79,30 @@
                 <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton">
                   <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
                   <el-button
-                    v-if="showAddToSelfButton && !row.is_self_selected"
+                    v-if="showAddToSelfButton"
                     link
                     type="success"
                     @click.stop="$emit('add-to-self', row)">
-                    <el-icon style="margin-right: 4px;"><CirclePlus /></el-icon>
-                    <span>添加自选</span>
+                    <el-icon style="margin-right: 0px;"><CirclePlus /></el-icon>
+                    <span>加入分组</span>
                   </el-button>
-                  <el-button
+                  <!-- <el-button
                     v-if="showAddToSelfButton && row.is_self_selected"
                     link
                     type="warning"
                     @click.stop="$emit('remove-from-self', row)">
                     <el-icon style="margin-right: 4px;"><Remove /></el-icon>
                     <span>取消自选</span>
-                  </el-button>
+                  </el-button> -->
                   <!-- 自选股票池：显示取消自选按钮 -->
-                  <el-button
+                  <!-- <el-button
                     v-if="showRemoveFromSelfButton"
                     link
                     type="warning"
                     @click.stop="$emit('remove-from-self', row)">
                     <el-icon style="margin-right: 4px;"><Remove /></el-icon>
                     <span>删除自选</span>
-                  </el-button>
+                  </el-button> -->
                 </div>
               </div>
             </span>
@@ -214,7 +214,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌" width="98" sortable
+        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌" width="91" sortable
           :sort-method="(a, b) => sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))">
           <template #default="{ row }">
             <span :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }">
@@ -240,10 +240,10 @@
             <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
               编辑
             </el-button>
-            <el-popconfirm title="确定要删除该股票吗？" confirm-button-text="确定" cancel-button-text="取消"
+            <el-popconfirm :title="isSelfSelected ? '确定要移出分组吗？' : '确定要删除该股票吗？'" confirm-button-text="确定" cancel-button-text="取消"
               @confirm="$emit('delete-stock', scope.row.id)">
               <template #reference>
-                <el-button link type="danger">删除</el-button>
+                <el-button link type="danger">{{ isSelfSelected ? '移出' : '删除' }}</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -298,6 +298,11 @@ const props = defineProps({
   },
   // 是否显示"取消自选"按钮（自选股票池专用）
   showRemoveFromSelfButton: {
+    type: Boolean,
+    default: false
+  },
+  // 是否是自选股票池
+  isSelfSelected: {
     type: Boolean,
     default: false
   }
@@ -403,6 +408,36 @@ const getMaTrendFilters = () => {
     .map(item => ({ text: String(item), value: item }))
 }
 
+// 生成风险信号的筛选项
+const getRiskSignsFilters = () => {
+  if (!props.stockList?.length) {
+    return undefined
+  }
+
+  const filterSet = new Set()
+  props.stockList.forEach(stock => {
+    const riskSigns = getRiskSigns(stock)
+    if (riskSigns && riskSigns.length > 0) {
+      riskSigns.forEach(riskSign => {
+        if (riskSign?.sign) {
+          filterSet.add(riskSign.sign)
+        }
+      })
+    } else {
+      // 如果没有风险信号，添加"无"
+      filterSet.add('无')
+    }
+  })
+
+  if (filterSet.size === 0) {
+    return undefined
+  }
+
+  return Array.from(filterSet)
+    .sort()
+    .map(item => ({ text: String(item), value: item }))
+}
+
 // 站稳分析的筛选方法
 const filterStabilityAnalysis = (value, row) => {
   if (!value) return true
@@ -415,6 +450,20 @@ const filterMaTrend = (value, row) => {
   if (!value) return true
   const trendResult = getMaTrend(row)
   return trendResult?.text === value
+}
+
+// 风险信号的筛选方法
+const filterRiskSigns = (value, row) => {
+  if (!value) return true
+  const riskSigns = getRiskSigns(row)
+
+  // 如果筛选的是"无"
+  if (value === '无') {
+    return !riskSigns || riskSigns.length === 0
+  }
+
+  // 否则检查是否包含该风险信号
+  return riskSigns?.some(riskSign => riskSign.sign === value) || false
 }
 
 
@@ -501,7 +550,9 @@ const columns = reactive([
     key: 'risk_signs',
     label: '风险信号',
     prop: 'risk_signs',
-    minWidth: 150
+    minWidth: 150,
+    columnKey: 'risk_signs',
+    filterMethod: filterRiskSigns
   },
   {
     key: 'days_added',
@@ -572,6 +623,9 @@ const getFiltersForColumn = (item) => {
   }
   if (item.key === 'ma_trend') {
     return getMaTrendFilters()
+  }
+  if (item.key === 'risk_signs') {
+    return getRiskSignsFilters()
   }
 
   // 对于有 filterMethod 的列，使用通用的 addTypeFilters
@@ -920,6 +974,10 @@ const getRiskSigns = (row) => {
     }
     .stock-name-cell {
       font-size: 18px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei",
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.02em;
     }
 
     .self-select-buttons {

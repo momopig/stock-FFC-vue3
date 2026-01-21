@@ -19,17 +19,35 @@
                 <div class="triangle-left">
                   <span class="value-container">
                     High
-                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMaxChange) }">
-                      {{ formatChangePercent(insightsData.selfMaxChange) }}
-                    </span>
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.selfMaxStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.selfMaxChange) }"
+                        @click="handleCopyStockName(insightsData.selfMaxStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.selfMaxChange) }}
+                      </span>
+                    </el-tooltip>
                   </span>
                 </div>
                 <div class="triangle-right">
                   <span class="value-container">
                     Low
-                    <span class="value" :style="{ color: getQuoteColor(insightsData.selfMinChange) }">
-                      {{ formatChangePercent(insightsData.selfMinChange) }}
-                    </span>
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.selfMinStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.selfMinChange) }"
+                        @click="handleCopyStockName(insightsData.selfMinStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.selfMinChange) }}
+                      </span>
+                    </el-tooltip>
                   </span>
                 </div>
               </div>
@@ -55,17 +73,35 @@
                 <div class="triangle-left">
                   <span class="value-container">
                     High
-                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMaxChange) }">
-                      {{ formatChangePercent(insightsData.todayMaxChange) }}
-                    </span>
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.todayMaxStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.todayMaxChange) }"
+                        @click="handleCopyStockName(insightsData.todayMaxStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.todayMaxChange) }}
+                      </span>
+                    </el-tooltip>
                   </span>
                 </div>
                 <div class="triangle-right">
                   <span class="value-container">
                     Low
-                    <span class="value" :style="{ color: getQuoteColor(insightsData.todayMinChange) }">
-                      {{ formatChangePercent(insightsData.todayMinChange) }}
-                    </span>
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.todayMinStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.todayMinChange) }"
+                        @click="handleCopyStockName(insightsData.todayMinStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.todayMinChange) }}
+                      </span>
+                    </el-tooltip>
                   </span>
                 </div>
               </div>
@@ -95,6 +131,8 @@
 </template>
 
 <script setup>
+import { ElMessage } from 'element-plus'
+
 // 接收洞察数据作为 props
 defineProps({
   insightsData: {
@@ -107,7 +145,12 @@ defineProps({
       selfMinChange: null,
       todayAvgChange: null,
       todayMaxChange: null,
-      todayMinChange: null
+      todayMinChange: null,
+      // 这些名称字段用于在洞察卡片中反查“极值对应的是哪只股票”
+      selfMaxStockName: null,
+      selfMinStockName: null,
+      todayMaxStockName: null,
+      todayMinStockName: null
     })
   }
 })
@@ -123,6 +166,34 @@ const formatChangePercent = (value, showSign = true) => {
 const getQuoteColor = (changeRate) => {
   if (changeRate == null) return '#606266'
   return changeRate >= 0 ? '#f56c6c' : '#67c23a'
+}
+
+// 点击复制股票名称
+// 这里实现复制功能，是为了方便从洞察视图快速把“极值对应的股票”粘贴到别处做进一步分析
+const handleCopyStockName = async (name) => {
+  if (!name) {
+    ElMessage.warning('暂无对应股票名称可复制')
+    return
+  }
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(name)
+    } else {
+      // 兼容不支持 Clipboard API 的旧环境
+      const textarea = document.createElement('textarea')
+      textarea.value = name
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success('股票名称已复制到剪贴板')
+  } catch (error) {
+    console.error('复制股票名称失败', error)
+    ElMessage.error('复制失败，请手动选择股票名称')
+  }
 }
 </script>
 
@@ -217,6 +288,17 @@ const getQuoteColor = (changeRate) => {
         }
       }
     }
+  }
+}
+
+.copyable {
+  cursor: pointer;
+  text-decoration: underline dashed transparent;
+  text-underline-offset: 4px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+
+  &:hover {
+    text-decoration-color: #409eff;
   }
 }
 </style>

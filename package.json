@@ -25,6 +25,7 @@
     "moment": "^2.30.1",
     "pinia": "^2.1.7",
     "qs": "^6.12.1",
+    "sortablejs": "^1.15.0",
     "vite-plugin-md": "^0.22.5",
     "vite-plugin-prettier": "^0.0.6",
     "vue": "^3.4.27",
