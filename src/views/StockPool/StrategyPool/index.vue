@@ -22,6 +22,7 @@
             :pageSize="page.pageSize"
             :showAddButton="false"
             :showAddToSelfButton="true"
+            :showAddToWatchButton="userStore.userInfo?.is_superuser"
             @page-change="handlePageChange"
             @size-change="handlePageSizeChange"
             @search="handleSearchEvent"
@@ -31,8 +32,24 @@
             @status-change="handleStatusChange"
             @add-stock="addStockFn"
             @add-to-self="handleAddToSelf"
+            @add-to-watch="handleAddToWatch"
             @remove-from-self="handleRemoveFromSelf"
             @filter-change="handleFilterChange"
+          />
+        </template>
+      </el-tab-pane>
+
+      <!-- 重点观察Tab（仅超管可见） -->
+      <el-tab-pane
+        v-if="userStore.userInfo?.is_superuser"
+        label="重点观察"
+        name="watch"
+      >
+        <template v-if="activeStrategy === 'watch'">
+          <WatchList
+            @view-stock="handleViewStock"
+            @edit-stock="handleEditStock"
+            @add-stock="addStockFn"
           />
         </template>
       </el-tab-pane>
@@ -56,6 +73,7 @@
     <AddToGroupDialog
       v-model:visible="addToGroupDialogVisible"
       :stock-data="selectedStockData"
+      :strategy-info="selectedStrategyInfo"
       @submit="handleAddToGroupSubmit"
     />
   </div>
@@ -77,8 +95,13 @@ import StockInsights from '@/components/StockInsights/index.vue'
 import StockList from '@/components/StockList/index.vue'
 import StockDialog from '../components/StockDialog.vue'
 import AddToGroupDialog from '../components/AddToGroupDialog.vue'
+import WatchList from '../components/WatchList.vue'
 import { addStockToGroups } from '@/api/modules/stockGroup'
+import { UserStore } from '@/state/user'
 import moment from 'moment'
+
+// 用户状态管理
+const userStore = UserStore()
 
 // 策略列表
 const strategies = ref([])
@@ -93,6 +116,7 @@ const isViewMode = ref(false)
 const isEditMode = ref(false)
 const addToGroupDialogVisible = ref(false)
 const selectedStockData = ref(null)
+const selectedStrategyInfo = ref(null)
 const insightsData = ref({
   totalCount: 0,
   avgDays: 0,
@@ -192,9 +216,14 @@ const loadStrategies = async () => {
 
 // 策略切换处理
 const handleStrategyChange = (tab) => {
-  page.pageNo = 1
-  // 使用 tab.name 获取最新的策略名称，因为此时 activeStrategy.value 可能还未更新
-  getStockList(tab?.props?.name)
+  const tabName = tab?.props?.name || tab?.name
+  if (tabName !== 'watch') {
+    // 切换到策略tab
+    page.pageNo = 1
+    // 使用 tab.name 获取最新的策略名称，因为此时 activeStrategy.value 可能还未更新
+    getStockList(tabName)
+  }
+  // 重点观察tab由WatchList组件自己管理，不需要在这里处理
 }
 
 // 获取股票列表
@@ -534,15 +563,47 @@ const handleStatusChange = async (row, newStatus) => {
 
 // 添加到自选（打开弹窗）
 const handleAddToSelf = (row) => {
-  // 准备股票数据
+  // 准备股票数据（包含加入日期，用于在保持策略信息时传递）
   selectedStockData.value = {
     stock_code: row.stock_code,
     stock_name: row.stock_name,
     exchange_code: row.exchange_code,
     last_price: row.last_price,
-    initial_price: row.initial_price
+    initial_price: row.initial_price,
+    add_time: row.add_time || null
   }
+
+  // 准备策略信息（从当前股票数据中获取）
+  selectedStrategyInfo.value = {
+    add_time: row.add_time || null,
+    initial_price: row.initial_price || null,
+    add_reason: row.add_reason || '',
+    notes: row.notes || ''
+  }
+
   addToGroupDialogVisible.value = true
+}
+
+// 加入观察（修改is_self_selected为true）
+const handleAddToWatch = async (row) => {
+  try {
+    const result = await updateStock(row.id, {
+      is_self_selected: true
+    })
+
+    if (result && result.success !== false) {
+      ElMessage.success('已加入重点观察')
+      // 更新本地数据
+      row.is_self_selected = true
+      // 刷新列表
+      getStockList()
+    } else {
+      ElMessage.error(result?.message || '加入观察失败')
+    }
+  } catch (error) {
+    console.error('加入观察失败:', error)
+    ElMessage.error('加入观察失败，请稍后重试')
+  }
 }
 
 // 处理添加到分组的提交
@@ -558,6 +619,7 @@ const handleAddToGroupSubmit = async (submitData) => {
       exchange_code: selectedStockData.value.exchange_code,
       stock_code: selectedStockData.value.stock_code,
       stock_name: selectedStockData.value.stock_name,
+      add_time: submitData.add_time || null,
       initial_price: submitData.initial_price || 0,
       add_reason: submitData.add_reason || '',
       remark: submitData.remark || ''

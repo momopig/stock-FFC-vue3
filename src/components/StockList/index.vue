@@ -76,7 +76,7 @@
                   {{ row.stock_name || '--' }}
                 </span>
                 <!-- 自选按钮 -->
-                <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton">
+                <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton || (showAddToWatchButton && userStore.userInfo?.is_superuser)">
                   <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
                   <el-button
                     v-if="showAddToSelfButton"
@@ -85,6 +85,15 @@
                     @click.stop="$emit('add-to-self', row)">
                     <el-icon style="margin-right: 0px;"><CirclePlus /></el-icon>
                     <span>加入分组</span>
+                  </el-button>
+                  <!-- 加入观察按钮（仅超管可见） -->
+                  <el-button
+                    v-if="showAddToWatchButton && userStore.userInfo?.is_superuser && !row.is_self_selected"
+                    link
+                    type="warning"
+                    @click.stop="$emit('add-to-watch', row)">
+                    <el-icon style="margin-right: 0px;"><CirclePlus /></el-icon>
+                    <span>加入观察</span>
                   </el-button>
                   <!-- <el-button
                     v-if="showAddToSelfButton && row.is_self_selected"
@@ -240,10 +249,13 @@
             <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
               编辑
             </el-button>
-            <el-popconfirm :title="isSelfSelected ? '确定要移出分组吗？' : '确定要删除该股票吗？'" confirm-button-text="确定" cancel-button-text="取消"
+            <el-popconfirm
+              :title="isWatchMode ? '是否取消观察？' : (isSelfSelected ? '确定要移出分组吗？' : '确定要删除该股票吗？')"
+              confirm-button-text="确定"
+              cancel-button-text="取消"
               @confirm="$emit('delete-stock', scope.row.id)">
               <template #reference>
-                <el-button link type="danger">{{ isSelfSelected ? '移出' : '删除' }}</el-button>
+                <el-button link type="danger">{{ isWatchMode ? '取消' : (isSelfSelected ? '移出' : '删除') }}</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -305,12 +317,22 @@ const props = defineProps({
   isSelfSelected: {
     type: Boolean,
     default: false
+  },
+  // 是否显示"加入观察"按钮（仅超管可见）
+  showAddToWatchButton: {
+    type: Boolean,
+    default: false
+  },
+  // 是否是重点观察模式
+  isWatchMode: {
+    type: Boolean,
+    default: false
   }
 })
 
 const userStore = UserStore();
 // Emits 定义
-const emit = defineEmits(['page-change', 'size-change', 'search', 'reset', 'view-stock', 'edit-stock', 'delete-stock', 'status-change', 'add-stock', 'add-to-self', 'remove-from-self', 'filter-change'])
+const emit = defineEmits(['page-change', 'size-change', 'search', 'reset', 'view-stock', 'edit-stock', 'delete-stock', 'status-change', 'add-stock', 'add-to-self', 'add-to-watch', 'remove-from-self', 'filter-change'])
 
 // 本地搜索和筛选状态
 const localSearchQuery = reactive({
@@ -983,12 +1005,15 @@ const getRiskSigns = (row) => {
     .self-select-buttons {
       display: flex;
       margin-top: 2px;
+      flex-direction: column;
+      align-items: flex-start;
 
       :deep(.el-button) {
         padding: 0;
         height: auto;
         font-size: 12px;
         line-height: 1;
+        margin: 2px 0 0 0;
       }
     }
   }

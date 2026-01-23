@@ -108,6 +108,7 @@ export const updateGroupStock = async (itemId, data) => {
  * @param {string} data.exchange_code - 交易所代码（SH/SZ/HK/US）
  * @param {string} data.stock_code - 股票代码
  * @param {string} data.stock_name - 股票名称
+ * @param {string} data.add_time - 加入日期，非必填
  * @param {number} data.initial_price - 初始价格，非必填
  * @param {string} data.add_reason - 添加原因，非必填
  * @param {string} data.remark - 备注，非必填
