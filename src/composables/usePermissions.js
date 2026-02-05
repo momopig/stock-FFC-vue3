@@ -72,8 +72,8 @@ export const usePermissions = () => {
     const userInfo = userStore.userInfo || {};
     return rolePermissions.some(permission => {
       switch (permission) {
-        case 'isMaster':
-          return !!userInfo.isMaster;
+        case 'is_superuser':
+          return !!userInfo.is_superuser;
         case 'isWarehouseManager':
           return !!userInfo.isWarehouseManager;
         case 'isShopOperator':

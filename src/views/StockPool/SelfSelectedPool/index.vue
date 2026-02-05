@@ -61,6 +61,7 @@
       :groups="groups"
       :active-group-id="activeGroupId"
       @submit="submitStock"
+      @group-created="handleGroupCreated"
     />
   </div>
 </template>
@@ -266,6 +267,16 @@ const fetchGroups = async () => {
     ElMessage.error('获取分组列表失败，请稍后重试')
   } finally {
     groupLoading.value = false
+  }
+}
+
+// 处理分组创建事件
+const handleGroupCreated = async (newGroup) => {
+  // 刷新分组列表
+  await fetchGroups()
+  // 如果创建了新分组，可以自动选中它（可选）
+  if (newGroup?.id) {
+    // 这里不自动切换，让用户继续当前操作
   }
 }
 

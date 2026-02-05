@@ -91,6 +91,7 @@
           multiple
           placeholder="请选择分组（可多选）"
           style="width: 100%"
+          @change="handleGroupChange"
         >
           <el-option
             v-for="group in groups"
@@ -98,6 +99,17 @@
             :label="group.name"
             :value="group.id"
           />
+          <!-- 新增分组选项 -->
+          <el-option
+            label="+ 新增分组"
+            value="__create_new__"
+            style="color: #409eff; font-weight: bold;"
+          >
+            <span style="color: #409eff; font-weight: bold;">
+              <el-icon style="margin-right: 4px;"><Plus /></el-icon>
+              新增分组
+            </span>
+          </el-option>
         </el-select>
       </el-form-item>
 
@@ -235,10 +247,12 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { UserStore } from '@/state/user'
 import { formatDateTime } from '@/utils/time'
 import { getStock } from '@/api/modules/stockPool'
+import { createGroup } from '@/api/modules/stockGroup'
 
 const props = defineProps({
   visible: {
@@ -267,7 +281,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:visible', 'submit'])
+const emit = defineEmits(['update:visible', 'submit', 'group-created'])
 
 const formRef = ref()
 const loading = ref(false)
@@ -463,6 +477,60 @@ watch(() => props.visible, async (newVal) => {
   }
 })
 
+// 处理分组选择变化
+const handleGroupChange = (value) => {
+  // 如果选择了"新增分组"选项，触发创建分组
+  if (Array.isArray(value) && value.includes('__create_new__')) {
+    // 移除特殊值
+    props.formData.group_ids = value.filter(id => id !== '__create_new__')
+    handleCreateGroup()
+  }
+}
+
+// 创建新分组
+const handleCreateGroup = async () => {
+  try {
+    const { value: groupName } = await ElMessageBox.prompt('请输入分组名称', '新建分组', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,20}$/,
+      inputErrorMessage: '分组名称长度为1-20个字符'
+    })
+
+    if (!groupName) return
+
+    try {
+      const result = await createGroup({
+        name: groupName,
+        is_hidden: false,
+        display_order: props.groups?.length || 0,
+        remark: '',
+        create_type: 'custom'
+      })
+
+      if (result?.success) {
+        ElMessage.success('创建分组成功')
+        // 通知父组件刷新分组列表
+        emit('group-created', result.payload)
+        // 自动选中新创建的分组
+        if (result.payload?.id) {
+          const currentGroupIds = Array.isArray(props.formData.group_ids)
+            ? props.formData.group_ids
+            : []
+          props.formData.group_ids = [...currentGroupIds, result.payload.id]
+        }
+      } else {
+        ElMessage.error(result?.message || '创建分组失败')
+      }
+    } catch (error) {
+      console.error('创建分组失败:', error)
+      ElMessage.error('创建分组失败，请稍后重试')
+    }
+  } catch (error) {
+    // 用户取消输入
+  }
+}
+
 // 关闭对话框
 const handleClose = () => {
   emit('update:visible', false)
@@ -475,8 +543,16 @@ const handleSubmit = async () => {
 
     loading.value = true
 
-    // 准备提交数据
-    const submitData = { ...props.formData, add_method: 'manual' }
+    // 准备提交数据（确保过滤掉特殊值）
+    const groupIds = Array.isArray(props.formData.group_ids)
+      ? props.formData.group_ids.filter(id => id !== '__create_new__')
+      : []
+
+    const submitData = {
+      ...props.formData,
+      add_method: 'manual',
+      group_ids: groupIds
+    }
 
     // 确保数值类型正确
     if (submitData.initial_price !== null && submitData.initial_price !== undefined) {

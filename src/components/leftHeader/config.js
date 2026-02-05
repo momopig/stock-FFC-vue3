@@ -1,6 +1,6 @@
 // 权限类型定义
 // 支持两种权限配置方式：
-// 1. 传统角色权限：isMaster, isWarehouseManager, isShopOperator
+// 1. 传统角色权限：is_superuser, isWarehouseManager, isShopOperator
 // 2. 细粒度权限code：基于后端权限常量的具体权限code
 // 多个权限用数组表示，满足任一权限即可访问
 //
@@ -78,6 +78,7 @@ export const menuList = [
     foldName: '用户',
     icon: 'User', // 用户
     path: '/user-mgt',
-    dataGuide: 'user-mgt' // 引导标记
+    dataGuide: 'user-mgt', // 引导标记
+    permissions: ['is_superuser'],
   },
 ]

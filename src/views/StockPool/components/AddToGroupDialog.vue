@@ -47,6 +47,7 @@
           placeholder="请选择分组（可多选）"
           style="width: 100%"
           :loading="groupsLoading"
+          @change="handleGroupChange"
         >
           <el-option
             v-for="group in groups"
@@ -54,6 +55,17 @@
             :label="group.name"
             :value="group.id"
           />
+          <!-- 新增分组选项 -->
+          <el-option
+            label="+ 新增分组"
+            value="__create_new__"
+            style="color: #409eff; font-weight: bold;"
+          >
+            <span style="color: #409eff; font-weight: bold;">
+              <el-icon style="margin-right: 4px;"><Plus /></el-icon>
+              新增分组
+            </span>
+          </el-option>
         </el-select>
       </el-form-item>
 
@@ -121,8 +133,9 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getUserGroups } from '@/api/modules/stockGroup'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { getUserGroups, createGroup } from '@/api/modules/stockGroup'
 
 const props = defineProps({
   visible: {
@@ -226,6 +239,63 @@ const fetchGroups = async () => {
   }
 }
 
+// 处理分组选择变化
+const handleGroupChange = (value) => {
+  // 如果选择了"新增分组"选项，触发创建分组
+  if (Array.isArray(value) && value.includes('__create_new__')) {
+    // 移除特殊值
+    formData.value.group_ids = value.filter(id => id !== '__create_new__')
+    handleCreateGroup()
+  }
+}
+
+// 创建新分组
+const handleCreateGroup = async () => {
+  try {
+    const { value: groupName } = await ElMessageBox.prompt('请输入分组名称', '新建分组', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,20}$/,
+      inputErrorMessage: '分组名称长度为1-20个字符'
+    })
+
+    if (!groupName) return
+
+    groupsLoading.value = true
+    try {
+      const result = await createGroup({
+        name: groupName,
+        is_hidden: false,
+        display_order: groups.value.length,
+        remark: '',
+        create_type: 'custom'
+      })
+
+      if (result?.success) {
+        ElMessage.success('创建分组成功')
+        // 刷新分组列表
+        await fetchGroups()
+        // 自动选中新创建的分组
+        if (result.payload?.id) {
+          const currentGroupIds = Array.isArray(formData.value.group_ids)
+            ? formData.value.group_ids
+            : []
+          formData.value.group_ids = [...currentGroupIds, result.payload.id]
+        }
+      } else {
+        ElMessage.error(result?.message || '创建分组失败')
+      }
+    } catch (error) {
+      console.error('创建分组失败:', error)
+      ElMessage.error('创建分组失败，请稍后重试')
+    } finally {
+      groupsLoading.value = false
+    }
+  } catch (error) {
+    // 用户取消输入
+  }
+}
+
 // 监听弹窗显示状态
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
@@ -294,8 +364,8 @@ const handleSubmit = async () => {
     if (formData.value.keepStrategyInfo && props.strategyInfo) {
       // 优先使用策略信息，如果策略信息中没有，则使用用户输入的值
       // 如果选择保持策略信息，使用股票的加入日期
-      if (props.strategyInfo?.add_time) {
-        finalAddTime = props.strategyInfo.add_time
+      if (props.stockData?.add_time) {
+        finalAddTime = props.stockData.add_time
       }
       if (props.strategyInfo.initial_price != null) {
         finalInitialPrice = props.strategyInfo.initial_price
@@ -309,9 +379,13 @@ const handleSubmit = async () => {
     }
     // 如果选择"否"，则不传加入日期（finalAddTime 保持为 null）
 
-    // 准备提交数据
+    // 准备提交数据（确保过滤掉特殊值）
+    const groupIds = Array.isArray(formData.value.group_ids)
+      ? formData.value.group_ids.filter(id => id !== '__create_new__')
+      : []
+
     const submitData = {
-      group_ids: formData.value.group_ids,
+      group_ids: groupIds,
       initial_price: finalInitialPrice || 0,
       add_reason: finalAddReason || '',
       remark: finalRemark || ''
