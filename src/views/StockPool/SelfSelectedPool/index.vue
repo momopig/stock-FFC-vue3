@@ -750,6 +750,46 @@ const addStockFn = () => {
 // 提交股票表单
 const submitStock = async (formData) => {
   try {
+    // 批量添加模式
+    if (formData?.batchMode && Array.isArray(formData?.stocks)) {
+      const groupIds = formData.group_ids || []
+      if (groupIds.length === 0) {
+        ElMessage.error('请至少选择一个分组')
+        return
+      }
+
+      let successCount = 0
+      let failCount = 0
+
+      for (const stock of formData.stocks) {
+        try {
+          const addData = {
+            group_ids: groupIds,
+            exchange_code: stock.exchange_code,
+            stock_code: stock.stock_code,
+            stock_name: stock.stock_name,
+            initial_price: stock.initial_price ?? 0,
+            add_reason: formData.add_reason || '',
+            remark: formData.notes || ''
+          }
+          const result = await addStockToGroups(addData)
+          if (result?.success !== false) {
+            successCount++
+          } else {
+            failCount++
+          }
+        } catch {
+          failCount++
+        }
+      }
+
+      ElMessage.success(`批量添加完成：成功 ${successCount} 只${failCount > 0 ? `，失败 ${failCount} 只` : ''}`)
+      dialogVisible.value = false
+      await getStockList()
+      stockForm.value = initStockForm()
+      return
+    }
+
     let result
     if (formData.id) {
       // 编辑模式：更新分组内股票

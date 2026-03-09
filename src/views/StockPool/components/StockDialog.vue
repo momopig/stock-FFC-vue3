@@ -14,8 +14,48 @@
       label-width="80px"
       v-loading="loading"
     >
-      <!-- 非查看模式下显示股票搜索 -->
-      <template v-if="!isViewMode">
+      <!-- 新增模式下显示添加方式选择（仅在有分组时显示，因批量添加需选择分组） -->
+      <template v-if="!isViewMode && !isEditMode && groups?.length > 0">
+        <el-form-item label="添加方式">
+          <el-radio-group v-model="addMode">
+            <el-radio value="single">添加股票</el-radio>
+            <el-radio value="batch">批量添加</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </template>
+
+      <!-- 批量添加模式：股票输入框 -->
+      <template v-if="!isViewMode && addMode === 'batch'">
+        <el-form-item label="股票输入" prop="batchStockInput">
+          <div class="batch-input-wrapper">
+            <el-input
+              v-model="batchStockInput"
+              type="textarea"
+              :rows="4"
+              placeholder="请输入股票名称或代码，支持逗号、空格分隔（如：茅台 招商银行 平安银行）"
+              :disabled="isEditMode"
+            />
+            <el-button
+              type="primary"
+              :loading="batchMatchLoading"
+              @click="handleBatchMatch"
+              :disabled="!batchStockInput?.trim()"
+              class="match-btn"
+            >
+              匹配
+            </el-button>
+          </div>
+          <div v-if="batchMatchedStocks.length > 0" class="batch-matched-tip">
+            已匹配 {{ batchMatchedStocks.length }} 只股票，分别是
+            <span v-for="stock in batchMatchedStocks" :key="stock.key">
+              {{ stock.stock_name }} ({{ stock.stock_code }})
+            </span>
+          </div>
+        </el-form-item>
+      </template>
+
+      <!-- 单个添加模式：非查看模式下显示股票搜索 -->
+      <template v-if="!isViewMode && addMode === 'single'">
         <el-form-item label="股票搜索" prop="stockSearch">
           <div style="display: flex; gap: 10px; width: 100%">
             <el-select
@@ -113,7 +153,8 @@
         </el-select>
       </el-form-item>
 
-      <el-row :gutter="20">
+      <!-- 单个添加或编辑/查看模式时显示交易所和初始价格，批量添加时隐藏（由匹配结果带入） -->
+      <el-row v-if="addMode !== 'batch'" :gutter="20">
         <el-col :span="12">
           <el-form-item label="交易所" prop="exchange_code">
             <el-select
@@ -286,10 +327,18 @@ const emit = defineEmits(['update:visible', 'submit', 'group-created'])
 const formRef = ref()
 const loading = ref(false)
 
+// 添加方式：single 单个添加，batch 批量添加
+const addMode = ref('single')
+
 // 股票搜索相关
 const selectedStockOption = ref(null)
 const stockSelectOptions = ref([])
 const stockSearchLoading = ref(false)
+
+// 批量添加相关
+const batchStockInput = ref('')
+const batchMatchedStocks = ref([])
+const batchMatchLoading = ref(false)
 
 // 对话框标题
 const dialogTitle = computed(() => {
@@ -297,6 +346,88 @@ const dialogTitle = computed(() => {
   if (props.isEditMode) return '编辑股票'
   return '添加股票'
 })
+
+// 交易所代码映射（API 返回的 exchange 可能为 SSE/SZSE 等）
+const EXCHANGE_MAP = {
+  SH: 'SH',
+  SZ: 'SZ',
+  HK: 'HK',
+  US: 'US',
+  SSE: 'SH',
+  SZSE: 'SZ',
+  hk: 'HK',
+  us: 'US'
+}
+
+// 将 API 返回的股票转换为统一格式
+const normalizeStockFromApi = (stock) => {
+  const exchangeCode = EXCHANGE_MAP[stock?.exchange] || stock?.exchange || ''
+  return {
+    ...stock,
+    exchange_code: exchangeCode,
+    initialPrice: Number(stock?.price) || 0
+  }
+}
+
+// 解析批量输入：支持逗号、空格分隔
+const parseBatchStockInput = (input) => {
+  if (!input?.trim()) return []
+  return input
+    .split(/[,，\s]+/)
+    .map((s) => s?.trim())
+    .filter(Boolean)
+}
+
+// 批量匹配：对每个输入项模糊搜索，取第一个匹配结果
+const handleBatchMatch = async () => {
+  const tokens = parseBatchStockInput(batchStockInput.value)
+  if (tokens.length === 0) {
+    ElMessage.warning('请输入至少一个股票名称或代码')
+    return
+  }
+
+  batchMatchLoading.value = true
+  batchMatchedStocks.value = []
+
+  try {
+    const matched = []
+    const failed = []
+
+    for (const token of tokens) {
+      const result = await getStock(token, false)
+      const stockList = result?.Result?.stock || []
+      const stockOptions = stockList
+        .filter((s) => s?.type === 'stock')
+        .map(normalizeStockFromApi)
+
+      if (stockOptions?.length > 0) {
+        const first = stockOptions[0]
+        matched.push({
+          stock_code: `${first?.code || ''}.${first?.exchange_code || ''}`,
+          stock_name: first?.name || '',
+          exchange_code: first?.exchange_code || '',
+          initial_price: first?.initialPrice ?? 0
+        })
+      } else {
+        failed.push(token)
+      }
+    }
+
+    batchMatchedStocks.value = matched
+
+    if (failed.length > 0) {
+      ElMessage.warning(`以下项未匹配到股票：${failed.join('、')}`)
+    }
+    if (matched.length > 0) {
+      ElMessage.success(`成功匹配 ${matched.length} 只股票`)
+    }
+  } catch (error) {
+    console.error('批量匹配失败:', error)
+    ElMessage.error('批量匹配失败，请稍后重试')
+  } finally {
+    batchMatchLoading.value = false
+  }
+}
 
 // 表单验证规则
 const formRules = computed(() => {
@@ -349,26 +480,13 @@ const suggestStocks = async (query) => {
       const result = await getStock(query, false)
       const stockList = result?.Result?.stock || []
       stockSelectOptions.value = stockList
-        .filter((stock) => stock.type === 'stock')
+        .filter((stock) => stock?.type === 'stock')
         .map((stock) => {
-          // 将交易所代码映射到标准格式
-          const exchangeMap = {
-            'SH': 'SH',
-            'SZ': 'SZ',
-            'HK': 'HK',
-            'US': 'US',
-            'SSE': 'SH', // 上交所
-            'SZSE': 'SZ', // 深交所
-            'hk': 'HK',
-            'us': 'US'
-          }
-          const exchangeCode = exchangeMap[stock.exchange] || stock.exchange || ''
+          const normalized = normalizeStockFromApi(stock)
           return {
-            ...stock,
-            label: `${stock.name}: ${exchangeCode}${stock.code}`,
-            key: `${exchangeCode}_${stock.code}`,
-            exchange_code: exchangeCode,
-            initialPrice: Number(stock.price) || 0
+            ...normalized,
+            label: `${stock?.name}: ${normalized?.exchange_code || ''}${stock?.code || ''}`,
+            key: `${normalized?.exchange_code || ''}_${stock?.code || ''}`
           }
         })
     } catch (error) {
@@ -442,8 +560,16 @@ watch(() => props.visible, async (newVal) => {
     // 重置股票搜索选项列表
     stockSelectOptions.value = []
 
+    // 编辑/查看模式时强制为单个添加
+    if (props.isEditMode || props.isViewMode) {
+      addMode.value = 'single'
+    }
+
     // 新建股票时，重置选中项并自动填充创建人和默认值
     if (!props.isEditMode && !props.isViewMode) {
+      // 重置批量添加相关状态
+      batchStockInput.value = ''
+      batchMatchedStocks.value = []
       selectedStockOption.value = null
       props.formData.stockSearch = ''
       const userStore = UserStore()
@@ -533,19 +659,50 @@ const handleCreateGroup = async () => {
 
 // 关闭对话框
 const handleClose = () => {
+  batchStockInput.value = ''
+  addMode.value = 'single'
   emit('update:visible', false)
 }
 
 // 提交表单
 const handleSubmit = async () => {
   try {
+    // 批量模式：校验匹配结果
+    if (addMode.value === 'batch') {
+      if (batchMatchedStocks.value?.length === 0) {
+        ElMessage.warning('请先点击「匹配」按钮进行股票匹配')
+        return
+      }
+      const groupIds = Array.isArray(props.formData.group_ids)
+        ? props.formData.group_ids.filter((id) => id !== '__create_new__')
+        : []
+      if (groupIds.length === 0) {
+        ElMessage.error('请至少选择一个分组')
+        return
+      }
+      if (!props.formData.add_reason?.trim()) {
+        ElMessage.warning('请输入加入原因')
+        return
+      }
+
+      loading.value = true
+      emit('submit', {
+        batchMode: true,
+        stocks: batchMatchedStocks.value,
+        group_ids: groupIds,
+        add_reason: props.formData.add_reason || '',
+        notes: props.formData.notes || ''
+      })
+      return
+    }
+
     await formRef.value.validate()
 
     loading.value = true
 
     // 准备提交数据（确保过滤掉特殊值）
     const groupIds = Array.isArray(props.formData.group_ids)
-      ? props.formData.group_ids.filter(id => id !== '__create_new__')
+      ? props.formData.group_ids.filter((id) => id !== '__create_new__')
       : []
 
     const submitData = {
@@ -580,6 +737,25 @@ const handleSubmit = async () => {
 }
 .el-form {
   padding: 24px 24px 0 24px;
+}
+
+.batch-input-wrapper {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  align-items: flex-start;
+}
+.batch-input-wrapper :deep(.el-textarea) {
+  flex: 1;
+}
+.batch-input-wrapper .match-btn {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+.batch-matched-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-color-success);
 }
 </style>
 

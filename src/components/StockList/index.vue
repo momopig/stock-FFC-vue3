@@ -42,6 +42,7 @@
           <el-button v-if="showAddButton" class="add-stock-btn" type="primary" @click="$emit('add-stock')">
             添加股票
           </el-button>
+          <el-button link type="primary" @click="copySinglePageStockNames">复制单页股票名称</el-button>
         </div>
         <el-button class="fullscreen-btn" @click="toggleFullscreen">
           <el-icon>
@@ -276,6 +277,7 @@ import { formatDateTime } from '@/utils/time'
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue'
 import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue'
 import { UserStore } from '@/state/user';
+import { copyToClipboard } from '@/utils/copy'
 
 // Props 定义
 const props = defineProps({
@@ -923,6 +925,11 @@ const getRiskSigns = (row) => {
     return row.quote.risk_signs
   }
   return []
+}
+
+const copySinglePageStockNames = () => {
+  const stockNames = props.stockList.map(stock => stock.stock_name).join(' ')
+  copyToClipboard(stockNames)
 }
 </script>
 
