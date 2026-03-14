@@ -163,6 +163,7 @@ const flattenStockData = (stock) => {
     statusLoading: false,
     // 扁平化 quote 字段
     last_price: lastPrice,
+    pe_ttm_ratio: quote.pe_ttm_ratio != null ? Number(quote.pe_ttm_ratio) : null,
     change_rate: quote.change_rate != null ? Number(quote.change_rate) : null,
     high_price: quote.high_price != null ? Number(quote.high_price) : null,
     low_price: quote.low_price != null ? Number(quote.low_price) : null,

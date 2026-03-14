@@ -179,6 +179,9 @@
             <span v-else-if="item.key === 'volume_ratio'">
               {{ row.volume_ratio?.toFixed(2) ?? '--' }}
             </span>
+            <span v-else-if="item.key === 'pe_ttm_ratio'">
+              {{ row?.pe_ttm_ratio ?? '--' }}
+            </span>
             <span v-else-if="item.key === 'circular_market_val_yi'">
               {{ row.circular_market_val_yi ?? '--' }}
             </span>
@@ -331,6 +334,8 @@ const props = defineProps({
     default: false
   }
 })
+// 响应式表格数据，自动扁平化stockList
+const tableData = computed(() => (props.stockList || []).map(flattenStockData))
 
 const userStore = UserStore();
 // Emits 定义
@@ -545,6 +550,13 @@ const columns = reactive([
     label: '量比',
     prop: 'volume_ratio',
     width: 70,
+    sortable: true
+  },
+      {
+    key: 'pe_ttm_ratio',
+    label: '滚动市盈率(TTM)',
+    prop: 'pe_ttm_ratio',
+    width: 160,
     sortable: true
   },
   {

@@ -248,6 +248,9 @@
           <span v-else-if="item.key === 'volume_ratio'">
             {{ row.volume_ratio?.toFixed(2) ?? '--' }}
           </span>
+          <span v-else-if="item.key === 'pe_ttm_ratio'">
+            {{ row.pe_ttm_ratio ?? '--' }}
+          </span>
           <span v-else-if="item.key === 'circular_market_val_yi'">
             {{ row.circular_market_val_yi ?? '--' }}
           </span>
@@ -457,6 +460,13 @@ const columns = reactive([
     label: '量比',
     prop: 'volume_ratio',
     width: 100,
+    sortable: true
+  },
+    {
+    key: 'pe_ttm_ratio',
+    label: '滚动市盈率(TTM)',
+    prop: 'pe_ttm_ratio',
+    width: 160,
     sortable: true
   },
   {
@@ -673,6 +683,7 @@ const flattenStockData = (stock) => {
     statusLoading: false,
     // 扁平化 quote 字段
     last_price: lastPrice,
+    pe_ttm_ratio: quote.pe_ttm_ratio != null ? Number(quote.pe_ttm_ratio) : null,
     change_rate: quote.change_rate != null ? Number(quote.change_rate) : null,
     high_price: quote.high_price != null ? Number(quote.high_price) : null,
     low_price: quote.low_price != null ? Number(quote.low_price) : null,
@@ -681,6 +692,7 @@ const flattenStockData = (stock) => {
     turnover_rate: quote.turnover_rate != null ? Number(quote.turnover_rate) : null,
     volume_ratio: quote.volume_ratio != null ? Number(quote.volume_ratio) : null,
     circular_market_val_yi: quote.circular_market_val_yi || null,
+    pe_ttm_ratio: quote.pe_ttm_ratio != null ? Number(quote.pe_ttm_ratio) : null,
     // 计算自选涨跌幅
     selfChangeRate: (initialPrice && lastPrice && initialPrice > 0)
       ? ((lastPrice - initialPrice) / initialPrice) * 100
