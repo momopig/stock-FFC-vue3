@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     vue({ include: [/\.vue$/, /\.md$/] }), // 允许 .md 文件作为 Vue 组件
-    Markdown()
+    Markdown(),
   ],
   resolve: {
     alias: {
@@ -27,7 +27,8 @@ export default defineConfig({
             if (id.includes('element-plus')) return 'element-plus-core';
 
             // Vue 生态拆分
-            if (id.includes('/vue/') || id.includes('@vue/')) return 'vue-vendor';
+            if (id.includes('/vue/') || id.includes('@vue/'))
+              return 'vue-vendor';
             if (id.includes('pinia')) return 'pinia';
             if (id.includes('vue-router')) return 'vue-router';
 
@@ -47,15 +48,35 @@ export default defineConfig({
               // 处理作用域包名 @scope/name
               if (subPath.startsWith('@')) {
                 const parts = subPath.split('/');
-                packageName = parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0];
+                packageName =
+                  parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0];
               } else {
                 packageName = subPath.split('/')[0];
               }
 
               // 跳过已单独处理的包
-              const excluded = ['element-plus', '@element-plus', 'vue', '@vue', 'pinia', 'vue-router', 'xlsx', 'dayjs', 'axios', 'lodash', 'moment'];
-              if (!excluded.some(pkg => packageName === pkg || packageName.startsWith(`${pkg}/`))) {
-                const safeName = packageName.replace(/^@/, '').replace('/', '-');
+              const excluded = [
+                'element-plus',
+                '@element-plus',
+                'vue',
+                '@vue',
+                'pinia',
+                'vue-router',
+                'xlsx',
+                'dayjs',
+                'axios',
+                'lodash',
+                'moment',
+              ];
+              if (
+                !excluded.some(
+                  (pkg) =>
+                    packageName === pkg || packageName.startsWith(`${pkg}/`)
+                )
+              ) {
+                const safeName = packageName
+                  .replace(/^@/, '')
+                  .replace('/', '-');
                 return `vendor-${safeName}`;
               }
             }
@@ -68,9 +89,9 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/chunk-[name]-[hash].js',
         entryFileNames: 'assets/entry-[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]'
-      }
-    }
+        assetFileNames: 'assets/[name]-[hash][extname]',
+      },
+    },
   },
   server: {
     // 添加这个配置来处理 history 模式的路由刷新
@@ -78,14 +99,16 @@ export default defineConfig({
     proxy: {
       '/stock-api': {
         target: 'http://119.23.68.187:3004',
+        // target: 'http://localhost:8000',
         changeOrigin: true,
+        // rewrite: (path) => path.replace(/^\/stock-api/, ''),
       },
       // 使用正则表达式匹配需要代理的路径
       '^/nest-api/': {
         target: 'http://119.23.68.187:3003',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
-      }
+      },
     },
   },
 });
