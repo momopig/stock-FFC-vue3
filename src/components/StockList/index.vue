@@ -1,20 +1,47 @@
 <template>
   <FullscreenContainer v-slot="{ isFullscreen, toggleFullscreen }">
-    <div class="stock-list-container" :class="{ 'is-fullscreen': isFullscreen }">
+    <div
+      class="stock-list-container"
+      :class="{ 'is-fullscreen': isFullscreen }"
+    >
       <div class="top-container">
         <!-- 搜索和操作区域 -->
         <div class="search-title">
-          <el-input class="search-input" v-model="localSearchQuery.stock_code" placeholder="搜索股票代码" clearable
-            @keyup.enter="handleSearch" style="width: 150px; margin-right: 10px;" />
-          <el-input class="search-input" v-model="localSearchQuery.stock_name" placeholder="搜索股票名称" clearable
-            @keyup.enter="handleSearch" style="width: 150px; margin-right: 10px;" />
-          <el-select v-model="localFilterParams.exchange_code" placeholder="交易所" clearable
-            style="width: 150px; margin-right: 10px;">
+          <el-input
+            class="search-input"
+            v-model="localSearchQuery.stock_code"
+            placeholder="搜索股票代码"
+            clearable
+            @keyup.enter="handleSearch"
+            style="width: 150px; margin-right: 10px"
+          />
+          <el-input
+            class="search-input"
+            v-model="localSearchQuery.stock_name"
+            placeholder="搜索股票名称"
+            clearable
+            @keyup.enter="handleSearch"
+            style="width: 150px; margin-right: 10px"
+          />
+          <el-select
+            v-model="localFilterParams.exchange_code"
+            placeholder="交易所"
+            clearable
+            style="width: 150px; margin-right: 10px"
+          >
             <el-option label="上交所" value="SH" />
             <el-option label="深交所" value="SZ" />
             <el-option label="港交所" value="HK" />
             <el-option label="美股" value="US" />
           </el-select>
+          <el-date-picker
+            v-model="localFilterParams.snapshot_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="快照日期"
+            style="width: 150px; margin-right: 10px"
+            clearable
+          />
           <!-- <el-select
           v-model="localFilterParams.status"
           placeholder="状态"
@@ -37,12 +64,21 @@
             :value="level"
           />
         </el-select> -->
-          <el-button class="search-btn" type="primary" @click="handleSearch">搜索</el-button>
+          <el-button class="search-btn" type="primary" @click="handleSearch"
+            >搜索</el-button
+          >
           <el-button class="search-btn" @click="handleReset">重置</el-button>
-          <el-button v-if="showAddButton" class="add-stock-btn" type="primary" @click="$emit('add-stock')">
+          <el-button
+            v-if="showAddButton"
+            class="add-stock-btn"
+            type="primary"
+            @click="$emit('add-stock')"
+          >
             添加股票
           </el-button>
-          <el-button link type="primary" @click="copySinglePageStockNames">复制单页股票名称</el-button>
+          <el-button link type="primary" @click="copySinglePageStockNames"
+            >复制单页股票名称</el-button
+          >
         </div>
         <el-button class="fullscreen-btn" @click="toggleFullscreen">
           <el-icon>
@@ -56,44 +92,84 @@
         </el-button>
       </div>
       <!-- 股票列表表格 -->
-      <el-table class="stock-table" :max-height="isFullscreen ? 'calc(100vh - 100px)' : isSelfSelected ? 'calc(100vh - 400px)' : 'calc(100vh - 440px)'"
-        :data="props.stockList" v-loading="loading" element-loading-text="加载股票数据中..."
-        :default-sort="{ prop: 'selfChangeRate', order: 'descending' }">
-        <el-table-column v-for="item in columns" :key="item.key" :prop="item.prop" :label="item.label"
+      <el-table
+        class="stock-table"
+        :max-height="
+          isFullscreen
+            ? 'calc(100vh - 100px)'
+            : isSelfSelected
+              ? 'calc(100vh - 400px)'
+              : 'calc(100vh - 440px)'
+        "
+        :data="props.stockList"
+        v-loading="loading"
+        element-loading-text="加载股票数据中..."
+        :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
+      >
+        <el-table-column
+          v-for="item in columns"
+          :key="item.key"
+          :prop="item.prop"
+          :label="item.label"
           :sortable="item.sortable"
-          :sort-method="item.sortable ? (a, b) => sortNumber(a[item.prop], b[item.prop]) : undefined"
-          :filters="getFiltersForColumn(item)" :filter-method="item.filterMethod || getDefaultFilterMethod(item.key)"
-          :column-key="item.columnKey || item.key" :width="item.width" :min-width="item.minWidth">
+          :sort-method="
+            item.sortable
+              ? (a, b) => sortNumber(a[item.prop], b[item.prop])
+              : undefined
+          "
+          :filters="getFiltersForColumn(item)"
+          :filter-method="item.filterMethod || getDefaultFilterMethod(item.key)"
+          :column-key="item.columnKey || item.key"
+          :width="item.width"
+          :min-width="item.minWidth"
+        >
           <template #default="{ row, $index }">
             <span v-if="item.key === 'index'">
               {{ $index + 1 + (currentPage - 1) * pageSize }}
             </span>
             <span v-else-if="item.key === 'stock_name'">
               <div class="stock-name-container">
-                <span class="code-cell" style="cursor: pointer;" @click="handleCodeClick(row)">
+                <span
+                  class="code-cell"
+                  style="cursor: pointer"
+                  @click="handleCodeClick(row)"
+                >
                   {{ row.stock_code || '--' }}
                 </span>
                 <span class="stock-name-cell">
                   {{ row.stock_name || '--' }}
                 </span>
                 <!-- 自选按钮 -->
-                <div class="self-select-buttons" v-if="showAddToSelfButton || showRemoveFromSelfButton || (showAddToWatchButton && userStore.userInfo?.is_superuser)">
+                <div
+                  class="self-select-buttons"
+                  v-if="
+                    showAddToSelfButton ||
+                    showRemoveFromSelfButton ||
+                    (showAddToWatchButton && userStore.userInfo?.is_superuser)
+                  "
+                >
                   <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
                   <el-button
                     v-if="showAddToSelfButton"
                     link
                     type="success"
-                    @click.stop="$emit('add-to-self', row)">
-                    <el-icon style="margin-right: 0px;"><CirclePlus /></el-icon>
+                    @click.stop="$emit('add-to-self', row)"
+                  >
+                    <el-icon style="margin-right: 0px"><CirclePlus /></el-icon>
                     <span>加入分组</span>
                   </el-button>
                   <!-- 加入观察按钮（仅超管可见） -->
                   <el-button
-                    v-if="showAddToWatchButton && userStore.userInfo?.is_superuser && !row.is_self_selected"
+                    v-if="
+                      showAddToWatchButton &&
+                      userStore.userInfo?.is_superuser &&
+                      !row.is_self_selected
+                    "
                     link
                     type="warning"
-                    @click.stop="$emit('add-to-watch', row)">
-                    <el-icon style="margin-right: 0px;"><CirclePlus /></el-icon>
+                    @click.stop="$emit('add-to-watch', row)"
+                  >
+                    <el-icon style="margin-right: 0px"><CirclePlus /></el-icon>
                     <span>加入观察</span>
                   </el-button>
                   <!-- <el-button
@@ -117,8 +193,17 @@
               </div>
             </span>
             <span v-else-if="item.key === 'exchange_code'">
-              {{ row.exchange_code === 'SH' ? '上交所' : row.exchange_code === 'SZ' ? '深交所' : row.exchange_code === 'HK' ?
-                '港交所' : row.exchange_code === 'US' ? '美股' : row.exchange_code || '--' }}
+              {{
+                row.exchange_code === 'SH'
+                  ? '上交所'
+                  : row.exchange_code === 'SZ'
+                    ? '深交所'
+                    : row.exchange_code === 'HK'
+                      ? '港交所'
+                      : row.exchange_code === 'US'
+                        ? '美股'
+                        : row.exchange_code || '--'
+              }}
             </span>
             <span v-else-if="item.key === 'add_method'">
               <el-tag :type="getAddMethodTagType(row.add_method)">
@@ -126,11 +211,20 @@
               </el-tag>
             </span>
             <span v-else-if="item.key === 'status'">
-              <el-switch v-model="row.status" :active-value="'active'" :inactive-value="'inactive'"
-                @change="(val) => $emit('status-change', row, val)" :loading="row.statusLoading" />
+              <el-switch
+                v-model="row.status"
+                :active-value="'active'"
+                :inactive-value="'inactive'"
+                @change="(val) => $emit('status-change', row, val)"
+                :loading="row.statusLoading"
+              />
             </span>
             <span v-else-if="item.key === 'priority_level'">
-              {{ row.priority_level !== null && row.priority_level !== undefined ? `优先级 ${row.priority_level}` : '--' }}
+              {{
+                row.priority_level !== null && row.priority_level !== undefined
+                  ? `优先级 ${row.priority_level}`
+                  : '--'
+              }}
             </span>
             <span v-else-if="item.key === 'notes'">
               <span class="ellipsis" :title="row.notes || '--'">
@@ -186,30 +280,59 @@
               {{ row.circular_market_val_yi ?? '--' }}
             </span>
             <span v-else-if="item.key === 'stability_analysis'">
-              <template v-for="(analysis, idx) in getStabilityAnalysis(row)" :key="idx">
-                <el-tag :class="analysis.matched ? 'tag-matched' : 'tag-unmatched'" size="small"
-                  style="margin-right: 4px;">
+              <template
+                v-for="(analysis, idx) in getStabilityAnalysis(row)"
+                :key="idx"
+              >
+                <el-tag
+                  :class="analysis.matched ? 'tag-matched' : 'tag-unmatched'"
+                  size="small"
+                  style="margin-right: 4px"
+                >
                   {{ analysis.text }}
                 </el-tag>
               </template>
             </span>
             <span v-else-if="item.key === 'ma_trend'">
-              <el-tooltip :content="getMaTrend(row).tooltip" placement="top" :disabled="!getMaTrend(row).tooltip">
-                <el-tag :class="getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'" size="small">
+              <el-tooltip
+                :content="getMaTrend(row).tooltip"
+                placement="top"
+                :disabled="!getMaTrend(row).tooltip"
+              >
+                <el-tag
+                  :class="
+                    getMaTrend(row).matched ? 'tag-matched' : 'tag-unmatched'
+                  "
+                  size="small"
+                >
                   {{ getMaTrend(row).text }}
                 </el-tag>
               </el-tooltip>
             </span>
             <span v-else-if="item.key === 'risk_signs'">
               <template v-if="getRiskSigns(row)?.length">
-                <el-tooltip v-for="(riskSign, idx) in getRiskSigns(row)" :key="idx"
-                  :content="riskSign.explain" placement="top">
-                  <el-tag size="small" class="risk-tag-matched" style="margin-right: 4px;">
+                <el-tooltip
+                  v-for="(riskSign, idx) in getRiskSigns(row)"
+                  :key="idx"
+                  :content="riskSign.explain"
+                  placement="top"
+                >
+                  <el-tag
+                    size="small"
+                    class="risk-tag-matched"
+                    style="margin-right: 4px"
+                  >
                     {{ riskSign.sign }}
                   </el-tag>
                 </el-tooltip>
               </template>
-              <el-tag v-else size="small" class="tag-unmatched" style="margin-right: 4px;">无</el-tag>
+              <el-tag
+                v-else
+                size="small"
+                class="tag-unmatched"
+                style="margin-right: 4px"
+                >无</el-tag
+              >
             </span>
             <span v-else class="ellipsis" :title="row[item.prop] || '--'">
               {{ row[item.prop] || '--' }}
@@ -218,48 +341,107 @@
         </el-table-column>
 
         <!-- 昨日涨幅、3日涨幅、20日涨幅列（冻结在右侧，操作列之前） -->
-        <el-table-column fixed="right" prop="yesterday_change_rate" label="昨日涨跌" width="98" sortable
-          :sort-method="(a, b) => sortNumber(calculateYesterdayChangeRate(a), calculateYesterdayChangeRate(b))">
+        <el-table-column
+          fixed="right"
+          prop="yesterday_change_rate"
+          label="昨日涨跌"
+          width="98"
+          sortable
+          :sort-method="
+            (a, b) =>
+              sortNumber(
+                calculateYesterdayChangeRate(a),
+                calculateYesterdayChangeRate(b)
+              )
+          "
+        >
           <template #default="{ row }">
-            <span :style="{ color: getQuoteColor(calculateYesterdayChangeRate(row)) }">
+            <span
+              :style="{
+                color: getQuoteColor(calculateYesterdayChangeRate(row)),
+              }"
+            >
               {{ formatChangePercent(calculateYesterdayChangeRate(row)) }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" prop="three_day_change_rate" label="3日涨跌" width="91" sortable
-          :sort-method="(a, b) => sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))">
+        <el-table-column
+          fixed="right"
+          prop="three_day_change_rate"
+          label="3日涨跌"
+          width="91"
+          sortable
+          :sort-method="
+            (a, b) =>
+              sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))
+          "
+        >
           <template #default="{ row }">
-            <span :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }">
+            <span
+              :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }"
+            >
               {{ formatChangePercent(calculate3DayChangeRate(row)) }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" prop="twenty_day_change_rate" label="20日涨跌" width="100" sortable
-          :sort-method="(a, b) => sortNumber(calculate20DayChangeRate(a), calculate20DayChangeRate(b))">
+        <el-table-column
+          fixed="right"
+          prop="twenty_day_change_rate"
+          label="20日涨跌"
+          width="100"
+          sortable
+          :sort-method="
+            (a, b) =>
+              sortNumber(
+                calculate20DayChangeRate(a),
+                calculate20DayChangeRate(b)
+              )
+          "
+        >
           <template #default="{ row }">
-            <span :style="{ color: getQuoteColor(calculate20DayChangeRate(row)) }">
+            <span
+              :style="{ color: getQuoteColor(calculate20DayChangeRate(row)) }"
+            >
               {{ formatChangePercent(calculate20DayChangeRate(row)) }}
             </span>
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" :width="100" v-if="userStore.userInfo?.is_superuser">
+        <el-table-column
+          fixed="right"
+          label="操作"
+          :width="100"
+          v-if="userStore.userInfo?.is_superuser"
+        >
           <template v-slot="scope">
             <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
               查看
             </el-button> -->
-            <el-button link type="primary" @click="$emit('edit-stock', scope.row.id)">
+            <el-button
+              link
+              type="primary"
+              @click="$emit('edit-stock', scope.row.id)"
+            >
               编辑
             </el-button>
             <el-popconfirm
-              :title="isWatchMode ? '是否取消观察？' : (isSelfSelected ? '确定要移出分组吗？' : '确定要删除该股票吗？')"
+              :title="
+                isWatchMode
+                  ? '是否取消观察？'
+                  : isSelfSelected
+                    ? '确定要移出分组吗？'
+                    : '确定要删除该股票吗？'
+              "
               confirm-button-text="确定"
               cancel-button-text="取消"
-              @confirm="$emit('delete-stock', scope.row.id)">
+              @confirm="$emit('delete-stock', scope.row.id)"
+            >
               <template #reference>
-                <el-button link type="danger">{{ isWatchMode ? '取消' : (isSelfSelected ? '移出' : '删除') }}</el-button>
+                <el-button link type="danger">{{
+                  isWatchMode ? '取消' : isSelfSelected ? '移出' : '删除'
+                }}</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -267,234 +449,259 @@
       </el-table>
 
       <!-- 分页 -->
-      <el-pagination class="pagination" :current-page="currentPage" :page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next"
-        @current-change="$emit('page-change', $event)" @size-change="$emit('size-change', $event)" />
+      <el-pagination
+        class="pagination"
+        :current-page="currentPage"
+        :page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next"
+        @current-change="$emit('page-change', $event)"
+        @size-change="$emit('size-change', $event)"
+      />
     </div>
   </FullscreenContainer>
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
-import { formatDateTime } from '@/utils/time'
-import FullscreenContainer from '@/components/FullscreenContainer/index.vue'
-import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue'
+import { ref, reactive, computed, watch } from 'vue';
+import { formatDateTime } from '@/utils/time';
+import FullscreenContainer from '@/components/FullscreenContainer/index.vue';
+import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue';
 import { UserStore } from '@/state/user';
-import { copyToClipboard } from '@/utils/copy'
+import { copyToClipboard } from '@/utils/copy';
 
 // Props 定义
 const props = defineProps({
   stockList: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   loading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   total: {
     type: Number,
-    default: 0
+    default: 0,
   },
   currentPage: {
     type: Number,
-    default: 1
+    default: 1,
   },
   pageSize: {
     type: Number,
-    default: 20
+    default: 20,
   },
   showAddButton: {
     type: Boolean,
-    default: true
+    default: true,
   },
   // 是否显示"添加自选"按钮（策略股票池专用）
   showAddToSelfButton: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否显示"取消自选"按钮（自选股票池专用）
   showRemoveFromSelfButton: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否是自选股票池
   isSelfSelected: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否显示"加入观察"按钮（仅超管可见）
   showAddToWatchButton: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否是重点观察模式
   isWatchMode: {
     type: Boolean,
-    default: false
-  }
-})
+    default: false,
+  },
+});
 // 响应式表格数据，自动扁平化stockList
-const tableData = computed(() => (props.stockList || []).map(flattenStockData))
+const tableData = computed(() => (props.stockList || []).map(flattenStockData));
 
 const userStore = UserStore();
 // Emits 定义
-const emit = defineEmits(['page-change', 'size-change', 'search', 'reset', 'view-stock', 'edit-stock', 'delete-stock', 'status-change', 'add-stock', 'add-to-self', 'add-to-watch', 'remove-from-self', 'filter-change'])
+const emit = defineEmits([
+  'page-change',
+  'size-change',
+  'search',
+  'reset',
+  'view-stock',
+  'edit-stock',
+  'delete-stock',
+  'status-change',
+  'add-stock',
+  'add-to-self',
+  'add-to-watch',
+  'remove-from-self',
+  'filter-change',
+]);
 
 // 本地搜索和筛选状态
 const localSearchQuery = reactive({
   stock_code: '',
-  stock_name: ''
-})
+  stock_name: '',
+});
 const localFilterParams = reactive({
   exchange_code: '',
   status: '',
   add_method: '',
-  priority_level: ''
-})
+  priority_level: '',
+  snapshot_date: '',
+});
 
 // 监听股票列表变化，通知父组件更新洞察数据
-watch(() => props.stockList, (newList) => {
-  emit('filter-change', newList)
-}, { deep: true })
+watch(
+  () => props.stockList,
+  (newList) => {
+    emit('filter-change', newList);
+  },
+  { deep: true }
+);
 
 // 动态生成筛选项（基于完整列表，显示所有可能的选项）
 const addTypeFilters = (type) => {
   // 如果 stockList 为空，返回 undefined（不显示筛选器）
   if (!props.stockList?.length) {
-    return undefined
+    return undefined;
   }
 
-  const setItem = new Set()
-  props.stockList.forEach(stock => {
-    const value = stock?.[type]
+  const setItem = new Set();
+  props.stockList.forEach((stock) => {
+    const value = stock?.[type];
     // 处理不同类型的值：字符串、数字、null、undefined
     if (value !== null && value !== undefined && value !== '') {
       // 如果是字符串，去除首尾空格
-      const stringValue = typeof value === 'string' ? value.trim() : String(value)
+      const stringValue =
+        typeof value === 'string' ? value.trim() : String(value);
       if (stringValue) {
-        setItem.add(stringValue)
+        setItem.add(stringValue);
       }
     }
-  })
+  });
 
   // 如果没有有效的筛选值，返回 undefined
   if (setItem.size === 0) {
-    return undefined
+    return undefined;
   }
 
   return Array.from(setItem)
     .sort()
-    .map(item => ({ text: String(item), value: item }))
-}
-
+    .map((item) => ({ text: String(item), value: item }));
+};
 
 // 生成站稳分析的筛选项
 const getStabilityAnalysisFilters = () => {
   if (!props.stockList?.length) {
-    return undefined
+    return undefined;
   }
 
-  const filterSet = new Set()
-  props.stockList.forEach(stock => {
-    const analysisResults = getStabilityAnalysis(stock)
-    analysisResults?.forEach(result => {
+  const filterSet = new Set();
+  props.stockList.forEach((stock) => {
+    const analysisResults = getStabilityAnalysis(stock);
+    analysisResults?.forEach((result) => {
       if (result?.text) {
-        filterSet.add(result.text)
+        filterSet.add(result.text);
       }
-    })
-  })
+    });
+  });
 
   if (filterSet.size === 0) {
-    return undefined
+    return undefined;
   }
 
   return Array.from(filterSet)
     .sort()
-    .map(item => ({ text: String(item), value: item }))
-}
+    .map((item) => ({ text: String(item), value: item }));
+};
 
 // 生成均线趋势的筛选项
 const getMaTrendFilters = () => {
   if (!props.stockList?.length) {
-    return undefined
+    return undefined;
   }
 
-  const filterSet = new Set()
-  props.stockList.forEach(stock => {
-    const trendResult = getMaTrend(stock)
+  const filterSet = new Set();
+  props.stockList.forEach((stock) => {
+    const trendResult = getMaTrend(stock);
     if (trendResult?.text) {
-      filterSet.add(trendResult.text)
+      filterSet.add(trendResult.text);
     }
-  })
+  });
 
   if (filterSet.size === 0) {
-    return undefined
+    return undefined;
   }
 
   return Array.from(filterSet)
     .sort()
-    .map(item => ({ text: String(item), value: item }))
-}
+    .map((item) => ({ text: String(item), value: item }));
+};
 
 // 生成风险信号的筛选项
 const getRiskSignsFilters = () => {
   if (!props.stockList?.length) {
-    return undefined
+    return undefined;
   }
 
-  const filterSet = new Set()
-  props.stockList.forEach(stock => {
-    const riskSigns = getRiskSigns(stock)
+  const filterSet = new Set();
+  props.stockList.forEach((stock) => {
+    const riskSigns = getRiskSigns(stock);
     if (riskSigns && riskSigns.length > 0) {
-      riskSigns.forEach(riskSign => {
+      riskSigns.forEach((riskSign) => {
         if (riskSign?.sign) {
-          filterSet.add(riskSign.sign)
+          filterSet.add(riskSign.sign);
         }
-      })
+      });
     } else {
       // 如果没有风险信号，添加"无"
-      filterSet.add('无')
+      filterSet.add('无');
     }
-  })
+  });
 
   if (filterSet.size === 0) {
-    return undefined
+    return undefined;
   }
 
   return Array.from(filterSet)
     .sort()
-    .map(item => ({ text: String(item), value: item }))
-}
+    .map((item) => ({ text: String(item), value: item }));
+};
 
 // 站稳分析的筛选方法
 const filterStabilityAnalysis = (value, row) => {
-  if (!value) return true
-  const analysisResults = getStabilityAnalysis(row)
-  return analysisResults?.some(result => result.text === value) || false
-}
+  if (!value) return true;
+  const analysisResults = getStabilityAnalysis(row);
+  return analysisResults?.some((result) => result.text === value) || false;
+};
 
 // 均线趋势的筛选方法
 const filterMaTrend = (value, row) => {
-  if (!value) return true
-  const trendResult = getMaTrend(row)
-  return trendResult?.text === value
-}
+  if (!value) return true;
+  const trendResult = getMaTrend(row);
+  return trendResult?.text === value;
+};
 
 // 风险信号的筛选方法
 const filterRiskSigns = (value, row) => {
-  if (!value) return true
-  const riskSigns = getRiskSigns(row)
+  if (!value) return true;
+  const riskSigns = getRiskSigns(row);
 
   // 如果筛选的是"无"
   if (value === '无') {
-    return !riskSigns || riskSigns.length === 0
+    return !riskSigns || riskSigns.length === 0;
   }
 
   // 否则检查是否包含该风险信号
-  return riskSigns?.some(riskSign => riskSign.sign === value) || false
-}
-
+  return riskSigns?.some((riskSign) => riskSign.sign === value) || false;
+};
 
 // 表格列配置
 const columns = reactive([
@@ -508,63 +715,63 @@ const columns = reactive([
     label: '股票名称',
     prop: 'stock_name',
     minWidth: 100,
-    align: 'center'
+    align: 'center',
   },
   {
     key: 'initial_price',
     label: '初始价',
     prop: 'initial_price',
     width: 85,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'last_price',
     label: '当前价',
     prop: 'last_price',
     width: 85,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'selfChangeRate',
     label: '自选涨跌',
     prop: 'selfChangeRate',
     width: 98,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'change_rate',
     label: '当日涨跌',
     prop: 'change_rate',
     width: 98,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'turnover_rate',
     label: '当日换手率',
     prop: 'turnover_rate',
     width: 110,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'volume_ratio',
     label: '量比',
     prop: 'volume_ratio',
     width: 70,
-    sortable: true
+    sortable: true,
   },
-      {
+  {
     key: 'pe_ttm_ratio',
     label: '滚动市盈率(TTM)',
     prop: 'pe_ttm_ratio',
     width: 160,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'circular_market_val_yi',
     label: '流通市值(亿)',
     prop: 'circular_market_val_yi',
     width: 125,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'stability_analysis',
@@ -572,7 +779,7 @@ const columns = reactive([
     prop: 'stability_analysis',
     minWidth: 150,
     columnKey: 'stability_analysis',
-    filterMethod: filterStabilityAnalysis
+    filterMethod: filterStabilityAnalysis,
   },
   {
     key: 'ma_trend',
@@ -580,7 +787,7 @@ const columns = reactive([
     prop: 'ma_trend',
     minWidth: 100,
     columnKey: 'ma_trend',
-    filterMethod: filterMaTrend
+    filterMethod: filterMaTrend,
   },
   {
     key: 'risk_signs',
@@ -588,27 +795,27 @@ const columns = reactive([
     prop: 'risk_signs',
     minWidth: 150,
     columnKey: 'risk_signs',
-    filterMethod: filterRiskSigns
+    filterMethod: filterRiskSigns,
   },
   {
     key: 'days_added',
     label: '加入天数',
     prop: 'days_added',
     width: 100,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'add_time',
     label: '加入日期',
     prop: 'add_time',
     width: 100,
-    sortable: true
+    sortable: true,
   },
   {
     key: 'notes',
     label: '备注',
     prop: 'notes',
-    minWidth: 300
+    minWidth: 300,
   },
   // {
   //   key: 'created_by',
@@ -620,7 +827,7 @@ const columns = reactive([
     key: 'strategy_name',
     label: '策略名称',
     prop: 'strategy_name',
-    width: 120
+    width: 120,
   },
   {
     key: 'add_reason',
@@ -628,7 +835,7 @@ const columns = reactive([
     prop: 'add_reason',
     minWidth: 120,
     columnKey: 'add_reason',
-    filterMethod: (value, row) => row.add_reason === value
+    filterMethod: (value, row) => row.add_reason === value,
   },
   // {
   //   key: 'status',
@@ -643,134 +850,139 @@ const columns = reactive([
   //   width: 100,
   //   sortable: true
   // },
-])
+]);
 
 // 根据列配置获取对应的筛选项
 // 注意：由于搜索改为后端接口搜索，前端筛选功能保留但主要用于展示，实际筛选通过接口实现
 const getFiltersForColumn = (item) => {
   // 如果列配置中已经指定了 filters，直接返回
   if (item.filters) {
-    return item.filters
+    return item.filters;
   }
 
   // 根据列类型返回对应的筛选项
   if (item.key === 'stability_analysis') {
-    return getStabilityAnalysisFilters()
+    return getStabilityAnalysisFilters();
   }
   if (item.key === 'ma_trend') {
-    return getMaTrendFilters()
+    return getMaTrendFilters();
   }
   if (item.key === 'risk_signs') {
-    return getRiskSignsFilters()
+    return getRiskSignsFilters();
   }
 
   // 对于有 filterMethod 的列，使用通用的 addTypeFilters
   if (item.filterMethod) {
-    return addTypeFilters(item.key)
+    return addTypeFilters(item.key);
   }
 
-  return undefined
-}
+  return undefined;
+};
 
 // 获取默认的过滤方法
 const getDefaultFilterMethod = (key) => {
   // 对于 exchange_code，使用自定义过滤方法
   if (key === 'exchange_code') {
     return (value, row) => {
-      if (!value) return true
-      return row.exchange_code === value
-    }
+      if (!value) return true;
+      return row.exchange_code === value;
+    };
   }
-  return undefined
-}
+  return undefined;
+};
 
 // 防抖定时器
-let searchTimer = null
+let searchTimer = null;
 
 // 处理搜索（调用接口搜索）
 const handleSearch = () => {
   // 清除之前的定时器
   if (searchTimer) {
-    clearTimeout(searchTimer)
+    clearTimeout(searchTimer);
   }
 
   // 防抖处理，300ms 后触发
   searchTimer = setTimeout(() => {
     // 构建搜索参数
-    const searchParams = {}
+    const searchParams = {};
 
     // 股票代码搜索
-    const stockCode = localSearchQuery.stock_code?.trim() || ''
+    const stockCode = localSearchQuery.stock_code?.trim() || '';
     if (stockCode) {
-      searchParams.stock_code = stockCode
+      searchParams.stock_code = stockCode;
     }
 
     // 股票名称搜索
-    const stockName = localSearchQuery.stock_name?.trim() || ''
+    const stockName = localSearchQuery.stock_name?.trim() || '';
     if (stockName) {
-      searchParams.stock_name = stockName
+      searchParams.stock_name = stockName;
     }
 
     // 交易所代码
     if (localFilterParams.exchange_code) {
-      searchParams.exchange_code = localFilterParams.exchange_code
+      searchParams.exchange_code = localFilterParams.exchange_code;
     }
 
+    // 快照日期
+    if (localFilterParams.snapshot_date) {
+      searchParams.snapshot_date = localFilterParams.snapshot_date;
+    }
     // 触发搜索事件，由父组件处理并调用接口
-    emit('search', searchParams)
-  }, 300)
-}
+    emit('search', searchParams);
+  }, 300);
+};
 
 // 处理重置
 const handleReset = () => {
-  localSearchQuery.stock_code = ''
-  localSearchQuery.stock_name = ''
-  localFilterParams.exchange_code = ''
-  localFilterParams.status = ''
-  localFilterParams.add_method = ''
-  localFilterParams.priority_level = ''
+  localSearchQuery.stock_code = '';
+  localSearchQuery.stock_name = '';
+  localFilterParams.exchange_code = '';
+  localFilterParams.status = '';
+  localFilterParams.add_method = '';
+  localFilterParams.priority_level = '';
+  localFilterParams.snapshot_date = '';
   // 重置时触发搜索接口，清空搜索条件
-  emit('search', {})
-}
+  emit('search', {});
+};
 
 // 数值排序方法
 const sortNumber = (a, b) => {
-  if (a == null && b == null) return 0
-  if (a == null) return 1
-  if (b == null) return -1
-  return a - b
-}
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a - b;
+};
 
 // 格式化涨幅
 const formatChangePercent = (value, showSign = true) => {
-  if (value === null || value === undefined) return '--'
-  const sign = showSign && value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(2)}%`
-}
+  if (value === null || value === undefined) return '--';
+  const sign = showSign && value >= 0 ? '+' : '';
+  return `${sign}${value.toFixed(2)}%`;
+};
 
 // 获取行情涨跌颜色
 const getQuoteColor = (changeRate) => {
-  if (changeRate == null) return '#606266'
-  return changeRate >= 0 ? '#f56c6c' : '#67c23a'
-}
+  if (changeRate == null) return '#606266';
+  return changeRate >= 0 ? '#f56c6c' : '#67c23a';
+};
 
 // 格式化价格
 const formatPrice = (value) => {
-  if (value == null) return '--'
-  return Number(value).toFixed(2)
-}
+  if (value == null) return '--';
+  return Number(value).toFixed(2);
+};
 
 // 格式化成交量
 const formatVolume = (value) => {
-  if (value == null) return '--'
-  const volume = Number(value)
+  if (value == null) return '--';
+  const volume = Number(value);
   if (volume >= 100000000) {
-    return `${(volume / 100000000).toFixed(2)}亿`
+    return `${(volume / 100000000).toFixed(2)}亿`;
   } else if (volume >= 10000) {
-    return `${(volume / 10000).toFixed(2)}万`
+    return `${(volume / 10000).toFixed(2)}万`;
   }
-  return volume.toLocaleString('zh-CN')
-}
+  return volume.toLocaleString('zh-CN');
+};
 
 // 获取加入方式标签类型
 const getAddMethodTagType = (addMethod) => {
@@ -778,10 +990,10 @@ const getAddMethodTagType = (addMethod) => {
     manual: 'primary',
     strategy: 'success',
     import: 'warning',
-    other: 'info'
-  }
-  return typeMap[addMethod] || 'info'
-}
+    other: 'info',
+  };
+  return typeMap[addMethod] || 'info';
+};
 
 // 获取加入方式标签文本
 const getAddMethodLabel = (addMethod) => {
@@ -789,160 +1001,175 @@ const getAddMethodLabel = (addMethod) => {
     manual: '手动加入',
     strategy: '策略加入',
     import: '导入',
-    other: '其他'
-  }
-  return labelMap[addMethod] || addMethod || '--'
-}
+    other: '其他',
+  };
+  return labelMap[addMethod] || addMethod || '--';
+};
 
 // 处理股票代码点击
 const handleCodeClick = (row) => {
-  const numberCode = row.stock_code?.replace(/[^0-9]/g, '') || ''
-  window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank')
-}
+  const numberCode = row.stock_code?.replace(/[^0-9]/g, '') || '';
+  window.open(`https://gushitong.baidu.com/stock/ab-${numberCode}`, '_blank');
+};
 
 // 获取K线数据（最近N天）
 const getKlineData = (row, days = 3) => {
-  const klineData = row?.kline_data
+  const klineData = row?.kline_data;
   if (!klineData || !Array.isArray(klineData) || klineData.length < days) {
-    return null
+    return null;
   }
   // 取最近N天的数据（数组最后N个元素）
-  return klineData.slice(-days)
-}
+  return klineData.slice(-days);
+};
 
 // 计算昨日涨幅：使用昨天的收盘价和今天的收盘价（或当前价）
 const calculateYesterdayChangeRate = (row) => {
-  const klineData = row?.kline_data
+  const klineData = row?.kline_data;
   if (!klineData || !Array.isArray(klineData) || klineData.length < 2) {
-    return null
+    return null;
   }
 
   // 昨天的收盘价（倒数第二个）
-  const yesterdayClose = klineData[klineData.length - 2]?.last_close
+  const yesterdayClose = klineData[klineData.length - 2]?.last_close;
   // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
 
   if (yesterdayClose == null || todayPrice == null || yesterdayClose === 0) {
-    return null
+    return null;
   }
 
-  return ((todayPrice - yesterdayClose) / yesterdayClose) * 100
-}
+  return ((todayPrice - yesterdayClose) / yesterdayClose) * 100;
+};
 
 // 计算3日涨幅：使用3天前的收盘价和今天的收盘价（或当前价）
 const calculate3DayChangeRate = (row) => {
-  const klineData = row?.kline_data
+  const klineData = row?.kline_data;
   if (!klineData || !Array.isArray(klineData) || klineData.length < 3) {
-    return null
+    return null;
   }
 
   // 3天前的收盘价（倒数第三个）
-  const threeDaysAgoClose = klineData[klineData.length - 3]?.last_close
+  const threeDaysAgoClose = klineData[klineData.length - 3]?.last_close;
   // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
 
-  if (threeDaysAgoClose == null || todayPrice == null || threeDaysAgoClose === 0) {
-    return null
+  if (
+    threeDaysAgoClose == null ||
+    todayPrice == null ||
+    threeDaysAgoClose === 0
+  ) {
+    return null;
   }
 
-  return ((todayPrice - threeDaysAgoClose) / threeDaysAgoClose) * 100
-}
+  return ((todayPrice - threeDaysAgoClose) / threeDaysAgoClose) * 100;
+};
 
 // 计算20日涨幅：使用20天前的收盘价和今天的收盘价（或当前价）
 const calculate20DayChangeRate = (row) => {
-  const klineData = row?.kline_data
+  const klineData = row?.kline_data;
   if (!klineData || !Array.isArray(klineData) || klineData.length < 20) {
-    return null
+    return null;
   }
 
   // 20天前的收盘价（倒数第20个）
-  const twentyDaysAgoClose = klineData[klineData.length - 20]?.last_close
+  const twentyDaysAgoClose = klineData[klineData.length - 20]?.last_close;
   // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price
+  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
 
-  if (twentyDaysAgoClose == null || todayPrice == null || twentyDaysAgoClose === 0) {
-    return null
+  if (
+    twentyDaysAgoClose == null ||
+    todayPrice == null ||
+    twentyDaysAgoClose === 0
+  ) {
+    return null;
   }
 
-  return ((todayPrice - twentyDaysAgoClose) / twentyDaysAgoClose) * 100
-}
+  return ((todayPrice - twentyDaysAgoClose) / twentyDaysAgoClose) * 100;
+};
 
 // 站稳分析判断
 const getStabilityAnalysis = (row) => {
-  const results = []
+  const results = [];
 
   // 1. 判断 M1 > M3
-  const maData = row.ma_data
+  const maData = row.ma_data;
   if (maData?.MA1 != null && maData?.MA3 != null) {
     if (maData.MA1 > maData.MA3) {
-      results.push({ text: 'M1 > M3', matched: true })
+      results.push({ text: 'M1 > M3', matched: true });
     }
   }
 
   // 2. 判断 3日最低价：底分型（中间那一天是最低的）
-  const klineData = getKlineData(row)
+  const klineData = getKlineData(row);
   if (klineData && klineData.length === 3) {
-    const lows = klineData.map(k => k.low).filter(low => low != null)
+    const lows = klineData.map((k) => k.low).filter((low) => low != null);
     if (lows.length === 3) {
       // 底分型：low[1] < low[0] && low[1] < low[2]
       if (lows[1] < lows[0] && lows[1] < lows[2]) {
-        results.push({ text: '3日最低价：底分型', matched: true })
+        results.push({ text: '3日最低价：底分型', matched: true });
       }
       // 上涨型：low[0] < low[1] < low[2]
       if (lows[0] < lows[1] && lows[1] < lows[2]) {
-        results.push({ text: '3日最低价：上涨型', matched: true })
+        results.push({ text: '3日最低价：上涨型', matched: true });
       }
     }
   }
 
   // 如果没有任何匹配项，返回"无"
   if (results.length === 0) {
-    return [{ text: '无', matched: false }]
+    return [{ text: '无', matched: false }];
   }
 
-  return results
-}
+  return results;
+};
 
 // 均线趋势判断
 const getMaTrend = (row) => {
-  const maData = row.ma_data
+  const maData = row.ma_data;
 
   // 判断多头向上：M1 > M3 > M5 > M10 > M20
-  if (maData?.MA1 != null && maData?.MA3 != null && maData?.MA5 != null &&
-      maData?.MA10 != null && maData?.MA20 != null) {
-    if (maData.MA1 > maData.MA3 &&
-        maData.MA3 > maData.MA5 &&
-        maData.MA5 > maData.MA10 &&
-        maData.MA10 > maData.MA20) {
+  if (
+    maData?.MA1 != null &&
+    maData?.MA3 != null &&
+    maData?.MA5 != null &&
+    maData?.MA10 != null &&
+    maData?.MA20 != null
+  ) {
+    if (
+      maData.MA1 > maData.MA3 &&
+      maData.MA3 > maData.MA5 &&
+      maData.MA5 > maData.MA10 &&
+      maData.MA10 > maData.MA20
+    ) {
       return {
         text: '多头向上',
         matched: true,
-        tooltip: 'M1 > M3 > M5 > M10 > M20'
-      }
+        tooltip: 'M1 > M3 > M5 > M10 > M20',
+      };
     }
   }
 
-  return { text: '无', matched: false }
-}
+  return { text: '无', matched: false };
+};
 
 // 获取风险信号数据
 // 支持两种数据格式：1. 扁平化后的risk_signs字段 2. quote.risk_signs字段
 const getRiskSigns = (row) => {
   // 优先使用扁平化后的字段
   if (row?.risk_signs && Array.isArray(row.risk_signs)) {
-    return row.risk_signs
+    return row.risk_signs;
   }
   // 如果不存在，尝试从quote字段中获取
   if (row?.quote?.risk_signs && Array.isArray(row.quote.risk_signs)) {
-    return row.quote.risk_signs
+    return row.quote.risk_signs;
   }
-  return []
-}
+  return [];
+};
 
 const copySinglePageStockNames = () => {
-  const stockNames = props.stockList.map(stock => stock.stock_name).join(' ')
-  copyToClipboard(stockNames)
-}
+  const stockNames = props.stockList.map((stock) => stock.stock_name).join(' ');
+  copyToClipboard(stockNames);
+};
 </script>
 
 <style scoped lang="less">
@@ -986,7 +1213,6 @@ const copySinglePageStockNames = () => {
   }
 
   &.is-fullscreen {
-
     // 全屏状态下的样式调整
     .stock-table {
       max-height: calc(100vh - 250px) !important;
@@ -1015,8 +1241,10 @@ const copySinglePageStockNames = () => {
     }
     .stock-name-cell {
       font-size: 18px;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei",
-        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+        'Microsoft YaHei', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+        sans-serif;
       font-weight: 600;
       letter-spacing: 0.02em;
     }

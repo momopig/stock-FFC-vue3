@@ -1,14 +1,14 @@
-import request from '../common'
-import qs from 'qs'
+import request from '../common';
+import qs from 'qs';
 
 /**
  * 获取用户分组列表
  * @returns {Promise}
  */
 export const getUserGroups = async () => {
-  const res = await request.get(`/stock-api/api/stock-groups/user-groups`)
-  return res
-}
+  const res = await request.get(`/stock-api/api/stock-groups/user-groups`);
+  return res;
+};
 
 /**
  * 创建股票分组
@@ -21,9 +21,12 @@ export const getUserGroups = async () => {
  * @returns {Promise}
  */
 export const createGroup = async (data) => {
-  const res = await request.post(`/stock-api/api/stock-groups/user-groups`, data)
-  return res
-}
+  const res = await request.post(
+    `/stock-api/api/stock-groups/user-groups`,
+    data
+  );
+  return res;
+};
 
 /**
  * 更新股票分组
@@ -36,9 +39,12 @@ export const createGroup = async (data) => {
  * @returns {Promise}
  */
 export const updateGroup = async (groupId, data) => {
-  const res = await request.put(`/stock-api/api/stock-groups/user-groups/${groupId}`, data)
-  return res
-}
+  const res = await request.put(
+    `/stock-api/api/stock-groups/user-groups/${groupId}`,
+    data
+  );
+  return res;
+};
 
 /**
  * 删除股票分组
@@ -46,9 +52,11 @@ export const updateGroup = async (groupId, data) => {
  * @returns {Promise}
  */
 export const deleteGroup = async (groupId) => {
-  const res = await request.delete(`/stock-api/api/stock-groups/user-groups/${groupId}`)
-  return res
-}
+  const res = await request.delete(
+    `/stock-api/api/stock-groups/user-groups/${groupId}`
+  );
+  return res;
+};
 
 /**
  * 批量调整分组顺序
@@ -56,9 +64,12 @@ export const deleteGroup = async (groupId) => {
  * @returns {Promise}
  */
 export const reorderGroups = async (orderList) => {
-  const res = await request.post(`/stock-api/api/stock-groups/user-groups/reorder`, orderList)
-  return res
-}
+  const res = await request.post(
+    `/stock-api/api/stock-groups/user-groups/reorder`,
+    orderList
+  );
+  return res;
+};
 
 /**
  * 查询分组内股票（含行情）
@@ -67,15 +78,19 @@ export const reorderGroups = async (orderList) => {
  * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US），搜索字段非必填
  * @param {string} params.stock_code - 股票代码，搜索字段非必填
  * @param {string} params.stock_name - 股票名称，搜索字段非必填
+ * @param {string} params.snapshot_date - 快照日期，格式为YYYY-MM-DD，非必填
  * @param {number} params.page - 页码
  * @param {number} params.page_size - 每页数量
  * @returns {Promise}
  */
 export const getGroupStocks = async (groupId, params = {}) => {
-  const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/api/stock-groups/${groupId}/stocks?${queryString}`)
-  return res
-}
+  // snapshot_date 直接作为参数传递，无需特殊处理
+  const queryString = qs.stringify(params);
+  const res = await request.get(
+    `/stock-api/api/stock-groups/${groupId}/stocks?${queryString}`
+  );
+  return res;
+};
 
 /**
  * 从分组移除股票
@@ -83,9 +98,11 @@ export const getGroupStocks = async (groupId, params = {}) => {
  * @returns {Promise}
  */
 export const removeStockFromGroup = async (itemId) => {
-  const res = await request.delete(`/stock-api/api/stock-groups/stocks/${itemId}`)
-  return res
-}
+  const res = await request.delete(
+    `/stock-api/api/stock-groups/stocks/${itemId}`
+  );
+  return res;
+};
 
 /**
  * 更新分组内股票备注
@@ -97,9 +114,12 @@ export const removeStockFromGroup = async (itemId) => {
  * @returns {Promise}
  */
 export const updateGroupStock = async (itemId, data) => {
-  const res = await request.patch(`/stock-api/api/stock-groups/stocks/${itemId}`, data)
-  return res
-}
+  const res = await request.patch(
+    `/stock-api/api/stock-groups/stocks/${itemId}`,
+    data
+  );
+  return res;
+};
 
 /**
  * 股票加入多个分组
@@ -115,6 +135,6 @@ export const updateGroupStock = async (itemId, data) => {
  * @returns {Promise}
  */
 export const addStockToGroups = async (data) => {
-  const res = await request.post(`/stock-api/api/stock-groups/stocks`, data)
-  return res
-}
+  const res = await request.post(`/stock-api/api/stock-groups/stocks`, data);
+  return res;
+};
