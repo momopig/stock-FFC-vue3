@@ -102,7 +102,7 @@ import AddToGroupDialog from '../components/AddToGroupDialog.vue';
 import WatchList from '../components/WatchList.vue';
 import { addStockToGroups } from '@/api/modules/stockGroup';
 import { UserStore } from '@/state/user';
-import moment from 'moment';
+import { calculateDaysAdded } from '@/utils/time';
 
 // 用户状态管理
 const userStore = UserStore();
@@ -331,9 +331,9 @@ const flattenStockData = (stock) => {
 
   // 计算加入天数
   if (mappedStock.add_time) {
-    mappedStock.days_added = moment().diff(
-      moment(mappedStock.add_time),
-      'days'
+    mappedStock.days_added = calculateDaysAdded(
+      mappedStock.add_time,
+      searchParams.snapshot_date
     );
   }
 

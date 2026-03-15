@@ -393,7 +393,7 @@ import {
   updateStockStatus,
 } from '@/api/modules/stockPool';
 import StockDialog from './components/StockDialog.vue';
-import { formatDateTime } from '@/utils/time';
+import { formatDateTime, calculateDaysAdded } from '@/utils/time';
 import moment from 'moment';
 
 // 响应式数据
@@ -777,9 +777,9 @@ const flattenStockData = (stock) => {
 
   // 计算加入天数
   if (mappedStock.add_time) {
-    mappedStock.days_added = moment().diff(
-      moment(mappedStock.add_time),
-      'days'
+    mappedStock.days_added = calculateDaysAdded(
+      mappedStock.add_time,
+      filterParams.snapshot_date
     );
   }
 

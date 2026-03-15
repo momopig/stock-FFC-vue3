@@ -11,6 +11,27 @@ import { createWebSocket } from '@/utils/websocket';
  */
 const USE_MOCK_DATA = false;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const startOfDayTs = (date) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return NaN;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+const getSnapshotBaseTime = (snapshotDate) => {
+  if (
+    typeof snapshotDate === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)
+  ) {
+    const t = new Date(`${snapshotDate}T00:00:00`).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  // 未提供 snapshot_date 时也按自然日计算：取今天 00:00
+  return startOfDayTs(new Date());
+};
+
 /**
  * 生成mock股票数据
  *
@@ -155,9 +176,8 @@ const generateMockStock = (index) => {
     initialPrice: basePrice,
     addMethod: index % 3 === 0 ? 'program' : 'manual',
     addTime: addTime.toISOString(),
-    daysAdded: Math.floor(
-      (Date.now() - addTime.getTime()) / (24 * 60 * 60 * 1000)
-    ),
+    // daysAdded 将在 mockGetStockPoolList 中根据 snapshot_date 重算
+    daysAdded: 0,
     reason: index % 2 === 0 ? '技术面突破' : '基本面良好',
     creator: '系统管理员',
     createdAt: addTime.toISOString(),
@@ -176,10 +196,20 @@ const mockGetStockPoolList = async (params) => {
     theme = '',
     board = '',
     addMethod = '',
+    snapshot_date = '',
   } = params;
 
+  const baseTime = getSnapshotBaseTime(snapshot_date);
+
   // 生成所有mock数据
-  const allStocks = Array.from({ length: 50 }, (_, i) => generateMockStock(i));
+  const allStocks = Array.from({ length: 50 }, (_, i) => {
+    const stock = generateMockStock(i);
+    const addTime = startOfDayTs(stock.addTime);
+    stock.daysAdded = Number.isNaN(addTime)
+      ? 0
+      : Math.floor((baseTime - addTime) / DAY_MS);
+    return stock;
+  });
 
   // 搜索过滤
   let filteredStocks = allStocks.filter((stock) => {

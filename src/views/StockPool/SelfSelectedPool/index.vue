@@ -96,7 +96,7 @@ import {
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import StockDialog from '../components/StockDialog.vue';
-import moment from 'moment';
+import { calculateDaysAdded } from '@/utils/time';
 
 // 分组相关数据
 const groups = ref([]);
@@ -522,9 +522,9 @@ const flattenGroupStockData = (stock) => {
 
   // 计算加入天数
   if (mappedStock.add_time) {
-    mappedStock.days_added = moment().diff(
-      moment(mappedStock.add_time),
-      'days'
+    mappedStock.days_added = calculateDaysAdded(
+      mappedStock.add_time,
+      searchParams.snapshot_date
     );
   }
 
