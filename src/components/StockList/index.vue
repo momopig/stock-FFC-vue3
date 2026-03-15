@@ -268,7 +268,7 @@
               {{ formatVolume(row.turnover) }}
             </span>
             <span v-else-if="item.key === 'turnover_rate'">
-              {{ formatChangePercent(row.turnover_rate, false) }}
+              {{ formatChangePercent(row.turnover_rate * 100, false) }}
             </span>
             <span v-else-if="item.key === 'volume_ratio'">
               {{ row.volume_ratio?.toFixed(2) ?? '--' }}
