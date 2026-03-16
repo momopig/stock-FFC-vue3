@@ -245,6 +245,40 @@
           </template>
         </el-table-column>
 
+        <el-table-column fixed="right" prop="price_location_indicator_value" label="120日位置指标" width="200" sortable
+          :sort-method="(a, b) => sortNumber(getPriceLocationIndicatorValue(a), getPriceLocationIndicatorValue(b))">
+          <template #default="{ row }">
+            <el-tooltip placement="top" :disabled="!getPriceLocationIndicator(row)?.desc">
+              <template #content>
+                <div v-if="getPriceLocationIndicator(row)?.desc">
+                  <div>{{ getPriceLocationIndicator(row).desc.level }}</div>
+                  <div>{{ getPriceLocationIndicator(row).desc.range }}</div>
+                </div>
+                <div v-else>--</div>
+              </template>
+              <div class="price-location-indicator">
+                <div class="price-location-value">
+                  {{ formatIndicatorValue(getPriceLocationIndicatorValue(row)) }}
+                </div>
+                <div class="price-location-metrics">
+                  <div class="price-location-metric">
+                    <span>最高回落比例：</span>
+                    <span :style="{ color: getIndicatorChangeRateColor(getPriceLocationIndicatorMaxHeightFallRate(row)) }">
+                      {{ formatIndicatorChangePercent(getPriceLocationIndicatorMaxHeightFallRate(row)) }}
+                    </span>
+                  </div>
+                  <div class="price-location-metric">
+                    <span>{{ `${getPriceLocationIndicatorDaysRange(row)}日涨跌：` }}</span>
+                    <span :style="{ color: getIndicatorChangeRateColor(getPriceLocationIndicatorChangeRate(row)) }">
+                      {{ formatIndicatorChangePercent(getPriceLocationIndicatorChangeRate(row)) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
         <el-table-column fixed="right" label="操作" :width="100" v-if="userStore.userInfo?.is_superuser">
           <template v-slot="scope">
             <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
@@ -748,6 +782,60 @@ const formatChangePercent = (value, showSign = true) => {
   return `${sign}${value.toFixed(2)}%`
 }
 
+// 格式化 120 日位置指标 value（0~1 之间的小数）
+const formatIndicatorValue = (value) => {
+  if (value === null || value === undefined) return '--'
+  const num = Number(value)
+  if (Number.isNaN(num)) return '--'
+  return num.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+}
+
+const getPriceLocationIndicator = (row) => {
+  return row?.price_location_indicator ?? row?.quote?.ma_response?.price_location_indicator ?? null
+}
+
+const getPriceLocationIndicatorValue = (row) => {
+  const value = getPriceLocationIndicator(row)?.value
+  if (value === null || value === undefined) return null
+  const num = Number(value)
+  return Number.isNaN(num) ? null : num
+}
+
+const getPriceLocationIndicatorChangeRate = (row) => {
+  const changeRate = getPriceLocationIndicator(row)?.changeRate
+  if (changeRate === null || changeRate === undefined) return null
+  const num = Number(changeRate)
+  return Number.isNaN(num) ? null : num
+}
+
+const getPriceLocationIndicatorMaxHeightFallRate = (row) => {
+  const maxHeightFallRate = getPriceLocationIndicator(row)?.maxHeightFallRate
+  if (maxHeightFallRate === null || maxHeightFallRate === undefined) return null
+  const num = Number(maxHeightFallRate)
+  return Number.isNaN(num) ? null : num
+}
+
+const getPriceLocationIndicatorDaysRange = (row) => {
+  const daysRange = getPriceLocationIndicator(row)?.daysRange
+  const num = Number(daysRange)
+  return Number.isNaN(num) ? 120 : num
+}
+
+// “120日位置指标”下方 changeRate 的格式化与颜色规则：负绿、正红、0 灰
+const formatIndicatorChangePercent = (value) => {
+  if (value === null || value === undefined) return '--'
+  const num = Number(value)
+  if (Number.isNaN(num)) return '--'
+  return `${num.toFixed(2)}%`
+}
+
+const getIndicatorChangeRateColor = (changeRate) => {
+  if (changeRate == null) return '#606266'
+  const num = Number(changeRate)
+  if (Number.isNaN(num) || num === 0) return '#606266'
+  return num > 0 ? '#f56c6c' : '#67c23a'
+}
+
 // 获取行情涨跌颜色
 const getQuoteColor = (changeRate) => {
   if (changeRate == null) return '#606266'
@@ -1079,5 +1167,32 @@ const copySinglePageStockNames = () => {
 
 .el-table :deep(.cell) {
   padding: 0 8px;
+}
+
+.price-location-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.price-location-value {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.price-location-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.price-location-metric {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 </style>

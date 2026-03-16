@@ -307,6 +307,7 @@ const flattenStockData = (stock) => {
       : null,
     kline_data: quote.ma_response?.kline_data || null,
     ma_data: quote.ma_response?.ma_data || null,
+    price_location_indicator: quote.ma_response?.price_location_indicator || null,
     // 扁平化风险信号数据
     risk_signs: quote?.risk_signs || null,
   }
