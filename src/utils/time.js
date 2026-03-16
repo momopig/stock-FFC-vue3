@@ -45,8 +45,29 @@ export function calculateRemainingTime(inputTime) {
 }
 
 /**
+ * 计算加入天数：以 snapshot_date 为基准日（YYYY-MM-DD），未提供则以今天为基准。
+ * @param {string|Date} addTime - 加入时间（ISO 字符串或 Date）
+ * @param {string} snapshotDate - 快照日期（YYYY-MM-DD）
+ * @returns {number|null} 天数（整数），无法计算时返回 null
+ */
+export const calculateDaysAdded = (addTime, snapshotDate = '') => {
+  if (!addTime) return null;
+
+  // “加入天数”按自然日计算：忽略时分秒，避免因 00:00/当前时间导致差 1 天
+  const base =
+    snapshotDate && moment(snapshotDate, 'YYYY-MM-DD', true).isValid()
+      ? moment(snapshotDate, 'YYYY-MM-DD').startOf('day')
+      : moment().startOf('day');
+
+  const joined = moment(addTime).startOf('day');
+  if (!joined.isValid()) return null;
+
+  return base.diff(joined, 'days');
+};
+
+/**
  * 格式化日期时间
  */
 export const formatDateTime = (dateTime) => {
-  return dateTime ? new Date(dateTime).toLocaleString() : '--'
-}
+  return dateTime ? new Date(dateTime).toLocaleString() : '--';
+};

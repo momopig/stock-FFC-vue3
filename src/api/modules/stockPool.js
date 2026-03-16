@@ -1,6 +1,6 @@
-import request from '../common'
-import qs from 'qs'
-import { createWebSocket } from '@/utils/websocket'
+import request from '../common';
+import qs from 'qs';
+import { createWebSocket } from '@/utils/websocket';
 
 /**
  * Mock数据开关
@@ -9,7 +9,28 @@ import { createWebSocket } from '@/utils/websocket'
  *
  * 切换方式：将 USE_MOCK_DATA 设置为 false 即可切换到真实API
  */
-const USE_MOCK_DATA = false
+const USE_MOCK_DATA = false;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const startOfDayTs = (date) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return NaN;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+const getSnapshotBaseTime = (snapshotDate) => {
+  if (
+    typeof snapshotDate === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)
+  ) {
+    const t = new Date(`${snapshotDate}T00:00:00`).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  // 未提供 snapshot_date 时也按自然日计算：取今天 00:00
+  return startOfDayTs(new Date());
+};
 
 /**
  * 生成mock股票数据
@@ -55,24 +76,73 @@ const USE_MOCK_DATA = false
  *    - createdAt/updatedAt: 创建/更新时间
  */
 const generateMockStock = (index) => {
-  const symbols = ['000001', '000002', '600000', '600036', '000858', '002415', '300015', '688001']
-  const names = ['平安银行', '万科A', '浦发银行', '招商银行', '五粮液', '海康威视', '爱尔眼科', '华兴源创']
-  const themes = ['金融', '地产', '金融', '金融', '消费', '科技', '医疗', '科技']
-  const boards = ['主板', '主板', '主板', '主板', '主板', '中小板', '创业板', '科创板']
-  const exchanges = ['SZSE', 'SZSE', 'SSE', 'SSE', 'SZSE', 'SZSE', 'SZSE', 'SSE']
+  const symbols = [
+    '000001',
+    '000002',
+    '600000',
+    '600036',
+    '000858',
+    '002415',
+    '300015',
+    '688001',
+  ];
+  const names = [
+    '平安银行',
+    '万科A',
+    '浦发银行',
+    '招商银行',
+    '五粮液',
+    '海康威视',
+    '爱尔眼科',
+    '华兴源创',
+  ];
+  const themes = [
+    '金融',
+    '地产',
+    '金融',
+    '金融',
+    '消费',
+    '科技',
+    '医疗',
+    '科技',
+  ];
+  const boards = [
+    '主板',
+    '主板',
+    '主板',
+    '主板',
+    '主板',
+    '中小板',
+    '创业板',
+    '科创板',
+  ];
+  const exchanges = [
+    'SZSE',
+    'SZSE',
+    'SSE',
+    'SSE',
+    'SZSE',
+    'SZSE',
+    'SZSE',
+    'SSE',
+  ];
 
-  const basePrice = 10 + Math.random() * 50
-  const changeRate = (Math.random() - 0.5) * 10 // -5% 到 +5%
-  const currentPrice = basePrice * (1 + changeRate / 100)
-  const volume = Math.floor(Math.random() * 10000000)
-  const turnover = currentPrice * volume
+  const basePrice = 10 + Math.random() * 50;
+  const changeRate = (Math.random() - 0.5) * 10; // -5% 到 +5%
+  const currentPrice = basePrice * (1 + changeRate / 100);
+  const volume = Math.floor(Math.random() * 10000000);
+  const turnover = currentPrice * volume;
 
-  const addTime = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) // 30天内随机时间
+  const addTime = new Date(
+    Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+  ); // 30天内随机时间
 
   return {
     id: index + 1,
     // 核心行情数据（使用RiceQuant字段）
-    order_book_id: symbols[index % symbols.length] + (exchanges[index % exchanges.length] === 'SSE' ? '.SH' : '.SZ'),
+    order_book_id:
+      symbols[index % symbols.length] +
+      (exchanges[index % exchanges.length] === 'SSE' ? '.SH' : '.SZ'),
     symbol: names[index % names.length],
     name: names[index % names.length],
     datetime: new Date().toISOString(),
@@ -100,62 +170,84 @@ const generateMockStock = (index) => {
     code: symbols[index % symbols.length],
     theme: themes[index % themes.length],
     board: boards[index % boards.length],
-    marketCap: Math.floor(basePrice * volume / 10000), // 市值（万元）
+    marketCap: Math.floor((basePrice * volume) / 10000), // 市值（万元）
     currentPrice: currentPrice,
     changePercent: changeRate,
     initialPrice: basePrice,
     addMethod: index % 3 === 0 ? 'program' : 'manual',
     addTime: addTime.toISOString(),
-    daysAdded: Math.floor((Date.now() - addTime.getTime()) / (24 * 60 * 60 * 1000)),
+    // daysAdded 将在 mockGetStockPoolList 中根据 snapshot_date 重算
+    daysAdded: 0,
     reason: index % 2 === 0 ? '技术面突破' : '基本面良好',
     creator: '系统管理员',
     createdAt: addTime.toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-}
+    updatedAt: new Date().toISOString(),
+  };
+};
 
 /**
  * Mock获取股票池列表
  */
 const mockGetStockPoolList = async (params) => {
-  const { pageNo = 1, pageSize = 10, search = '', theme = '', board = '', addMethod = '' } = params
+  const {
+    pageNo = 1,
+    pageSize = 10,
+    search = '',
+    theme = '',
+    board = '',
+    addMethod = '',
+    snapshot_date = '',
+  } = params;
+
+  const baseTime = getSnapshotBaseTime(snapshot_date);
 
   // 生成所有mock数据
-  const allStocks = Array.from({ length: 50 }, (_, i) => generateMockStock(i))
+  const allStocks = Array.from({ length: 50 }, (_, i) => {
+    const stock = generateMockStock(i);
+    const addTime = startOfDayTs(stock.addTime);
+    stock.daysAdded = Number.isNaN(addTime)
+      ? 0
+      : Math.floor((baseTime - addTime) / DAY_MS);
+    return stock;
+  });
 
   // 搜索过滤
-  let filteredStocks = allStocks.filter(stock => {
-    if (search && !stock.code.includes(search) && !stock.symbol.includes(search)) {
-      return false
+  let filteredStocks = allStocks.filter((stock) => {
+    if (
+      search &&
+      !stock.code.includes(search) &&
+      !stock.symbol.includes(search)
+    ) {
+      return false;
     }
     if (theme && stock.theme !== theme) {
-      return false
+      return false;
     }
     if (board && stock.board !== board) {
-      return false
+      return false;
     }
     if (addMethod && stock.addMethod !== addMethod) {
-      return false
+      return false;
     }
-    return true
-  })
+    return true;
+  });
 
   // 分页
-  const start = (pageNo - 1) * pageSize
-  const end = start + pageSize
-  const data = filteredStocks.slice(start, end)
+  const start = (pageNo - 1) * pageSize;
+  const end = start + pageSize;
+  const data = filteredStocks.slice(start, end);
 
   // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 300))
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   return {
     success: true,
     result: {
       data,
-      count: filteredStocks.length
-    }
-  }
-}
+      count: filteredStocks.length,
+    },
+  };
+};
 
 /**
  * 获取股票池列表（HTTP 方式，已废弃，保留用于兼容）
@@ -170,16 +262,20 @@ const mockGetStockPoolList = async (params) => {
  * @param {string} params.add_method - 添加方式（manual/strategy/import/other）
  * @param {number} params.priority_level - 优先级（1-10）
  * @param {string} params.created_by - 创建者筛选
+ * @param {string} params.snapshot_date - 快照日期，格式为YYYY-MM-DD，非必填
  * @returns {Promise}
  */
 export const getStockPoolList = async (params) => {
   if (USE_MOCK_DATA) {
-    return await mockGetStockPoolList(params)
+    return await mockGetStockPoolList(params);
   }
-  const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/api/stock-watchlist/with-quotes?` + queryString)
-  return res
-}
+  // snapshot_date 直接作为参数传递，无需特殊处理
+  const queryString = qs.stringify(params);
+  const res = await request.get(
+    `/stock-api/api/stock-watchlist/with-quotes?` + queryString
+  );
+  return res;
+};
 
 /**
  * 通过 WebSocket 获取股票池列表（带行情数据）
@@ -196,6 +292,7 @@ export const getStockPoolList = async (params) => {
  * @param {string} params.created_by - 创建者筛选
  * @param {number} params.interval - 推送间隔（秒），<=0 则只推一次，默认 3
  * @param {boolean} params.once_if_closed - 非交易时段是否只推一次，默认 false
+ * @param {string} params.snapshot_date - 快照日期，格式为YYYY-MM-DD，非必填
  * @param {Object} callbacks - 回调函数
  * @param {Function} callbacks.onMessage - 消息接收回调，参数为响应数据
  * @param {Function} callbacks.onOpen - 连接打开回调
@@ -206,47 +303,51 @@ export const getStockPoolList = async (params) => {
 export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
   // WebSocket 基础 URL
   // 根据环境判断：开发环境直接连接后端服务器，生产环境使用当前域名
-  const isDev = import.meta.env.DEV
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const isDev = import.meta.env.DEV;
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   // WebSocket 主机地址：只包含主机名和端口，不包含协议
   const wsHost = isDev
     ? `119.23.68.187:8000` // 开发环境直接连接后端
-    : window.location.hostname + ':8000' // 生产环境使用当前域名
+    : window.location.hostname + ':8000'; // 生产环境使用当前域名
 
   // 构建查询参数
   const queryParams = {
     ...params,
     interval: params.interval ?? 5, // 默认推送间隔 3 秒
-    once_if_closed: params.once_if_closed ?? false
-  }
+    once_if_closed: params.once_if_closed ?? false,
+  };
 
   // 移除空值参数
-  Object.keys(queryParams).forEach(key => {
-    if (queryParams[key] === '' || queryParams[key] === null || queryParams[key] === undefined) {
-      delete queryParams[key]
+  Object.keys(queryParams).forEach((key) => {
+    if (
+      queryParams[key] === '' ||
+      queryParams[key] === null ||
+      queryParams[key] === undefined
+    ) {
+      delete queryParams[key];
     }
-  })
+  });
 
-  const queryString = qs.stringify(queryParams)
+  const queryString = qs.stringify(queryParams);
   // WebSocket URL：根据用户提供的示例，WebSocket 直接连接 /api/stock-watchlist/with-quotes
   // 注意：WebSocket 不使用 /stock-api 前缀，直接使用 /api 路径
-  const wsUrl = `${wsProtocol}//${wsHost}/api/stock-watchlist/with-quotes?${queryString}`
+  const wsUrl = `${wsProtocol}//${wsHost}/api/stock-watchlist/with-quotes?${queryString}`;
 
   // 创建 WebSocket 连接
   const wsManager = createWebSocket(wsUrl, {
     onMessage: (data) => {
       // WebSocket 返回的数据格式应该与 HTTP 接口一致
-      callbacks.onMessage?.(data)
+      callbacks.onMessage?.(data);
     },
     onOpen: callbacks.onOpen,
     onClose: callbacks.onClose,
     onError: callbacks.onError,
     reconnectInterval: 3000,
-    maxReconnectAttempts: 5
-  })
+    maxReconnectAttempts: 5,
+  });
 
-  return wsManager
-}
+  return wsManager;
+};
 
 /**
  * 根据ID获取关注股票详情
@@ -255,11 +356,11 @@ export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
  */
 export const getStockDetail = async (stock_id) => {
   if (USE_MOCK_DATA) {
-    return await mockGetStockDetail(stock_id)
+    return await mockGetStockDetail(stock_id);
   }
-  const res = await request.get(`/stock-api/api/stock-watchlist/${stock_id}`)
-  return res
-}
+  const res = await request.get(`/stock-api/api/stock-watchlist/${stock_id}`);
+  return res;
+};
 
 /**
  * 添加股票到池中
@@ -271,10 +372,9 @@ export const addStock = async (data) => {
   //   return await mockAddStock(data)
   // }
   // 注意：接口文档中没有提供添加接口，这里保持原有逻辑或需要确认后端是否提供
-  const res = await request.post(`/stock-api/api/stock-watchlist/`, data)
-  return res
-}
-
+  const res = await request.post(`/stock-api/api/stock-watchlist/`, data);
+  return res;
+};
 
 /**
  * 根据ID更新关注股票
@@ -284,12 +384,14 @@ export const addStock = async (data) => {
  */
 export const updateStock = async (stock_id, data) => {
   if (USE_MOCK_DATA) {
-    return await mockUpdateStock(stock_id, data)
+    return await mockUpdateStock(stock_id, data);
   }
-  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}`, data)
-  return res
-}
-
+  const res = await request.patch(
+    `/stock-api/api/stock-watchlist/${stock_id}`,
+    data
+  );
+  return res;
+};
 
 /**
  * 根据ID删除关注股票
@@ -298,11 +400,13 @@ export const updateStock = async (stock_id, data) => {
  */
 export const deleteStock = async (stock_id) => {
   if (USE_MOCK_DATA) {
-    return await mockDeleteStock(stock_id)
+    return await mockDeleteStock(stock_id);
   }
-  const res = await request.delete(`/stock-api/api/stock-watchlist/${stock_id}`)
-  return res
-}
+  const res = await request.delete(
+    `/stock-api/api/stock-watchlist/${stock_id}`
+  );
+  return res;
+};
 
 /**
  * 变更股票状态
@@ -311,9 +415,11 @@ export const deleteStock = async (stock_id) => {
  * @returns {Promise}
  */
 export const updateStockStatus = async (stock_id, status) => {
-  const res = await request.patch(`/stock-api/api/stock-watchlist/${stock_id}/status?status=${status}`)
-  return res
-}
+  const res = await request.patch(
+    `/stock-api/api/stock-watchlist/${stock_id}/status?status=${status}`
+  );
+  return res;
+};
 
 /**
  * 获取买入信号洞察数据
@@ -322,12 +428,14 @@ export const updateStockStatus = async (stock_id, status) => {
  */
 export const getBuySignals = async (params = {}) => {
   if (USE_MOCK_DATA) {
-    return await mockGetBuySignals(params)
+    return await mockGetBuySignals(params);
   }
-  const queryString = qs.stringify(params)
-  const res = await request.get(`/stock-api/api/stock-pool/buy-signals?` + queryString)
-  return res
-}
+  const queryString = qs.stringify(params);
+  const res = await request.get(
+    `/stock-api/api/stock-pool/buy-signals?` + queryString
+  );
+  return res;
+};
 
 /**
  * 获取股票搜索列表（第三方接口）
@@ -336,19 +444,18 @@ export const getBuySignals = async (params = {}) => {
  * @returns {Promise}
  */
 export const getStock = async (search, onlyA = false) => {
-  const result = await request.get(`/nest-api/stock?search=${search}`)
-  let data = result?.payload
+  const result = await request.get(`/nest-api/stock?search=${search}`);
+  let data = result?.payload;
   // 根据接口返回格式处理数据
   if (data?.Result?.stock) {
     data.Result.stock = data?.Result?.stock?.filter((stock) => {
-      const isStock = stock.type === 'stock'
+      const isStock = stock.type === 'stock';
       if (onlyA) {
         // 香港的market对应hk，A股的market对应ab
-        return isStock && stock.market === 'ab'
+        return isStock && stock.market === 'ab';
       }
-      return isStock
-    })
+      return isStock;
+    });
   }
-  return data
-}
-
+  return data;
+};
