@@ -349,19 +349,16 @@
           sortable
           :sort-method="
             (a, b) =>
-              sortNumber(
-                calculateYesterdayChangeRate(a),
-                calculateYesterdayChangeRate(b)
-              )
+              sortNumber(getDayMapChangeRate(a, 1), getDayMapChangeRate(b, 1))
           "
         >
           <template #default="{ row }">
             <span
               :style="{
-                color: getQuoteColor(calculateYesterdayChangeRate(row)),
+                color: getQuoteColor(getDayMapChangeRate(row, 1)),
               }"
             >
-              {{ formatChangePercent(calculateYesterdayChangeRate(row)) }}
+              {{ formatChangePercent(getDayMapChangeRate(row, 1)) }}
             </span>
           </template>
         </el-table-column>
@@ -374,14 +371,14 @@
           sortable
           :sort-method="
             (a, b) =>
-              sortNumber(calculate3DayChangeRate(a), calculate3DayChangeRate(b))
+              sortNumber(getDayMapChangeRate(a, 3), getDayMapChangeRate(b, 3))
           "
         >
           <template #default="{ row }">
             <span
-              :style="{ color: getQuoteColor(calculate3DayChangeRate(row)) }"
+              :style="{ color: getQuoteColor(getDayMapChangeRate(row, 3)) }"
             >
-              {{ formatChangePercent(calculate3DayChangeRate(row)) }}
+              {{ formatChangePercent(getDayMapChangeRate(row, 3)) }}
             </span>
           </template>
         </el-table-column>
@@ -394,24 +391,36 @@
           sortable
           :sort-method="
             (a, b) =>
-              sortNumber(
-                calculate20DayChangeRate(a),
-                calculate20DayChangeRate(b)
-              )
+              sortNumber(getDayMapChangeRate(a, 20), getDayMapChangeRate(b, 20))
           "
         >
           <template #default="{ row }">
             <span
-              :style="{ color: getQuoteColor(calculate20DayChangeRate(row)) }"
+              :style="{ color: getQuoteColor(getDayMapChangeRate(row, 20)) }"
             >
-              {{ formatChangePercent(calculate20DayChangeRate(row)) }}
+              {{ formatChangePercent(getDayMapChangeRate(row, 20)) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" prop="price_location_indicator_value" label="120日位置指标" width="200" sortable
-          :sort-method="(a, b) => sortNumber(getPriceLocationIndicatorValue(a), getPriceLocationIndicatorValue(b))">
+        <el-table-column
+          fixed="right"
+          prop="price_location_indicator_value"
+          label="120日位置指标"
+          width="200"
+          sortable
+          :sort-method="
+            (a, b) =>
+              sortNumber(
+                getPriceLocationIndicatorValue(a),
+                getPriceLocationIndicatorValue(b)
+              )
+          "
+        >
           <template #default="{ row }">
-            <el-tooltip placement="top" :disabled="!getPriceLocationIndicator(row)?.desc">
+            <el-tooltip
+              placement="top"
+              :disabled="!getPriceLocationIndicator(row)?.desc"
+            >
               <template #content>
                 <div v-if="getPriceLocationIndicator(row)?.desc">
                   <div>{{ getPriceLocationIndicator(row).desc.level }}</div>
@@ -421,19 +430,43 @@
               </template>
               <div class="price-location-indicator">
                 <div class="price-location-value">
-                  {{ formatIndicatorValue(getPriceLocationIndicatorValue(row)) }}
+                  {{
+                    formatIndicatorValue(getPriceLocationIndicatorValue(row))
+                  }}
                 </div>
                 <div class="price-location-metrics">
                   <div class="price-location-metric">
                     <span>最高回落比例：</span>
-                    <span :style="{ color: getIndicatorChangeRateColor(getPriceLocationIndicatorMaxHeightFallRate(row)) }">
-                      {{ formatIndicatorChangePercent(getPriceLocationIndicatorMaxHeightFallRate(row)) }}
+                    <span
+                      :style="{
+                        color: getIndicatorChangeRateColor(
+                          getPriceLocationIndicatorMaxHeightFallRate(row)
+                        ),
+                      }"
+                    >
+                      {{
+                        formatIndicatorChangePercent(
+                          getPriceLocationIndicatorMaxHeightFallRate(row)
+                        )
+                      }}
                     </span>
                   </div>
                   <div class="price-location-metric">
-                    <span>{{ `${getPriceLocationIndicatorDaysRange(row)}日涨跌：` }}</span>
-                    <span :style="{ color: getIndicatorChangeRateColor(getPriceLocationIndicatorChangeRate(row)) }">
-                      {{ formatIndicatorChangePercent(getPriceLocationIndicatorChangeRate(row)) }}
+                    <span>{{
+                      `${getPriceLocationIndicatorDaysRange(row)}日涨跌：`
+                    }}</span>
+                    <span
+                      :style="{
+                        color: getIndicatorChangeRateColor(
+                          getPriceLocationIndicatorChangeRate(row)
+                        ),
+                      }"
+                    >
+                      {{
+                        formatIndicatorChangePercent(
+                          getPriceLocationIndicatorChangeRate(row)
+                        )
+                      }}
                     </span>
                   </div>
                 </div>
@@ -442,7 +475,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" :width="100" v-if="userStore.userInfo?.is_superuser">
+        <el-table-column
+          fixed="right"
+          label="操作"
+          :width="100"
+          v-if="userStore.userInfo?.is_superuser"
+        >
           <template v-slot="scope">
             <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
               查看
@@ -1014,57 +1052,65 @@ const formatChangePercent = (value, showSign = true) => {
 
 // 格式化 120 日位置指标 value（0~1 之间的小数）
 const formatIndicatorValue = (value) => {
-  if (value === null || value === undefined) return '--'
-  const num = Number(value)
-  if (Number.isNaN(num)) return '--'
-  return num.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
-}
+  if (value === null || value === undefined) return '--';
+  const num = Number(value);
+  if (Number.isNaN(num)) return '--';
+  return num
+    .toFixed(2)
+    .replace(/\.0+$/, '')
+    .replace(/(\.\d*[1-9])0+$/, '$1');
+};
 
 const getPriceLocationIndicator = (row) => {
-  return row?.price_location_indicator ?? row?.quote?.ma_response?.price_location_indicator ?? null
-}
+  return (
+    row?.price_location_indicator ??
+    row?.quote?.ma_response?.price_location_indicator ??
+    null
+  );
+};
 
 const getPriceLocationIndicatorValue = (row) => {
-  const value = getPriceLocationIndicator(row)?.value
-  if (value === null || value === undefined) return null
-  const num = Number(value)
-  return Number.isNaN(num) ? null : num
-}
+  const value = getPriceLocationIndicator(row)?.value;
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isNaN(num) ? null : num;
+};
 
 const getPriceLocationIndicatorChangeRate = (row) => {
-  const changeRate = getPriceLocationIndicator(row)?.changeRate
-  if (changeRate === null || changeRate === undefined) return null
-  const num = Number(changeRate)
-  return Number.isNaN(num) ? null : num
-}
+  const changeRate = getPriceLocationIndicator(row)?.changeRate;
+  if (changeRate === null || changeRate === undefined) return null;
+  const num = Number(changeRate);
+  return Number.isNaN(num) ? null : num;
+};
 
 const getPriceLocationIndicatorMaxHeightFallRate = (row) => {
-  const maxHeightFallRate = getPriceLocationIndicator(row)?.maxHeightFallRate
-  if (maxHeightFallRate === null || maxHeightFallRate === undefined) return null
-  const num = Number(maxHeightFallRate)
-  return Number.isNaN(num) ? null : num
-}
+  const maxHeightFallRate = getPriceLocationIndicator(row)?.maxHeightFallRate;
+  if (maxHeightFallRate === null || maxHeightFallRate === undefined)
+    return null;
+  const num = Number(maxHeightFallRate);
+  return Number.isNaN(num) ? null : num;
+};
 
 const getPriceLocationIndicatorDaysRange = (row) => {
-  const daysRange = getPriceLocationIndicator(row)?.daysRange
-  const num = Number(daysRange)
-  return Number.isNaN(num) ? 120 : num
-}
+  const daysRange = getPriceLocationIndicator(row)?.daysRange;
+  const num = Number(daysRange);
+  return Number.isNaN(num) ? 120 : num;
+};
 
 // “120日位置指标”下方 changeRate 的格式化与颜色规则：负绿、正红、0 灰
 const formatIndicatorChangePercent = (value) => {
-  if (value === null || value === undefined) return '--'
-  const num = Number(value)
-  if (Number.isNaN(num)) return '--'
-  return `${num.toFixed(2)}%`
-}
+  if (value === null || value === undefined) return '--';
+  const num = Number(value);
+  if (Number.isNaN(num)) return '--';
+  return `${num.toFixed(2)}%`;
+};
 
 const getIndicatorChangeRateColor = (changeRate) => {
-  if (changeRate == null) return '#606266'
-  const num = Number(changeRate)
-  if (Number.isNaN(num) || num === 0) return '#606266'
-  return num > 0 ? '#f56c6c' : '#67c23a'
-}
+  if (changeRate == null) return '#606266';
+  const num = Number(changeRate);
+  if (Number.isNaN(num) || num === 0) return '#606266';
+  return num > 0 ? '#f56c6c' : '#67c23a';
+};
 
 // 获取行情涨跌颜色
 const getQuoteColor = (changeRate) => {
@@ -1128,69 +1174,17 @@ const getKlineData = (row, days = 3) => {
   return klineData.slice(-days);
 };
 
-// 计算昨日涨幅：使用昨天的收盘价和今天的收盘价（或当前价）
-const calculateYesterdayChangeRate = (row) => {
-  const klineData = row?.kline_data;
-  if (!klineData || !Array.isArray(klineData) || klineData.length < 2) {
-    return null;
-  }
+// 获取后端提供的“多日涨跌幅”映射（quote.day_map_change_rate）
+// 格式示例：{1: 1.88, 3: -3.56, 20: -15.28}
+const getDayMapChangeRate = (row, days) => {
+  const dayMap = row?.day_map_change_rate ?? row?.quote?.day_map_change_rate;
+  if (!dayMap || typeof dayMap !== 'object') return null;
 
-  // 昨天的收盘价（倒数第二个）
-  const yesterdayClose = klineData[klineData.length - 2]?.last_close;
-  // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
+  const raw = dayMap?.[days] ?? dayMap?.[String(days)];
+  if (raw === '' || raw === null || raw === undefined) return null;
 
-  if (yesterdayClose == null || todayPrice == null || yesterdayClose === 0) {
-    return null;
-  }
-
-  return ((todayPrice - yesterdayClose) / yesterdayClose) * 100;
-};
-
-// 计算3日涨幅：使用3天前的收盘价和今天的收盘价（或当前价）
-const calculate3DayChangeRate = (row) => {
-  const klineData = row?.kline_data;
-  if (!klineData || !Array.isArray(klineData) || klineData.length < 3) {
-    return null;
-  }
-
-  // 3天前的收盘价（倒数第三个）
-  const threeDaysAgoClose = klineData[klineData.length - 3]?.last_close;
-  // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
-
-  if (
-    threeDaysAgoClose == null ||
-    todayPrice == null ||
-    threeDaysAgoClose === 0
-  ) {
-    return null;
-  }
-
-  return ((todayPrice - threeDaysAgoClose) / threeDaysAgoClose) * 100;
-};
-
-// 计算20日涨幅：使用20天前的收盘价和今天的收盘价（或当前价）
-const calculate20DayChangeRate = (row) => {
-  const klineData = row?.kline_data;
-  if (!klineData || !Array.isArray(klineData) || klineData.length < 20) {
-    return null;
-  }
-
-  // 20天前的收盘价（倒数第20个）
-  const twentyDaysAgoClose = klineData[klineData.length - 20]?.last_close;
-  // 今天的收盘价（最后一个）或当前价
-  const todayPrice = klineData[klineData.length - 1]?.close ?? row?.last_price;
-
-  if (
-    twentyDaysAgoClose == null ||
-    todayPrice == null ||
-    twentyDaysAgoClose === 0
-  ) {
-    return null;
-  }
-
-  return ((todayPrice - twentyDaysAgoClose) / twentyDaysAgoClose) * 100;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 };
 
 // 站稳分析判断
