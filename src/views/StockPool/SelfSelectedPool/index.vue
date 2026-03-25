@@ -99,10 +99,7 @@ import StockDialog from '../components/StockDialog.vue';
 import { calculateDaysAdded } from '@/utils/time';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
 import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
-import {
-  buildStockListRequestParams,
-  useStockListRequestCache,
-} from '../composables/useStockListRequestCache';
+import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
 import { useStockInsights } from '../composables/useStockInsights';
 
 // 分组相关数据
@@ -136,8 +133,7 @@ const searchParams = reactive({
   snapshot_date: '',
 });
 
-const { invalidate: invalidateGroupStockCache, readHit, write } =
-  useStockListRequestCache();
+// 不做数据缓存：每次切换/搜索都直接请求接口
 
 // 初始化股票表单
 const initStockForm = () => {
@@ -164,11 +160,8 @@ const stockForm = ref(initStockForm());
 // 显示股票列表（直接使用 stockList，不再筛选）
 const displayStockList = computed(() => stockList.value);
 
-const {
-  insightsData,
-  calculateInsightsFromList,
-  handleFilterChange,
-} = useStockInsights(displayStockList);
+const { insightsData, calculateInsightsFromList, handleFilterChange } =
+  useStockInsights(displayStockList);
 
 // 页面加载时获取分组列表
 onMounted(async () => {
@@ -377,7 +370,6 @@ const handleTabEdit = async (targetName, action) => {
         const result = await deleteGroup(groupId);
         if (result?.success) {
           ElMessage.success('删除分组成功');
-          invalidateGroupStockCache(groupId);
           // 如果删除的是当前分组，切换到第一个分组
           if (String(groupId) === activeGroupId.value) {
             const remainingGroups = groups.value.filter(
@@ -423,11 +415,8 @@ const handleGroupChange = async (groupId) => {
   await getStockList();
 };
 
-// 获取股票列表（默认走缓存；数据变更处传 force: true）
-const getStockList = async (
-  additionalSearchParams = {},
-  { force = false } = {}
-) => {
+// 获取股票列表（不走缓存）
+const getStockList = async (additionalSearchParams = {}) => {
   if (!activeGroupId.value || activeGroupId.value === 'add') {
     stockList.value = [];
     page.total = 0;
@@ -439,27 +428,6 @@ const getStockList = async (
     searchParams,
     additionalSearchParams
   );
-  const gid = String(activeGroupId.value);
-
-  if (!force) {
-    const hit = readHit(gid, params);
-    if (hit) {
-      // 第一帧：先显示 loading + 清空表格，让浏览器绘制出 tab 高亮和空表格
-      tableLoading.value = true;
-      stockList.value = [];
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      // 第二帧：apply 缓存数据，el-table 在 loading 遮罩覆盖下完成渲染
-      stockList.value = hit.items;
-      page.total = hit.total;
-      calculateInsightsFromList();
-      // 第三帧：el-table 已渲染完毕，此时再移除 loading 遮罩，数据立即可见
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      tableLoading.value = false;
-      return;
-    }
-  }
 
   tableLoading.value = true;
 
@@ -469,7 +437,6 @@ const getStockList = async (
       const rows = (response.payload?.items || []).map(flattenGroupStockData);
       stockList.value = rows;
       page.total = response.payload?.total || 0;
-      write(gid, params, rows, page.total);
       calculateInsightsFromList();
       tableLoading.value = false;
     } else {
@@ -533,7 +500,7 @@ const handlePageSizeChange = (newPageSize) => {
 };
 
 // 搜索事件处理
-const handleSearchEvent = (searchParamsFromChild) => {
+const handleSearchEvent = (searchParamsFromChild, options) => {
   applySearchParamsFromStockList(searchParams, searchParamsFromChild);
   page.pageNo = 1;
   getStockList();
@@ -603,7 +570,7 @@ const handleDeleteStock = async (id) => {
     const result = await removeStockFromGroup(id);
     if (result?.success) {
       ElMessage.success('删除股票成功');
-      await getStockList({}, { force: true });
+      await getStockList();
     } else {
       ElMessage.error(result?.message || '删除股票失败');
     }
@@ -630,7 +597,7 @@ const handleRemoveFromSelf = async (row) => {
         const result = await removeStockFromGroup(row.id);
         if (result?.success) {
           ElMessage.success('已移除股票');
-          await getStockList({}, { force: true });
+          await getStockList();
         } else {
           ElMessage.error(result?.message || '移除股票失败');
         }
@@ -696,8 +663,7 @@ const submitStock = async (formData) => {
         `批量添加完成：成功 ${successCount} 只${failCount > 0 ? `，失败 ${failCount} 只` : ''}`
       );
       dialogVisible.value = false;
-      invalidateGroupStockCache(groupIds);
-      await getStockList({}, { force: true });
+      await getStockList();
       stockForm.value = initStockForm();
       return;
     }
@@ -740,17 +706,7 @@ const submitStock = async (formData) => {
     if (result && result.success !== false) {
       ElMessage.success(formData.id ? '更新股票成功' : '添加股票成功');
       dialogVisible.value = false;
-      const touchedGroups = formData.id
-        ? activeGroupId.value && activeGroupId.value !== 'add'
-          ? [Number(activeGroupId.value)]
-          : []
-        : formData.group_ids?.length
-          ? formData.group_ids
-          : activeGroupId.value && activeGroupId.value !== 'add'
-            ? [Number(activeGroupId.value)]
-            : [];
-      invalidateGroupStockCache(touchedGroups);
-      await getStockList({}, { force: true });
+      await getStockList();
       stockForm.value = initStockForm();
     } else {
       ElMessage.error(result?.message || '保存失败');

@@ -52,12 +52,11 @@ import { calculateDaysAdded } from '@/utils/time';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
 import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
 import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
-import { watchListCache, WATCH_CACHE_KEY } from '../composables/watchListCache';
 import { useStockInsights } from '../composables/useStockInsights';
 
 const emit = defineEmits(['view-stock', 'edit-stock', 'add-stock']);
 
-const { readHit, write, invalidate } = watchListCache;
+// 不做数据缓存：每次挂载/切换/搜索都直接请求接口
 
 // 股票列表数据
 const stockList = ref([]);
@@ -93,7 +92,7 @@ const addToGroupDialogVisible = ref(false);
 const selectedStockData = ref(null);
 const selectedStrategyInfo = ref(null);
 
-// 页面加载时获取重点观察列表（每次 v-if 挂载时触发，命中缓存则直接从缓存恢复）
+// 页面加载时获取重点观察列表（每次 v-if 挂载时触发）
 onMounted(() => {
   getWatchStockList();
 });
@@ -103,28 +102,9 @@ const _buildParams = (additional = {}) =>
     is_self_selected: true,
   });
 
-// 获取重点观察股票列表（带缓存，命中时先 loading + rAF 再 apply，让 tab 先绘制）
-const getWatchStockList = async (additional = {}, { force = false } = {}) => {
+// 获取重点观察股票列表（不走缓存）
+const getWatchStockList = async (additional = {}) => {
   const params = _buildParams(additional);
-
-  if (!force) {
-    const hit = readHit(WATCH_CACHE_KEY, params);
-    if (hit) {
-      // 先显示 loading，让 tab 切换动画有机会绘制完毕，再 apply 数据
-      loading.value = true;
-      stockList.value = [];
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      stockList.value = hit.items;
-      page.total = hit.total;
-      calculateInsightsFromList();
-      // 再等一帧，让 el-table 在 loading 遮罩下完成渲染，遮罩消失时数据已就绪
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      loading.value = false;
-      return;
-    }
-  }
 
   loading.value = true;
 
@@ -135,7 +115,6 @@ const getWatchStockList = async (additional = {}, { force = false } = {}) => {
       const watchStocks = allStocks.filter((s) => s.is_self_selected === true);
       stockList.value = watchStocks;
       page.total = watchStocks.length;
-      write(WATCH_CACHE_KEY, params, watchStocks, watchStocks.length);
       calculateInsightsFromList();
       loading.value = false;
     } else {
@@ -199,7 +178,7 @@ const handlePageSizeChange = (newPageSize) => {
 const handleSearchEvent = (searchParamsFromChild) => {
   applySearchParamsFromStockList(searchParams, searchParamsFromChild);
   page.pageNo = 1;
-  getWatchStockList({}, { force: true });
+  getWatchStockList();
 };
 
 // 查看 / 编辑（交给父级处理）
@@ -219,8 +198,7 @@ const handleCancelWatch = async (id) => {
     if (result && result.success !== false) {
       ElMessage.success('已取消观察');
       stock.is_self_selected = false;
-      invalidate(WATCH_CACHE_KEY);
-      await getWatchStockList({}, { force: true });
+      await getWatchStockList();
     } else {
       ElMessage.error(result?.message || '取消观察失败');
     }
@@ -296,8 +274,7 @@ const handleAddToGroupSubmit = async (submitData) => {
       addToGroupDialogVisible.value = false;
       selectedStockData.value = null;
       selectedStrategyInfo.value = null;
-      invalidate(WATCH_CACHE_KEY);
-      await getWatchStockList({}, { force: true });
+      await getWatchStockList();
     } else {
       ElMessage.error(result?.message || '添加自选失败');
     }

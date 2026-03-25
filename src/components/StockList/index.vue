@@ -1018,7 +1018,7 @@ const handleSearch = () => {
       searchParams.snapshot_date = localFilterParams.snapshot_date;
     }
     // 触发搜索事件，由父组件处理并调用接口
-    emit('search', searchParams);
+    emit('search', searchParams, { force: true });
   }, 300);
 };
 
@@ -1032,7 +1032,7 @@ const handleReset = () => {
   localFilterParams.priority_level = '';
   localFilterParams.snapshot_date = '';
   // 重置时触发搜索接口，清空搜索条件
-  emit('search', {});
+  emit('search', {}, { force: true });
 };
 
 // 数值排序方法

@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getStrategyList } from '@/api/modules/strategy';
 import {
@@ -103,10 +103,7 @@ import { UserStore } from '@/state/user';
 import { calculateDaysAdded } from '@/utils/time';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
 import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
-import {
-  buildStockListRequestParams,
-  useStockListRequestCache,
-} from '../composables/useStockListRequestCache';
+import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
 import { useStockInsights } from '../composables/useStockInsights';
 
 // 用户状态管理
@@ -184,7 +181,7 @@ const {
   handleFilterChange,
 } = useStockInsights(displayStockList);
 
-const { readHit, write } = useStockListRequestCache();
+// 不做数据缓存：每次切换/搜索都直接请求接口
 
 // 页面加载时获取策略列表
 onMounted(async () => {
@@ -222,7 +219,6 @@ const loadStrategies = async () => {
 
 // 策略切换处理
 const handleStrategyChange = async (tab) => {
-  debugger
   const tabName = tab?.props?.name || tab?.name;
   activeStrategy.value = tabName;
   if (tabName !== 'watch') {
@@ -231,11 +227,10 @@ const handleStrategyChange = async (tab) => {
   }
 };
 
-// 获取股票列表（按策略名缓存；切换策略且分页/搜索未变时复用缓存）
+// 获取股票列表（不走缓存）
 const getStockList = async (
   strategyName = null,
-  additionalSearchParams = {},
-  { force = false } = {}
+  additionalSearchParams = {}
 ) => {
   const currentStrategy = strategyName ?? activeStrategy.value;
   if (!currentStrategy || currentStrategy === 'watch') {
@@ -251,25 +246,6 @@ const getStockList = async (
     { strategy_name: currentStrategy }
   );
 
-  if (!force) {
-    const hit = readHit(currentStrategy, params);
-    if (hit) {
-      // 第一帧：先显示 loading，让浏览器绘制出 tab 高亮（v-if 已切换，StockList 以空数据挂载）
-      tableLoading.value = true;
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      // 第二帧：apply 缓存数据，el-table 在 loading 遮罩覆盖下完成渲染
-      stockList.value = hit.items;
-      page.total = hit.total;
-      calculateInsightsFromList();
-      // 第三帧：el-table 已渲染完毕，此时再移除 loading 遮罩，数据立即可见
-      await nextTick();
-      await new Promise((r) => requestAnimationFrame(r));
-      tableLoading.value = false;
-      return;
-    }
-  }
-
   tableLoading.value = true;
 
   try {
@@ -278,7 +254,6 @@ const getStockList = async (
       const rows = (response.payload?.items || []).map(flattenStockData);
       stockList.value = rows;
       page.total = response.payload?.total || 0;
-      write(currentStrategy, params, rows, page.total);
       calculateInsightsFromList();
       tableLoading.value = false;
     } else {
@@ -342,7 +317,7 @@ const handlePageSizeChange = (newPageSize) => {
 };
 
 // 搜索事件处理
-const handleSearchEvent = (searchParamsFromChild) => {
+const handleSearchEvent = (searchParamsFromChild, options) => {
   applySearchParamsFromStockList(searchParams, searchParamsFromChild);
   page.pageNo = 1;
   getStockList();
