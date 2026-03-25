@@ -492,7 +492,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { formatDateTime } from '@/utils/time';
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue';
 import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue';
@@ -551,9 +551,6 @@ const props = defineProps({
     default: false,
   },
 });
-// 响应式表格数据，自动扁平化stockList
-const tableData = computed(() => (props.stockList || []).map(flattenStockData));
-
 const userStore = UserStore();
 // Emits 定义
 const emit = defineEmits([
@@ -585,28 +582,40 @@ const localFilterParams = reactive({
   snapshot_date: '',
 });
 
-// 监听股票列表变化，通知父组件更新洞察数据
+// 按「当前 stockList 数组引用」缓存筛选项：同一轮渲染多列会重复调用 getFiltersForColumn，避免重计算
+const addTypeFiltersCache = new WeakMap();
+const stabilityFiltersCache = new WeakMap();
+const maTrendFiltersCache = new WeakMap();
+const riskSignsFiltersCache = new WeakMap();
+
+// 勿用 deep：大列表含 kline/ma/risk 等深层字段时，深度监听会极慢并阻塞 tab 绘制
 watch(
   () => props.stockList,
   (newList) => {
     emit('filter-change', newList);
-  },
-  { deep: true }
+  }
 );
 
 // 动态生成筛选项（基于完整列表，显示所有可能的选项）
 const addTypeFilters = (type) => {
-  // 如果 stockList 为空，返回 undefined（不显示筛选器）
-  if (!props.stockList?.length) {
+  const list = props.stockList;
+  if (!list?.length) {
     return undefined;
   }
 
+  let typeMap = addTypeFiltersCache.get(list);
+  if (!typeMap) {
+    typeMap = new Map();
+    addTypeFiltersCache.set(list, typeMap);
+  }
+  if (typeMap.has(type)) {
+    return typeMap.get(type);
+  }
+
   const setItem = new Set();
-  props.stockList.forEach((stock) => {
+  list.forEach((stock) => {
     const value = stock?.[type];
-    // 处理不同类型的值：字符串、数字、null、undefined
     if (value !== null && value !== undefined && value !== '') {
-      // 如果是字符串，去除首尾空格
       const stringValue =
         typeof value === 'string' ? value.trim() : String(value);
       if (stringValue) {
@@ -615,24 +624,28 @@ const addTypeFilters = (type) => {
     }
   });
 
-  // 如果没有有效的筛选值，返回 undefined
-  if (setItem.size === 0) {
-    return undefined;
-  }
-
-  return Array.from(setItem)
-    .sort()
-    .map((item) => ({ text: String(item), value: item }));
+  const result =
+    setItem.size === 0
+      ? undefined
+      : Array.from(setItem)
+          .sort()
+          .map((item) => ({ text: String(item), value: item }));
+  typeMap.set(type, result);
+  return result;
 };
 
 // 生成站稳分析的筛选项
 const getStabilityAnalysisFilters = () => {
-  if (!props.stockList?.length) {
+  const list = props.stockList;
+  if (!list?.length) {
     return undefined;
+  }
+  if (stabilityFiltersCache.has(list)) {
+    return stabilityFiltersCache.get(list);
   }
 
   const filterSet = new Set();
-  props.stockList.forEach((stock) => {
+  list.forEach((stock) => {
     const analysisResults = getStabilityAnalysis(stock);
     analysisResults?.forEach((result) => {
       if (result?.text) {
@@ -641,46 +654,56 @@ const getStabilityAnalysisFilters = () => {
     });
   });
 
-  if (filterSet.size === 0) {
-    return undefined;
-  }
-
-  return Array.from(filterSet)
-    .sort()
-    .map((item) => ({ text: String(item), value: item }));
+  const result =
+    filterSet.size === 0
+      ? undefined
+      : Array.from(filterSet)
+          .sort()
+          .map((item) => ({ text: String(item), value: item }));
+  stabilityFiltersCache.set(list, result);
+  return result;
 };
 
 // 生成均线趋势的筛选项
 const getMaTrendFilters = () => {
-  if (!props.stockList?.length) {
+  const list = props.stockList;
+  if (!list?.length) {
     return undefined;
+  }
+  if (maTrendFiltersCache.has(list)) {
+    return maTrendFiltersCache.get(list);
   }
 
   const filterSet = new Set();
-  props.stockList.forEach((stock) => {
+  list.forEach((stock) => {
     const trendResult = getMaTrend(stock);
     if (trendResult?.text) {
       filterSet.add(trendResult.text);
     }
   });
 
-  if (filterSet.size === 0) {
-    return undefined;
-  }
-
-  return Array.from(filterSet)
-    .sort()
-    .map((item) => ({ text: String(item), value: item }));
+  const result =
+    filterSet.size === 0
+      ? undefined
+      : Array.from(filterSet)
+          .sort()
+          .map((item) => ({ text: String(item), value: item }));
+  maTrendFiltersCache.set(list, result);
+  return result;
 };
 
 // 生成风险信号的筛选项
 const getRiskSignsFilters = () => {
-  if (!props.stockList?.length) {
+  const list = props.stockList;
+  if (!list?.length) {
     return undefined;
+  }
+  if (riskSignsFiltersCache.has(list)) {
+    return riskSignsFiltersCache.get(list);
   }
 
   const filterSet = new Set();
-  props.stockList.forEach((stock) => {
+  list.forEach((stock) => {
     const riskSigns = getRiskSigns(stock);
     if (riskSigns && riskSigns.length > 0) {
       riskSigns.forEach((riskSign) => {
@@ -694,13 +717,14 @@ const getRiskSignsFilters = () => {
     }
   });
 
-  if (filterSet.size === 0) {
-    return undefined;
-  }
-
-  return Array.from(filterSet)
-    .sort()
-    .map((item) => ({ text: String(item), value: item }));
+  const result =
+    filterSet.size === 0
+      ? undefined
+      : Array.from(filterSet)
+          .sort()
+          .map((item) => ({ text: String(item), value: item }));
+  riskSignsFiltersCache.set(list, result);
+  return result;
 };
 
 // 站稳分析的筛选方法

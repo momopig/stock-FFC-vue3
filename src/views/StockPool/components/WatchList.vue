@@ -37,21 +37,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   getStockPoolList,
   updateStock,
   updateStockStatus,
-  getStockDetail,
 } from '@/api/modules/stockPool';
 import { addStockToGroups } from '@/api/modules/stockGroup';
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import AddToGroupDialog from './AddToGroupDialog.vue';
 import { calculateDaysAdded } from '@/utils/time';
+import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
+import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
+import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
+import { watchListCache, WATCH_CACHE_KEY } from '../composables/watchListCache';
+import { useStockInsights } from '../composables/useStockInsights';
 
 const emit = defineEmits(['view-stock', 'edit-stock', 'add-stock']);
+
+const { readHit, write, invalidate } = watchListCache;
 
 // 股票列表数据
 const stockList = ref([]);
@@ -73,71 +79,64 @@ const searchParams = reactive({
   snapshot_date: '',
 });
 
-// 洞察数据
-const insightsData = ref({
-  totalCount: 0,
-  avgDays: 0,
-  selfAvgChange: null,
-  selfMaxChange: null,
-  selfMinChange: null,
-  todayAvgChange: null,
-  todayMaxChange: null,
-  todayMinChange: null,
-  selfMaxStockName: null,
-  selfMinStockName: null,
-  todayMaxStockName: null,
-  todayMinStockName: null,
-});
+const displayStockList = computed(() => stockList.value);
 
-// 筛选列表
-const filteredList = ref([]);
+const {
+  insightsData,
+  calculateInsightsFromList,
+  handleFilterChange,
+  currentFilteredList,
+} = useStockInsights(displayStockList);
 
 // 添加到分组对话框相关
 const addToGroupDialogVisible = ref(false);
 const selectedStockData = ref(null);
 const selectedStrategyInfo = ref(null);
 
-// 页面加载时获取重点观察列表
+// 页面加载时获取重点观察列表（每次 v-if 挂载时触发，命中缓存则直接从缓存恢复）
 onMounted(() => {
   getWatchStockList();
 });
 
-// 获取重点观察股票列表（加载所有is_self_selected为true的股票）
-const getWatchStockList = async (additionalSearchParams = {}) => {
-  loading.value = true;
-
-  const params = {
-    page: page.pageNo,
-    page_size: page.pageSize,
+const _buildParams = (additional = {}) =>
+  buildStockListRequestParams(page, searchParams, additional, {
     is_self_selected: true,
-    // 合并搜索参数
-    ...searchParams,
-    ...additionalSearchParams,
-  };
-
-  // 移除空值
-  Object.keys(params).forEach((key) => {
-    if (
-      params[key] === '' ||
-      params[key] === null ||
-      params[key] === undefined
-    ) {
-      delete params[key];
-    }
   });
+
+// 获取重点观察股票列表（带缓存，命中时先 loading + rAF 再 apply，让 tab 先绘制）
+const getWatchStockList = async (additional = {}, { force = false } = {}) => {
+  const params = _buildParams(additional);
+
+  if (!force) {
+    const hit = readHit(WATCH_CACHE_KEY, params);
+    if (hit) {
+      // 先显示 loading，让 tab 切换动画有机会绘制完毕，再 apply 数据
+      loading.value = true;
+      stockList.value = [];
+      await nextTick();
+      await new Promise((r) => requestAnimationFrame(r));
+      stockList.value = hit.items;
+      page.total = hit.total;
+      calculateInsightsFromList();
+      // 再等一帧，让 el-table 在 loading 遮罩下完成渲染，遮罩消失时数据已就绪
+      await nextTick();
+      await new Promise((r) => requestAnimationFrame(r));
+      loading.value = false;
+      return;
+    }
+  }
+
+  loading.value = true;
 
   try {
     const response = await getStockPoolList(params);
     if (response?.success) {
-      // 先加载所有股票，然后筛选is_self_selected为true的
       const allStocks = (response.payload?.items || []).map(flattenStockData);
-      // 筛选重点观察股票
-      const watchStocks = allStocks.filter(
-        (stock) => stock.is_self_selected === true
-      );
+      const watchStocks = allStocks.filter((s) => s.is_self_selected === true);
       stockList.value = watchStocks;
       page.total = watchStocks.length;
-      calculateInsights();
+      write(WATCH_CACHE_KEY, params, watchStocks, watchStocks.length);
+      calculateInsightsFromList();
       loading.value = false;
     } else {
       ElMessage.error(response?.message || '获取重点观察列表失败');
@@ -150,11 +149,9 @@ const getWatchStockList = async (additionalSearchParams = {}) => {
   }
 };
 
-// 将股票数据扁平化处理
 const flattenStockData = (stock) => {
   const quote = stock?.quote || {};
   const initialPrice = stock.initial_price ? Number(stock.initial_price) : null;
-  const lastPrice = quote.last_price != null ? Number(quote.last_price) : null;
 
   const mappedStock = {
     id: stock.id,
@@ -173,33 +170,9 @@ const flattenStockData = (stock) => {
     notes: stock.notes || '',
     updated_time: stock.updated_time || '',
     statusLoading: false,
-    // 扁平化 quote 字段
-    last_price: lastPrice,
-    pe_ttm_ratio:
-      quote.pe_ttm_ratio != null ? Number(quote.pe_ttm_ratio) : null,
-    change_rate: quote.change_rate != null ? Number(quote.change_rate) : null,
-    high_price: quote.high_price != null ? Number(quote.high_price) : null,
-    low_price: quote.low_price != null ? Number(quote.low_price) : null,
-    volume: quote.volume != null ? Number(quote.volume) : null,
-    turnover: quote.turnover != null ? Number(quote.turnover) : null,
-    turnover_rate:
-      quote.turnover_rate != null ? Number(quote.turnover_rate) : null,
-    volume_ratio:
-      quote.volume_ratio != null ? Number(quote.volume_ratio) : null,
-    circular_market_val_yi: quote.circular_market_val_yi || null,
-    // 计算自选涨跌幅
-    selfChangeRate:
-      initialPrice && lastPrice && initialPrice > 0
-        ? ((lastPrice - initialPrice) / initialPrice) * 100
-        : null,
-    kline_data: quote.ma_response?.kline_data || null,
-    ma_data: quote.ma_response?.ma_data || null,
-    price_location_indicator: quote.ma_response?.price_location_indicator || null,
-    // 扁平化风险信号数据
-    risk_signs: quote?.risk_signs || null,
+    ...mapQuoteToFlatRowFields(quote, initialPrice),
   };
 
-  // 计算加入天数
   if (mappedStock.add_time) {
     mappedStock.days_added = calculateDaysAdded(
       mappedStock.add_time,
@@ -210,132 +183,12 @@ const flattenStockData = (stock) => {
   return mappedStock;
 };
 
-// 计算洞察数据
-const calculateInsights = (filteredListData = null) => {
-  const listToUse = filteredListData || stockList.value;
-
-  if (filteredListData) {
-    filteredList.value = filteredListData;
-  }
-
-  if (listToUse.length === 0) {
-    insightsData.value = {
-      totalCount: 0,
-      avgDays: 0,
-      selfAvgChange: null,
-      selfMaxChange: null,
-      selfMinChange: null,
-      todayAvgChange: null,
-      todayMaxChange: null,
-      todayMinChange: null,
-      selfMaxStockName: null,
-      selfMinStockName: null,
-      todayMaxStockName: null,
-      todayMinStockName: null,
-    };
-    page.total = 0;
-    return;
-  }
-
-  let totalDays = 0;
-  let validDaysCount = 0;
-  const selfChanges = [];
-  const todayChanges = [];
-
-  listToUse.forEach((stock) => {
-    if (stock.days_added != null) {
-      totalDays += stock.days_added;
-      validDaysCount++;
-    }
-    if (stock.selfChangeRate != null) {
-      selfChanges.push(stock.selfChangeRate);
-    }
-    if (stock.change_rate != null) {
-      todayChanges.push(stock.change_rate);
-    }
-  });
-
-  const calcStats = (arr) => {
-    if (arr.length === 0) return { avg: null, max: null, min: null };
-    const sum = arr.reduce((a, b) => a + b, 0);
-    return {
-      avg: sum / arr.length,
-      max: Math.max(...arr),
-      min: Math.min(...arr),
-    };
-  };
-
-  const selfStats = calcStats(selfChanges);
-  const todayStats = calcStats(todayChanges);
-
-  let selfMaxStockName = null;
-  let selfMinStockName = null;
-  let todayMaxStockName = null;
-  let todayMinStockName = null;
-
-  if (
-    selfStats.max != null ||
-    selfStats.min != null ||
-    todayStats.max != null ||
-    todayStats.min != null
-  ) {
-    listToUse.forEach((stock) => {
-      if (
-        selfMaxStockName == null &&
-        selfStats.max != null &&
-        stock.selfChangeRate === selfStats.max
-      ) {
-        selfMaxStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        selfMinStockName == null &&
-        selfStats.min != null &&
-        stock.selfChangeRate === selfStats.min
-      ) {
-        selfMinStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        todayMaxStockName == null &&
-        todayStats.max != null &&
-        stock.change_rate === todayStats.max
-      ) {
-        todayMaxStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        todayMinStockName == null &&
-        todayStats.min != null &&
-        stock.change_rate === todayStats.min
-      ) {
-        todayMinStockName = stock.stock_name || stock.stock_code || '';
-      }
-    });
-  }
-
-  insightsData.value = {
-    totalCount: listToUse.length,
-    avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0,
-    selfAvgChange: selfStats.avg,
-    selfMaxChange: selfStats.max,
-    selfMinChange: selfStats.min,
-    todayAvgChange: todayStats.avg,
-    todayMaxChange: todayStats.max,
-    todayMinChange: todayStats.min,
-    selfMaxStockName,
-    selfMinStockName,
-    todayMaxStockName,
-    todayMinStockName,
-  };
-
-  page.total = listToUse.length;
-};
-
 // 分页处理
 const handlePageChange = (newPage) => {
   page.pageNo = newPage;
   getWatchStockList();
 };
 
-// 每页数量变化处理
 const handlePageSizeChange = (newPageSize) => {
   page.pageSize = newPageSize;
   page.pageNo = 1;
@@ -344,62 +197,30 @@ const handlePageSizeChange = (newPageSize) => {
 
 // 搜索事件处理
 const handleSearchEvent = (searchParamsFromChild) => {
-  if (searchParamsFromChild) {
-    Object.assign(searchParams, {
-      stock_code: searchParamsFromChild.stock_code || '',
-      stock_name: searchParamsFromChild.stock_name || '',
-      exchange_code: searchParamsFromChild.exchange_code || '',
-      strategy_name: searchParamsFromChild.strategy_name || '',
-      snapshot_date: searchParamsFromChild.snapshot_date || '',
-    });
-  } else {
-    Object.assign(searchParams, {
-      stock_code: '',
-      stock_name: '',
-      exchange_code: '',
-      strategy_name: '',
-      snapshot_date: '',
-    });
-  }
+  applySearchParamsFromStockList(searchParams, searchParamsFromChild);
   page.pageNo = 1;
-  getWatchStockList();
+  getWatchStockList({}, { force: true });
 };
 
-// 筛选变化处理
-const handleFilterChange = (filteredListData) => {
-  calculateInsights(filteredListData);
-};
+// 查看 / 编辑（交给父级处理）
+const handleViewStock = (id) => emit('view-stock', id);
+const handleEditStock = (id) => emit('edit-stock', id);
+const handleAddStock = () => emit('add-stock');
 
-// 查看股票详情
-const handleViewStock = (id) => {
-  emit('view-stock', id);
-};
-
-// 编辑股票
-const handleEditStock = (id) => {
-  emit('edit-stock', id);
-};
-
-// 取消观察（修改 is_self_selected 为 false）
+// 取消观察
 const handleCancelWatch = async (id) => {
   try {
-    // 找到对应的股票
     const stock = stockList.value.find((s) => s.id === id);
     if (!stock) {
       ElMessage.error('股票数据不存在');
       return;
     }
-
-    const result = await updateStock(id, {
-      is_self_selected: false,
-    });
-
+    const result = await updateStock(id, { is_self_selected: false });
     if (result && result.success !== false) {
       ElMessage.success('已取消观察');
-      // 更新本地数据
       stock.is_self_selected = false;
-      // 刷新列表
-      getWatchStockList();
+      invalidate(WATCH_CACHE_KEY);
+      await getWatchStockList({}, { force: true });
     } else {
       ElMessage.error(result?.message || '取消观察失败');
     }
@@ -409,19 +230,16 @@ const handleCancelWatch = async (id) => {
   }
 };
 
-// 处理状态变更
+// 状态变更
 const handleStatusChange = async (row, newStatus) => {
   const oldStatus = newStatus === 'active' ? 'inactive' : 'active';
-
   try {
     row.statusLoading = true;
-
     const result = await updateStockStatus(row.id, newStatus);
-
     if (result && result.success !== false) {
       ElMessage.success(`状态已${newStatus === 'active' ? '激活' : '失效'}`);
-      calculateInsights(
-        filteredList.value.length > 0 ? filteredList.value : null
+      calculateInsightsFromList(
+        currentFilteredList.value?.length > 0 ? currentFilteredList.value : null
       );
     } else {
       row.status = oldStatus;
@@ -436,14 +254,8 @@ const handleStatusChange = async (row, newStatus) => {
   }
 };
 
-// 新增股票
-const handleAddStock = () => {
-  emit('add-stock');
-};
-
 // 添加到自选（打开弹窗）
 const handleAddToSelf = (row) => {
-  // 准备股票数据（包含加入日期，用于在保持策略信息时传递）
   selectedStockData.value = {
     stock_code: row.stock_code,
     stock_name: row.stock_name,
@@ -452,26 +264,22 @@ const handleAddToSelf = (row) => {
     initial_price: row.initial_price,
     add_time: row.add_time || null,
   };
-
-  // 准备策略信息（从当前股票数据中获取，重点观察的股票可能没有策略信息）
   selectedStrategyInfo.value = {
     add_time: row.add_time || null,
     initial_price: row.initial_price || null,
     add_reason: row.add_reason || '',
     notes: row.notes || '',
   };
-
   addToGroupDialogVisible.value = true;
 };
 
-// 处理添加到分组的提交
+// 提交添加到分组
 const handleAddToGroupSubmit = async (submitData) => {
   try {
     if (!selectedStockData.value) {
       ElMessage.error('股票数据不存在');
       return;
     }
-
     const addData = {
       group_ids: submitData.group_ids,
       exchange_code: selectedStockData.value.exchange_code,
@@ -482,16 +290,14 @@ const handleAddToGroupSubmit = async (submitData) => {
       add_reason: submitData.add_reason || '',
       remark: submitData.remark || '',
     };
-
     const result = await addStockToGroups(addData);
-
     if (result && result.success !== false) {
       ElMessage.success('已添加到自选分组');
       addToGroupDialogVisible.value = false;
       selectedStockData.value = null;
       selectedStrategyInfo.value = null;
-      // 刷新列表
-      getWatchStockList();
+      invalidate(WATCH_CACHE_KEY);
+      await getWatchStockList({}, { force: true });
     } else {
       ElMessage.error(result?.message || '添加自选失败');
     }

@@ -97,6 +97,13 @@ import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import StockDialog from '../components/StockDialog.vue';
 import { calculateDaysAdded } from '@/utils/time';
+import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
+import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
+import {
+  buildStockListRequestParams,
+  useStockListRequestCache,
+} from '../composables/useStockListRequestCache';
+import { useStockInsights } from '../composables/useStockInsights';
 
 // 分组相关数据
 const groups = ref([]);
@@ -112,21 +119,6 @@ const tableLoading = ref(false);
 const dialogVisible = ref(false);
 const isViewMode = ref(false);
 const isEditMode = ref(false);
-const insightsData = ref({
-  totalCount: 0,
-  avgDays: 0,
-  selfAvgChange: null,
-  selfMaxChange: null,
-  selfMinChange: null,
-  todayAvgChange: null,
-  todayMaxChange: null,
-  todayMinChange: null,
-  // 记录极值对应的股票名称，方便在洞察卡片中 hover / 点击交互
-  selfMaxStockName: null,
-  selfMinStockName: null,
-  todayMaxStockName: null,
-  todayMinStockName: null,
-});
 
 // 分页参数
 const page = reactive({
@@ -143,6 +135,9 @@ const searchParams = reactive({
   strategy_name: '',
   snapshot_date: '',
 });
+
+const { invalidate: invalidateGroupStockCache, readHit, write } =
+  useStockListRequestCache();
 
 // 初始化股票表单
 const initStockForm = () => {
@@ -167,9 +162,13 @@ const initStockForm = () => {
 const stockForm = ref(initStockForm());
 
 // 显示股票列表（直接使用 stockList，不再筛选）
-const displayStockList = computed(() => {
-  return stockList.value;
-});
+const displayStockList = computed(() => stockList.value);
+
+const {
+  insightsData,
+  calculateInsightsFromList,
+  handleFilterChange,
+} = useStockInsights(displayStockList);
 
 // 页面加载时获取分组列表
 onMounted(async () => {
@@ -378,6 +377,7 @@ const handleTabEdit = async (targetName, action) => {
         const result = await deleteGroup(groupId);
         if (result?.success) {
           ElMessage.success('删除分组成功');
+          invalidateGroupStockCache(groupId);
           // 如果删除的是当前分组，切换到第一个分组
           if (String(groupId) === activeGroupId.value) {
             const remainingGroups = groups.value.filter(
@@ -423,42 +423,53 @@ const handleGroupChange = async (groupId) => {
   await getStockList();
 };
 
-// 获取股票列表
-const getStockList = async (additionalSearchParams = {}) => {
+// 获取股票列表（默认走缓存；数据变更处传 force: true）
+const getStockList = async (
+  additionalSearchParams = {},
+  { force = false } = {}
+) => {
   if (!activeGroupId.value || activeGroupId.value === 'add') {
     stockList.value = [];
     page.total = 0;
     return;
   }
 
-  tableLoading.value = true;
+  const params = buildStockListRequestParams(
+    page,
+    searchParams,
+    additionalSearchParams
+  );
+  const gid = String(activeGroupId.value);
 
-  const params = {
-    page: page.pageNo,
-    page_size: page.pageSize,
-    // 合并搜索参数
-    ...searchParams,
-    ...additionalSearchParams,
-  };
-
-  // 移除空值
-  Object.keys(params).forEach((key) => {
-    if (
-      params[key] === '' ||
-      params[key] === null ||
-      params[key] === undefined
-    ) {
-      delete params[key];
+  if (!force) {
+    const hit = readHit(gid, params);
+    if (hit) {
+      // 第一帧：先显示 loading + 清空表格，让浏览器绘制出 tab 高亮和空表格
+      tableLoading.value = true;
+      stockList.value = [];
+      await nextTick();
+      await new Promise((r) => requestAnimationFrame(r));
+      // 第二帧：apply 缓存数据，el-table 在 loading 遮罩覆盖下完成渲染
+      stockList.value = hit.items;
+      page.total = hit.total;
+      calculateInsightsFromList();
+      // 第三帧：el-table 已渲染完毕，此时再移除 loading 遮罩，数据立即可见
+      await nextTick();
+      await new Promise((r) => requestAnimationFrame(r));
+      tableLoading.value = false;
+      return;
     }
-  });
+  }
+
+  tableLoading.value = true;
 
   try {
     const response = await getGroupStocks(Number(activeGroupId.value), params);
     if (response?.success) {
-      stockList.value = (response.payload?.items || []).map(
-        flattenGroupStockData
-      );
+      const rows = (response.payload?.items || []).map(flattenGroupStockData);
+      stockList.value = rows;
       page.total = response.payload?.total || 0;
+      write(gid, params, rows, page.total);
       calculateInsightsFromList();
       tableLoading.value = false;
     } else {
@@ -476,7 +487,6 @@ const getStockList = async (additionalSearchParams = {}) => {
 const flattenGroupStockData = (stock) => {
   const quote = stock?.quote || {};
   const initialPrice = stock.initial_price ? Number(stock.initial_price) : null;
-  const lastPrice = quote.last_price != null ? Number(quote.last_price) : null;
 
   const mappedStock = {
     id: stock.id, // 这是分组内的 item_id，用于编辑和删除
@@ -495,30 +505,7 @@ const flattenGroupStockData = (stock) => {
     notes: stock.remark || '',
     updated_time: stock.updated_at || '',
     statusLoading: false,
-    // 扁平化 quote 字段
-    last_price: lastPrice,
-    pe_ttm_ratio:
-      quote.pe_ttm_ratio != null ? Number(quote.pe_ttm_ratio) : null,
-    change_rate: quote.change_rate != null ? Number(quote.change_rate) : null,
-    high_price: quote.high_price != null ? Number(quote.high_price) : null,
-    low_price: quote.low_price != null ? Number(quote.low_price) : null,
-    volume: quote.volume != null ? Number(quote.volume) : null,
-    turnover: quote.turnover != null ? Number(quote.turnover) : null,
-    turnover_rate:
-      quote.turnover_rate != null ? Number(quote.turnover_rate) : null,
-    volume_ratio:
-      quote.volume_ratio != null ? Number(quote.volume_ratio) : null,
-    circular_market_val_yi: quote.circular_market_val_yi || null,
-    // 计算自选涨跌幅
-    selfChangeRate:
-      initialPrice && lastPrice && initialPrice > 0
-        ? ((lastPrice - initialPrice) / initialPrice) * 100
-        : null,
-    kline_data: quote.ma_response?.kline_data || null,
-    ma_data: quote.ma_response?.ma_data || null,
-    price_location_indicator: quote.ma_response?.price_location_indicator || null,
-    // 扁平化风险信号数据
-    risk_signs: quote?.risk_signs || null,
+    ...mapQuoteToFlatRowFields(quote, initialPrice),
   };
 
   // 计算加入天数
@@ -530,130 +517,6 @@ const flattenGroupStockData = (stock) => {
   }
 
   return mappedStock;
-};
-
-// 从列表数据计算洞察数据
-const currentFilteredList = ref([]);
-
-const calculateInsightsFromList = (filteredList = null) => {
-  const listToUse = filteredList || displayStockList.value;
-
-  if (filteredList) {
-    currentFilteredList.value = filteredList;
-  }
-
-  if (listToUse.length === 0) {
-    insightsData.value = {
-      totalCount: 0,
-      avgDays: 0,
-      selfAvgChange: null,
-      selfMaxChange: null,
-      selfMinChange: null,
-      todayAvgChange: null,
-      todayMaxChange: null,
-      todayMinChange: null,
-      selfMaxStockName: null,
-      selfMinStockName: null,
-      todayMaxStockName: null,
-      todayMinStockName: null,
-    };
-    return;
-  }
-
-  let totalDays = 0;
-  let validDaysCount = 0;
-  const selfChanges = [];
-  const todayChanges = [];
-
-  listToUse.forEach((stock) => {
-    if (stock.days_added != null) {
-      totalDays += stock.days_added;
-      validDaysCount++;
-    }
-    if (stock.selfChangeRate != null) {
-      selfChanges.push(stock.selfChangeRate);
-    }
-    if (stock.change_rate != null) {
-      todayChanges.push(stock.change_rate);
-    }
-  });
-
-  const calcStats = (arr) => {
-    if (arr.length === 0) return { avg: null, max: null, min: null };
-    const sum = arr.reduce((a, b) => a + b, 0);
-    return {
-      avg: sum / arr.length,
-      max: Math.max(...arr),
-      min: Math.min(...arr),
-    };
-  };
-
-  const selfStats = calcStats(selfChanges);
-  const todayStats = calcStats(todayChanges);
-
-  // 这里额外记录“极值对应的股票名称”，方便在洞察卡片中反查是哪只股票贡献了 High / Low
-  let selfMaxStockName = null;
-  let selfMinStockName = null;
-  let todayMaxStockName = null;
-  let todayMinStockName = null;
-
-  if (
-    selfStats.max != null ||
-    selfStats.min != null ||
-    todayStats.max != null ||
-    todayStats.min != null
-  ) {
-    listToUse.forEach((stock) => {
-      if (
-        selfMaxStockName == null &&
-        selfStats.max != null &&
-        stock.selfChangeRate === selfStats.max
-      ) {
-        selfMaxStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        selfMinStockName == null &&
-        selfStats.min != null &&
-        stock.selfChangeRate === selfStats.min
-      ) {
-        selfMinStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        todayMaxStockName == null &&
-        todayStats.max != null &&
-        stock.change_rate === todayStats.max
-      ) {
-        todayMaxStockName = stock.stock_name || stock.stock_code || '';
-      }
-      if (
-        todayMinStockName == null &&
-        todayStats.min != null &&
-        stock.change_rate === todayStats.min
-      ) {
-        todayMinStockName = stock.stock_name || stock.stock_code || '';
-      }
-    });
-  }
-
-  insightsData.value = {
-    totalCount: listToUse.length,
-    avgDays: validDaysCount > 0 ? Math.round(totalDays / validDaysCount) : 0,
-    selfAvgChange: selfStats.avg,
-    selfMaxChange: selfStats.max,
-    selfMinChange: selfStats.min,
-    todayAvgChange: todayStats.avg,
-    todayMaxChange: todayStats.max,
-    todayMinChange: todayStats.min,
-    selfMaxStockName,
-    selfMinStockName,
-    todayMaxStockName,
-    todayMinStockName,
-  };
-};
-
-// 处理筛选变化
-const handleFilterChange = (filteredList) => {
-  calculateInsightsFromList(filteredList);
 };
 
 // 分页处理
@@ -671,23 +534,7 @@ const handlePageSizeChange = (newPageSize) => {
 
 // 搜索事件处理
 const handleSearchEvent = (searchParamsFromChild) => {
-  if (searchParamsFromChild) {
-    Object.assign(searchParams, {
-      stock_code: searchParamsFromChild.stock_code || '',
-      stock_name: searchParamsFromChild.stock_name || '',
-      exchange_code: searchParamsFromChild.exchange_code || '',
-      strategy_name: searchParamsFromChild.strategy_name || '',
-      snapshot_date: searchParamsFromChild.snapshot_date || '',
-    });
-  } else {
-    Object.assign(searchParams, {
-      stock_code: '',
-      stock_name: '',
-      exchange_code: '',
-      strategy_name: '',
-      snapshot_date: '',
-    });
-  }
+  applySearchParamsFromStockList(searchParams, searchParamsFromChild);
   page.pageNo = 1;
   getStockList();
 };
@@ -756,7 +603,7 @@ const handleDeleteStock = async (id) => {
     const result = await removeStockFromGroup(id);
     if (result?.success) {
       ElMessage.success('删除股票成功');
-      await getStockList();
+      await getStockList({}, { force: true });
     } else {
       ElMessage.error(result?.message || '删除股票失败');
     }
@@ -783,7 +630,7 @@ const handleRemoveFromSelf = async (row) => {
         const result = await removeStockFromGroup(row.id);
         if (result?.success) {
           ElMessage.success('已移除股票');
-          await getStockList();
+          await getStockList({}, { force: true });
         } else {
           ElMessage.error(result?.message || '移除股票失败');
         }
@@ -849,7 +696,8 @@ const submitStock = async (formData) => {
         `批量添加完成：成功 ${successCount} 只${failCount > 0 ? `，失败 ${failCount} 只` : ''}`
       );
       dialogVisible.value = false;
-      await getStockList();
+      invalidateGroupStockCache(groupIds);
+      await getStockList({}, { force: true });
       stockForm.value = initStockForm();
       return;
     }
@@ -892,7 +740,17 @@ const submitStock = async (formData) => {
     if (result && result.success !== false) {
       ElMessage.success(formData.id ? '更新股票成功' : '添加股票成功');
       dialogVisible.value = false;
-      await getStockList();
+      const touchedGroups = formData.id
+        ? activeGroupId.value && activeGroupId.value !== 'add'
+          ? [Number(activeGroupId.value)]
+          : []
+        : formData.group_ids?.length
+          ? formData.group_ids
+          : activeGroupId.value && activeGroupId.value !== 'add'
+            ? [Number(activeGroupId.value)]
+            : [];
+      invalidateGroupStockCache(touchedGroups);
+      await getStockList({}, { force: true });
       stockForm.value = initStockForm();
     } else {
       ElMessage.error(result?.message || '保存失败');
