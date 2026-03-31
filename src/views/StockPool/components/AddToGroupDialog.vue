@@ -39,6 +39,19 @@
         />
       </el-form-item>
 
+      <!-- 当前股票已在的分组（接口回显，只读） -->
+      <el-form-item label="已选分组">
+        <div class="memberships-readonly" v-loading="membershipsLoading">
+          <el-input
+            :model-value="existingGroupNamesDisplay"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 8 }"
+            disabled
+            placeholder="暂无"
+          />
+        </div>
+      </el-form-item>
+
       <!-- 多选分组下拉框 -->
       <el-form-item label="选择分组" prop="group_ids">
         <el-select
@@ -54,6 +67,7 @@
             :key="group.id"
             :label="group.name"
             :value="group.id"
+            :disabled="isGroupAlreadyJoined(group?.id)"
           />
           <!-- 新增分组选项 -->
           <el-option
@@ -132,10 +146,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getUserGroups, createGroup } from '@/api/modules/stockGroup'
+import { getUserGroups, createGroup, getStockGroupMemberships } from '@/api/modules/stockGroup'
 
 const props = defineProps({
   visible: {
@@ -163,6 +177,29 @@ const formRef = ref()
 const loading = ref(false)
 const groupsLoading = ref(false)
 const groups = ref([])
+const membershipsLoading = ref(false)
+/** @type {import('vue').Ref<Array<{ item_id?: number, group_id: number, group_name: string }>>} */
+const existingMemberships = ref([])
+
+// 已选分组名称展示（与上方只读表单项风格一致，多行便于阅读）
+const existingGroupNamesDisplay = computed(() => {
+  const names =
+    existingMemberships.value?.map((m) => m?.group_name)?.filter(Boolean) ?? []
+  return names.length ? names.join('，') : ''
+})
+
+// 下拉项置灰：股票已在这些分组中，避免重复选择
+const existingJoinedGroupIdSet = computed(() => {
+  const ids =
+    existingMemberships.value?.map((m) => m?.group_id)?.filter((id) => id != null) ??
+    []
+  return new Set(ids)
+})
+
+const isGroupAlreadyJoined = (groupId) => {
+  if (groupId == null) return false
+  return existingJoinedGroupIdSet.value?.has(groupId) ?? false
+}
 
 // 表单数据
 const formData = ref({
@@ -239,6 +276,37 @@ const fetchGroups = async () => {
   }
 }
 
+// 回显：该股票当前所在分组（只读展示，与「选择分组」互补）
+const fetchMemberships = async () => {
+  const stockCode = props.stockData?.stock_code
+  const exchangeCode = props.stockData?.exchange_code
+  if (!stockCode || !exchangeCode) {
+    existingMemberships.value = []
+    return
+  }
+  membershipsLoading.value = true
+  try {
+    const response = await getStockGroupMemberships({
+      stock_code: stockCode,
+      exchange_code: exchangeCode
+    })
+    if (response?.success) {
+      const items =
+        response.payload?.items ?? response.payload?.data ?? []
+      existingMemberships.value = Array.isArray(items) ? items : []
+    } else {
+      existingMemberships.value = []
+      ElMessage.error(response?.message || '获取已选分组失败')
+    }
+  } catch (error) {
+    console.error('获取已选分组失败:', error)
+    existingMemberships.value = []
+    ElMessage.error('获取已选分组失败，请稍后重试')
+  } finally {
+    membershipsLoading.value = false
+  }
+}
+
 // 处理分组选择变化
 const handleGroupChange = (value) => {
   // 如果选择了"新增分组"选项，触发创建分组
@@ -301,9 +369,9 @@ watch(() => props.visible, async (newVal) => {
   if (newVal) {
     // 重置表单
     formRef.value?.clearValidate()
+    existingMemberships.value = []
 
-    // 获取分组列表
-    await fetchGroups()
+    await Promise.all([fetchGroups(), fetchMemberships()])
 
     // 初始化表单数据
     const keepStrategyInfo = true // 默认保持策略信息
@@ -414,5 +482,9 @@ const handleSubmit = async () => {
 }
 .el-form {
   padding: 24px 24px 0 24px;
+}
+.memberships-readonly {
+  width: 100%;
+  min-height: 40px;
 }
 </style>

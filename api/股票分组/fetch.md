@@ -272,3 +272,31 @@ api/stock-groups/2/stocks?page=1&page_size=20&exchange_code=SZ&stock_code=002044
   }
 }
 ```
+
+#### 查询股票所在分组（用于编辑回显）
+- GET /api/stock-groups/stocks/memberships
+- 请求参数
+  - stock_code: 股票代码
+  - exchange_code: 交易所代码（SH/SZ/HK/US）
+- 响应结果
+```json
+{
+  "success": true,
+  "code": 200,
+  "message": "操作成功",
+  "payload": {
+    "items": [
+      {
+        "item_id": 123,
+        "group_id": 1,
+        "group_name": "自选"
+      },
+      {
+        "item_id": 456,
+        "group_id": 2,
+        "group_name": "价值"
+      }
+    ]
+  }
+}
+```

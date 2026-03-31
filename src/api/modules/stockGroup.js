@@ -138,3 +138,18 @@ export const addStockToGroups = async (data) => {
   const res = await request.post(`/stock-api/api/stock-groups/stocks`, data);
   return res;
 };
+
+/**
+ * 查询股票所在分组（用于回显）
+ * @param {Object} params
+ * @param {string} params.stock_code - 股票代码
+ * @param {string} params.exchange_code - 交易所代码（SH/SZ/HK/US）
+ * @returns {Promise}
+ */
+export const getStockGroupMemberships = async (params) => {
+  const queryString = qs.stringify(params);
+  const res = await request.get(
+    `/stock-api/api/stock-groups/stocks/memberships?${queryString}`
+  );
+  return res;
+};
