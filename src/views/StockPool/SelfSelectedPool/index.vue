@@ -1,35 +1,72 @@
 <template>
   <div class="self-selected-pool-container">
-    <!-- 分组标签页 -->
+    <!-- 分组标签页（超出宽度时收入「更多」下拉，逻辑对齐 TopHeader） -->
     <div class="groups-tabs-container" v-loading="groupLoading">
-      <div class="groups-tabs-wrapper">
-        <el-tabs
-          v-model="activeGroupId"
-          ref="tabRef"
-          @tab-change="handleGroupChange"
-          @edit="handleTabEdit"
-          type="card"
-          editable
-          class="groups-tabs"
-        >
-          <el-tab-pane
-            v-for="group in groups"
-            :key="group.id"
-            :label="group.name"
-            :name="String(group.id)"
-            :closable="group.create_type !== 'system'"
-          />
-          <!-- 自定义添加按钮插槽 -->
-          <template #add-icon>
-            <div
-              class="add-group-btn"
-              @click.stop="handleCreateGroup"
-              title="新建分组"
+      <div
+        class="groups-tabs-row"
+        :class="{ 'groups-tabs-row--has-overflow': hasGroupTabsOverflow }"
+        ref="groupsTabsContainerRef"
+      >
+        <div class="groups-tabs-wrapper">
+          <el-tabs
+            v-model="activeGroupId"
+            ref="tabRef"
+            @tab-change="handleGroupChange"
+            @tab-remove="(name) => handleTabEdit(name, 'remove')"
+            type="card"
+            class="groups-tabs"
+          >
+            <el-tab-pane
+              v-for="group in visibleGroups"
+              :key="group.id"
+              :name="String(group.id)"
+              :closable="group.create_type !== 'system'"
             >
-              <el-icon><Plus /></el-icon>
-            </div>
-          </template>
-        </el-tabs>
+              <template #label>
+                <span class="group-tab-label" :title="group?.name">{{
+                  group?.name
+                }}</span>
+              </template>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+        <div v-if="hasGroupTabsOverflow" class="more-container">
+          <el-dropdown trigger="hover" :teleported="false">
+            <span class="more-icon" title="更多分组">
+              <el-icon><MoreFilled /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu class="group-overflow-dropdown">
+                <el-dropdown-item
+                  v-for="group in overflowGroups"
+                  :key="group.id"
+                >
+                  <div
+                    class="more-item"
+                    :title="group?.name"
+                    @click.stop="handleGroupChange(String(group.id))"
+                  >
+                    <span class="more-title">{{ group?.name }}</span>
+                    <el-icon
+                      v-if="group.create_type !== 'system'"
+                      class="more-close"
+                      @click.stop="handleTabEdit(String(group.id), 'remove')"
+                    >
+                      <Close />
+                    </el-icon>
+                  </div>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+        <div
+          class="add-group-btn"
+          @click.stop="handleCreateGroup"
+          title="新建分组"
+        >
+          <el-icon><Plus /></el-icon>
+        </div>
       </div>
     </div>
 
@@ -78,9 +115,10 @@ import {
   onBeforeUnmount,
   computed,
   nextTick,
+  watch,
 } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, MoreFilled, Close } from '@element-plus/icons-vue';
 import { useGetDerivedNamespace } from 'element-plus';
 import Sortable from 'sortablejs';
 import {
@@ -107,8 +145,83 @@ const groups = ref([]);
 const activeGroupId = ref('');
 const groupLoading = ref(false);
 const tabRef = ref(null);
+const groupsTabsContainerRef = ref(null);
+/** 当前行能摆下的分组；溢出部分进「更多」 */
+const visibleGroups = ref([]);
+const overflowGroups = ref([]);
+const hasGroupTabsOverflow = ref(false);
 let sortable = null;
+let groupTabsResizeObserver = null;
 const ns = useGetDerivedNamespace().value;
+
+// 与样式 tab max-width + 间距一致，用于估算一行能摆几个标签
+const GROUP_TAB_UNIT = 236;
+const GROUP_ADD_SLOT = 44;
+const GROUP_MORE_SLOT = 44;
+
+function tabRowCapacity(containerWidth, reserveMore) {
+  const reserved = GROUP_ADD_SLOT + (reserveMore ? GROUP_MORE_SLOT : 0);
+  return Math.max(1, Math.floor(Math.max(0, containerWidth - reserved) / GROUP_TAB_UNIT));
+}
+
+/** 前 cap 个可见；选中若在溢出区则占用最后一格，保证 el-tabs 能绑定当前选中项 */
+function splitVisibleOverflow(groupsArr, activeIdStr, cap) {
+  if (!groupsArr?.length) {
+    return { visible: [], overflow: [], hasOverflow: false };
+  }
+  if (groupsArr.length <= cap) {
+    return { visible: [...groupsArr], overflow: [], hasOverflow: false };
+  }
+  const head = groupsArr.slice(0, cap);
+  const activeOk = head.some((g) => String(g.id) === activeIdStr);
+  const activeG = groupsArr.find((g) => String(g.id) === activeIdStr);
+  const visible =
+    activeOk || !activeIdStr || !activeG
+      ? head
+      : [...groupsArr.slice(0, cap - 1), activeG];
+  const visIds = new Set(visible.map((g) => g.id));
+  const overflow = groupsArr.filter((g) => !visIds.has(g.id));
+  return { visible, overflow, hasOverflow: overflow.length > 0 };
+}
+
+function applyGroupTabsOverflow() {
+  const el = groupsTabsContainerRef.value;
+  if (!el || !groups.value.length) {
+    visibleGroups.value = [...groups.value];
+    overflowGroups.value = [];
+    hasGroupTabsOverflow.value = false;
+    return;
+  }
+  const w = el.clientWidth || 0;
+  const capPlain = tabRowCapacity(w, false);
+  const cap =
+    groups.value.length > capPlain ? tabRowCapacity(w, true) : capPlain;
+  const { visible, overflow, hasOverflow } = splitVisibleOverflow(
+    groups.value,
+    activeGroupId.value,
+    cap
+  );
+  visibleGroups.value = visible;
+  overflowGroups.value = overflow;
+  hasGroupTabsOverflow.value = hasOverflow;
+}
+
+function destroySortable() {
+  sortable?.destroy?.();
+  sortable = null;
+}
+
+let lastVisibleGroupIds = '';
+function flushGroupTabsLayout() {
+  applyGroupTabsOverflow();
+  const ids = visibleGroups.value.map((g) => g.id).join(',');
+  if (ids === lastVisibleGroupIds) return;
+  lastVisibleGroupIds = ids;
+  nextTick(() => {
+    destroySortable();
+    initSortable();
+  });
+}
 
 // 股票列表数据
 const stockList = ref([]);
@@ -163,21 +276,28 @@ const displayStockList = computed(() => stockList.value);
 const { insightsData, calculateInsightsFromList, handleFilterChange } =
   useStockInsights(displayStockList);
 
-// 页面加载时获取分组列表
+watch(
+  () => groups.value,
+  () => nextTick(flushGroupTabsLayout),
+  { deep: true, immediate: true }
+);
+watch(activeGroupId, () => nextTick(flushGroupTabsLayout));
+
+// 页面加载时获取分组列表（分组变化由 watch 触发 flush；ResizeObserver 覆盖窗口与侧栏变宽）
 onMounted(async () => {
   await fetchGroups();
-  // 初始化拖拽排序
-  nextTick(() => {
-    initSortable();
+  await nextTick();
+  groupTabsResizeObserver = new ResizeObserver(() => {
+    nextTick(flushGroupTabsLayout);
   });
+  groupsTabsContainerRef.value &&
+    groupTabsResizeObserver.observe(groupsTabsContainerRef.value);
 });
 
-// 组件卸载时销毁 Sortable 实例
 onBeforeUnmount(() => {
-  if (sortable) {
-    sortable.destroy();
-    sortable = null;
-  }
+  groupTabsResizeObserver?.disconnect?.();
+  groupTabsResizeObserver = null;
+  destroySortable();
 });
 
 // 初始化拖拽排序
@@ -199,14 +319,37 @@ const initSortable = () => {
       }
     },
     onEnd: (event) => {
-      // 拖拽结束时调用排序接口
       const { oldDraggableIndex, newDraggableIndex } = event;
       if (
-        oldDraggableIndex !== null &&
-        newDraggableIndex !== null &&
-        oldDraggableIndex !== newDraggableIndex
+        oldDraggableIndex == null ||
+        newDraggableIndex == null ||
+        oldDraggableIndex === newDraggableIndex
       ) {
-        handleReorderGroups(oldDraggableIndex, newDraggableIndex);
+        return;
+      }
+      const vg = visibleGroups.value;
+      const moved = vg?.[oldDraggableIndex];
+      if (!moved?.id) return;
+
+      // 仅在当前可见标签之间换序，再按「可见槽位」写回完整 groups 顺序（可见区可能非连续前缀）
+      const visIds = vg.map((g) => g.id);
+      const reorderedVis = [...visIds];
+      const [idMoved] = reorderedVis.splice(oldDraggableIndex, 1);
+      reorderedVis.splice(newDraggableIndex, 0, idMoved);
+
+      const visSet = new Set(visIds);
+      let rq = 0;
+      const newFullIds = groups.value.map((g) => g.id).map((id) => {
+        if (visSet.has(id)) {
+          return reorderedVis[rq++];
+        }
+        return id;
+      });
+
+      const oldGlobal = groups.value.findIndex((g) => g.id === moved.id);
+      const newGlobal = newFullIds.findIndex((id) => id === moved.id);
+      if (oldGlobal !== -1 && newGlobal !== -1) {
+        handleReorderGroups(oldGlobal, newGlobal);
       }
     },
   });
@@ -731,27 +874,128 @@ const submitStock = async (formData) => {
   margin-bottom: 20px;
 }
 
-.groups-tabs-wrapper {
+.groups-tabs-row {
   display: flex;
   align-items: center;
+  width: 100%;
+  min-width: 0;
   gap: 8px;
 }
 
+/* 不占满整行：宽度随标签内容收缩，「更多」才能紧贴最后一个分组 */
+.groups-tabs-wrapper {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  /* 仅新建按钮 + gap；有「更多」时再让出更多按钮宽度 */
+  max-width: calc(100% - 48px);
+}
+
+.groups-tabs-row--has-overflow .groups-tabs-wrapper {
+  max-width: calc(100% - 96px);
+}
+
 .groups-tabs {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  width: max-content;
+  overflow: hidden;
 
   :deep(.el-tabs__header) {
     margin-bottom: 0;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  :deep(.el-tabs__nav-wrap) {
+    overflow: hidden;
+    max-width: 100%;
   }
 
   :deep(.el-tabs__item) {
-    padding: 0 20px;
+    padding: 0 16px;
+    max-width: 220px;
     height: 40px;
     line-height: 40px;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   :deep(.is-disabled) {
     cursor: default;
+  }
+}
+
+/* 供 #label 插槽内省略，悬停由 el-tooltip 展示全称 */
+.group-tab-label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.more-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.more-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #909399;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #ecf5ff;
+    color: #409eff;
+  }
+}
+
+.more-item {
+  font-size: 13px;
+  color: #606266;
+  min-width: 200px;
+  max-width: 320px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+
+  &:hover {
+    color: #409eff;
+    cursor: pointer;
+  }
+
+  .more-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+  }
+
+  .more-close {
+    flex-shrink: 0;
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0.65;
+
+    &:hover {
+      opacity: 1;
+      color: #f56c6c;
+    }
   }
 }
 
@@ -767,10 +1011,17 @@ const submitStock = async (formData) => {
   color: #909399;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  align-self: center;
 
   &:hover {
     background: #ecf5ff;
     color: #409eff;
   }
+}
+
+/* 下拉条目较多时可滚动；避免长名把菜单撑出屏外 */
+:deep(.group-overflow-dropdown.el-dropdown-menu) {
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
 }
 </style>
