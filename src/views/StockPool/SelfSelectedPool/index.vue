@@ -113,9 +113,10 @@ import StockDialog from '../components/StockDialog.vue';
 import AddToGroupDialog from '../components/AddToGroupDialog.vue';
 import { calculateDaysAdded } from '@/utils/time';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
-import { applySearchParamsFromStockList } from '../utils/stockPoolSearchParams';
 import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
 import { useStockInsights } from '../composables/useStockInsights';
+import { useStockListPagingHandlers } from '../composables/useStockListPagingHandlers';
+import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow';
 
 // 分组相关数据
 const groups = ref([]);
@@ -159,10 +160,6 @@ const tableLoading = ref(false);
 const dialogVisible = ref(false);
 const isViewMode = ref(false);
 const isEditMode = ref(false);
-const addToGroupDialogVisible = ref(false);
-const selectedStockData = ref(null);
-const selectedStrategyInfo = ref(null);
-
 
 // 分页参数
 const page = reactive({
@@ -543,41 +540,6 @@ const handleTabEdit = async (targetName, action) => {
   }
 };
 
-// 处理添加到分组的提交
-const handleAddToGroupSubmit = async (submitData) => {
-  try {
-    if (!selectedStockData.value) {
-      ElMessage.error('股票数据不存在');
-      return;
-    }
-
-    const addData = {
-      group_ids: submitData.group_ids,
-      exchange_code: selectedStockData.value.exchange_code,
-      stock_code: selectedStockData.value.stock_code,
-      stock_name: selectedStockData.value.stock_name,
-      add_time: submitData.add_time || null,
-      initial_price: submitData.initial_price || 0,
-      add_reason: submitData.add_reason || '',
-      remark: submitData.remark || '',
-    };
-
-    const result = await addStockToGroups(addData);
-
-    if (result && result.success !== false) {
-      ElMessage.success('已添加到自选分组');
-      addToGroupDialogVisible.value = false;
-      selectedStockData.value = null;
-      getStockList(null, {}, { force: true });
-    } else {
-      ElMessage.error(result?.message || '添加自选失败');
-    }
-  } catch (error) {
-    console.error('添加自选失败:', error);
-    ElMessage.error('添加自选失败，请稍后重试');
-  }
-};
-
 // 切换分组
 const handleGroupChange = async (groupId) => {
   if (groupId === 'add') return; // 新建分组按钮不处理
@@ -658,25 +620,22 @@ const flattenGroupStockData = (stock) => {
   return mappedStock;
 };
 
-// 分页处理
-const handlePageChange = (newPage) => {
-  page.pageNo = newPage;
-  getStockList();
-};
+const { handlePageChange, handlePageSizeChange, handleSearchEvent } =
+  useStockListPagingHandlers({
+    page,
+    searchParams,
+    reload: () => getStockList(),
+  });
 
-// 每页数量变化处理
-const handlePageSizeChange = (newPageSize) => {
-  page.pageSize = newPageSize;
-  page.pageNo = 1;
-  getStockList();
-};
-
-// 搜索事件处理
-const handleSearchEvent = (searchParamsFromChild, options) => {
-  applySearchParamsFromStockList(searchParams, searchParamsFromChild);
-  page.pageNo = 1;
-  getStockList();
-};
+const {
+  addToGroupDialogVisible,
+  selectedStockData,
+  selectedStrategyInfo,
+  handleAddToSelf,
+  handleAddToGroupSubmit,
+} = useAddToGroupDialogFlow({
+  onSuccess: () => getStockList(),
+});
 
 // 查看股票详情
 const handleViewStock = (id) => {
@@ -755,28 +714,6 @@ const handleDeleteStock = async (id) => {
 // 处理状态变更（分组内股票可能不支持状态变更，保留接口）
 const handleStatusChange = async (row, newStatus) => {
   ElMessage.warning('分组内股票暂不支持状态变更');
-};
-
-const handleAddToSelf = (row) => {
-  // 准备股票数据（包含加入日期，用于在保持策略信息时传递）
-  selectedStockData.value = {
-    stock_code: row.stock_code,
-    stock_name: row.stock_name,
-    exchange_code: row.exchange_code,
-    last_price: row.last_price,
-    initial_price: row.initial_price,
-    add_time: row.add_time || null,
-  };
-
-  // 准备策略信息（从当前股票数据中获取）
-  selectedStrategyInfo.value = {
-    add_time: row.add_time || null,
-    initial_price: row.initial_price || null,
-    add_reason: row.add_reason || '',
-    notes: row.notes || '',
-  };
-
-  addToGroupDialogVisible.value = true;
 };
 
 // 取消自选（从分组移除股票）
