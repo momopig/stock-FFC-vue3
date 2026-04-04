@@ -129,26 +129,20 @@
             </span>
             <span v-else-if="item.key === 'stock_name'">
               <div class="stock-name-container">
-                <span
+                <div
                   class="code-cell"
                   style="cursor: pointer"
                   @click="handleCodeClick(row)"
                 >
                   {{ row.stock_code || '--' }}
-                </span>
-                <span class="stock-name-cell">
+                </div>
+                <div class="stock-name-cell">
                   {{ row.stock_name || '--' }}
-                </span>
+                </div>
                 <!-- 自选按钮 -->
                 <div
                   class="self-select-buttons"
-                  v-if="
-                    showAddToSelfButton ||
-                    showRemoveFromSelfButton ||
-                    (showAddToWatchButton && userStore.userInfo?.is_superuser)
-                  "
                 >
-                  <!-- 策略股票池：根据是否已添加自选显示不同按钮 -->
                   <el-button
                     v-if="showAddToSelfButton"
                     link
@@ -156,7 +150,7 @@
                     @click.stop="$emit('add-to-self', row)"
                   >
                     <el-icon style="margin-right: 0px"><CirclePlus /></el-icon>
-                    <span>加入分组</span>
+                    <span>{{ isSelfSelected ? '加入新分组' : '加入分组' }}</span>
                   </el-button>
                   <!-- 加入观察按钮（仅超管可见） -->
                   <el-button
@@ -1331,6 +1325,7 @@ const copySinglePageStockNames = () => {
       display: flex;
       flex-direction: column;
       justify-content: center;
+      align-items: center;
       gap: 4px;
     }
 
