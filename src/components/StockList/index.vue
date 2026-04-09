@@ -262,7 +262,7 @@
               {{ formatVolume(row.turnover) }}
             </span>
             <span v-else-if="item.key === 'turnover_rate'">
-              {{ formatChangePercent(row.turnover_rate * 100, false) }}
+              {{ formatChangePercent(row.turnover_rate, false) }}
             </span>
             <span v-else-if="item.key === 'volume_ratio'">
               {{ row.volume_ratio?.toFixed(2) ?? '--' }}
@@ -896,10 +896,12 @@ const columns = reactive([
     sortable: true,
   },
   {
-    key: 'notes',
-    label: '备注',
-    prop: 'notes',
-    minWidth: 300,
+    key: 'add_reason',
+    label: '加入原因',
+    prop: 'add_reason',
+    minWidth: 120,
+    columnKey: 'add_reason',
+    filterMethod: (value, row) => row.add_reason === value,
   },
   // {
   //   key: 'created_by',
@@ -914,12 +916,10 @@ const columns = reactive([
     width: 120,
   },
   {
-    key: 'add_reason',
-    label: '加入原因',
-    prop: 'add_reason',
-    minWidth: 120,
-    columnKey: 'add_reason',
-    filterMethod: (value, row) => row.add_reason === value,
+    key: 'notes',
+    label: '备注',
+    prop: 'notes',
+    minWidth: 300,
   },
   // {
   //   key: 'status',
