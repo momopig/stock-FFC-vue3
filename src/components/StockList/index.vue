@@ -140,9 +140,7 @@
                   {{ row.stock_name || '--' }}
                 </div>
                 <!-- 自选按钮 -->
-                <div
-                  class="self-select-buttons"
-                >
+                <div class="self-select-buttons">
                   <el-button
                     v-if="showAddToSelfButton"
                     link
@@ -150,7 +148,9 @@
                     @click.stop="$emit('add-to-self', row)"
                   >
                     <el-icon style="margin-right: 0px"><CirclePlus /></el-icon>
-                    <span>{{ isSelfSelected ? '加入新分组' : '加入分组' }}</span>
+                    <span>{{
+                      isSelfSelected ? '加入新分组' : '加入分组'
+                    }}</span>
                   </el-button>
                   <!-- 加入观察按钮（仅超管可见） -->
                   <el-button
@@ -473,7 +473,7 @@
           fixed="right"
           label="操作"
           :width="100"
-          v-if="userStore.userInfo?.is_superuser"
+          v-if="showActionColumn && userStore.userInfo?.is_superuser"
         >
           <template v-slot="scope">
             <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
@@ -581,6 +581,10 @@ const props = defineProps({
   isWatchMode: {
     type: Boolean,
     default: false,
+  },
+  showActionColumn: {
+    type: Boolean,
+    default: true,
   },
 });
 const userStore = UserStore();

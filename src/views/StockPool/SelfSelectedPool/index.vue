@@ -309,7 +309,11 @@ const initSortable = () => {
           onPointerMove,
           moveListenerOpts
         );
-        document.removeEventListener('mousemove', onPointerMove, moveListenerOpts);
+        document.removeEventListener(
+          'mousemove',
+          onPointerMove,
+          moveListenerOpts
+        );
         document.removeEventListener('dragover', onDragOver, moveListenerOpts);
         document.removeEventListener('pointerup', stop, moveListenerOpts);
         document.removeEventListener('pointercancel', stop, moveListenerOpts);
@@ -527,7 +531,35 @@ const handleTabEdit = async (targetName, action) => {
         }
       } catch (error) {
         console.error('删除分组失败:', error);
-        ElMessage.error('删除分组失败，请稍后重试');
+        const detail = error?.response?.data?.detail;
+        const blockedPayload = detail?.payload;
+        const monitorConfigs = blockedPayload?.monitor_configs || [];
+        if (blockedPayload?.group_id && monitorConfigs.length > 0) {
+          const messageHtml = `
+            <div style="line-height:1.8;">
+              <div>分组“${blockedPayload.group_name || group.name}”已被以下监控配置引用，无法删除：</div>
+              <ul style="margin:8px 0 0 18px;padding:0;">
+                ${monitorConfigs
+                  .map(
+                    (item) =>
+                      `<li>${item.config_name || '--'}（${item.is_enabled ? '启用中' : '已停用'}）</li>`
+                  )
+                  .join('')}
+              </ul>
+            </div>
+          `;
+          await ElMessageBox.alert(messageHtml, '分组删除受限', {
+            dangerouslyUseHTMLString: true,
+            confirmButtonText: '知道了',
+            type: 'warning',
+          });
+        } else {
+          ElMessage.error(
+            detail?.message ||
+              error?.response?.data?.message ||
+              '删除分组失败，请稍后重试'
+          );
+        }
         // 删除失败时刷新分组列表以恢复标签页
         await fetchGroups();
       } finally {
@@ -938,5 +970,4 @@ const submitStock = async (formData) => {
     color: #409eff;
   }
 }
-
 </style>

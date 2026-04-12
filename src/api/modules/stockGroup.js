@@ -93,6 +93,23 @@ export const getGroupStocks = async (groupId, params = {}) => {
 };
 
 /**
+ * 查询多个分组内股票（含行情）
+ * @param {Array<number>} groupIds - 分组ID数组
+ * @param {Object} params - 额外查询参数
+ * @returns {Promise}
+ */
+export const getGroupStocksByGroups = async (groupIds = [], params = {}) => {
+  const queryString = qs.stringify({
+    ...params,
+    group_ids: Array.isArray(groupIds) ? groupIds.join(',') : '',
+  });
+  const res = await request.get(
+    `/stock-api/api/stock-groups/stocks?${queryString}`
+  );
+  return res;
+};
+
+/**
  * 从分组移除股票
  * @param {number} itemId - 分组内的数据id（不是股票ID）
  * @returns {Promise}

@@ -62,8 +62,8 @@ export const menuList = [
         path: '/stock-pool/self-selected',
       },
       {
-        name: '买入信号股票池',
-        foldName: '买入信号',
+        name: '买入信号监控',
+        foldName: '买入监控',
         path: '/stock-pool/buy-signal',
       },
       {
@@ -81,4 +81,4 @@ export const menuList = [
     dataGuide: 'user-mgt', // 引导标记
     permissions: ['is_superuser'],
   },
-]
+];
