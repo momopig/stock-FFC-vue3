@@ -12,6 +12,11 @@
             type="card"
             class="groups-tabs"
           >
+            <el-tab-pane :name="ALL_GROUP_TAB_ID" :closable="false">
+              <template #label>
+                <span class="group-tab-label" title="全部">全部</span>
+              </template>
+            </el-tab-pane>
             <el-tab-pane
               v-for="group in groups"
               :key="group.id"
@@ -101,6 +106,7 @@ import {
   getUserGroups,
   createGroup,
   deleteGroup,
+  getGroupStocksByGroups,
   reorderGroups,
   getGroupStocks,
   removeStockFromGroup,
@@ -119,8 +125,9 @@ import { useStockListPagingHandlers } from '../composables/useStockListPagingHan
 import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow';
 
 // 分组相关数据
+const ALL_GROUP_TAB_ID = 'all';
 const groups = ref([]);
-const activeGroupId = ref('');
+const activeGroupId = ref(ALL_GROUP_TAB_ID);
 const groupLoading = ref(false);
 const tabRef = ref(null);
 const groupsTabsContainerRef = ref(null);
@@ -342,10 +349,16 @@ const initSortable = () => {
       ) {
         return;
       }
+      if (oldDraggableIndex === 0 || newDraggableIndex === 0) {
+        nextTick(() => tabRef.value?.tabNavRef?.scrollToActiveTab?.());
+        return;
+      }
+      const oldGroupIndex = oldDraggableIndex - 1;
+      const newGroupIndex = newDraggableIndex - 1;
       const list = groups.value;
-      const moved = list?.[oldDraggableIndex];
+      const moved = list?.[oldGroupIndex];
       if (!moved?.id) return;
-      handleReorderGroups(oldDraggableIndex, newDraggableIndex);
+      handleReorderGroups(oldGroupIndex, newGroupIndex);
     },
   });
 };
@@ -396,14 +409,13 @@ const fetchGroups = async () => {
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       );
 
-      // 如果没有选中分组或当前分组不存在，默认选中第一个分组
+      // 如果没有选中分组或当前分组不存在，默认选中“全部”标签
       if (
         !activeGroupId.value ||
-        !groups.value.find((g) => String(g.id) === activeGroupId.value)
+        (activeGroupId.value !== ALL_GROUP_TAB_ID &&
+          !groups.value.find((g) => String(g.id) === activeGroupId.value))
       ) {
-        if (groups.value.length > 0) {
-          activeGroupId.value = String(groups.value[0].id);
-        }
+        activeGroupId.value = ALL_GROUP_TAB_ID;
       }
 
       // 如果选中了分组，加载该分组的股票
@@ -514,9 +526,9 @@ const handleTabEdit = async (targetName, action) => {
               (g) => g.id !== groupId
             );
             if (remainingGroups.length > 0) {
-              activeGroupId.value = String(remainingGroups[0].id);
+              activeGroupId.value = ALL_GROUP_TAB_ID;
             } else {
-              activeGroupId.value = '';
+              activeGroupId.value = ALL_GROUP_TAB_ID;
             }
           }
           await fetchGroups();
@@ -598,7 +610,10 @@ const getStockList = async (additionalSearchParams = {}) => {
   tableLoading.value = true;
 
   try {
-    const response = await getGroupStocks(Number(activeGroupId.value), params);
+    const response =
+      activeGroupId.value === ALL_GROUP_TAB_ID
+        ? await getGroupStocksByGroups([], params)
+        : await getGroupStocks(Number(activeGroupId.value), params);
     if (response?.success) {
       const rows = (response.payload?.items || []).map(flattenGroupStockData);
       stockList.value = rows;
@@ -781,7 +796,11 @@ const addStockFn = () => {
   isEditMode.value = false;
   stockForm.value = initStockForm();
   // 默认选中当前激活的分组
-  if (activeGroupId.value && activeGroupId.value !== 'add') {
+  if (
+    activeGroupId.value &&
+    activeGroupId.value !== 'add' &&
+    activeGroupId.value !== ALL_GROUP_TAB_ID
+  ) {
     stockForm.value.group_ids = [Number(activeGroupId.value)];
   }
 };
@@ -845,7 +864,9 @@ const submitStock = async (formData) => {
       const groupIds =
         formData.group_ids && formData.group_ids.length > 0
           ? formData.group_ids
-          : activeGroupId.value && activeGroupId.value !== 'add'
+          : activeGroupId.value &&
+              activeGroupId.value !== 'add' &&
+              activeGroupId.value !== ALL_GROUP_TAB_ID
             ? [Number(activeGroupId.value)]
             : [];
 

@@ -101,7 +101,10 @@ export const getGroupStocks = async (groupId, params = {}) => {
 export const getGroupStocksByGroups = async (groupIds = [], params = {}) => {
   const queryString = qs.stringify({
     ...params,
-    group_ids: Array.isArray(groupIds) ? groupIds.join(',') : '',
+    group_ids:
+      Array.isArray(groupIds) && groupIds.length > 0
+        ? groupIds.join(',')
+        : 'all',
   });
   const res = await request.get(
     `/stock-api/api/stock-groups/stocks?${queryString}`
