@@ -72,3 +72,10 @@ export const getGroupMonitorSignalDetail = async (signalId) => {
   );
   return res;
 };
+
+export const deleteGroupMonitorSignal = async (signalId) => {
+  const res = await request.delete(
+    `/stock-api/api/group-monitors/signals/${signalId}`
+  );
+  return res;
+};

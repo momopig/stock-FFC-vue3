@@ -256,11 +256,20 @@
               }}</template>
             </el-table-column>
             <el-table-column
-              prop="config_name"
               label="配置名"
               min-width="160"
               show-overflow-tooltip
-            />
+            >
+              <template #default="{ row }">
+                <el-button
+                  link
+                  type="primary"
+                  @click="handleEditByConfigId(row.config_id)"
+                >
+                  {{ row.config_name || '--' }}
+                </el-button>
+              </template>
+            </el-table-column>
             <el-table-column
               prop="group_name"
               label="分组名"
@@ -269,8 +278,18 @@
             />
             <el-table-column label="股票" min-width="160">
               <template #default="{ row }">
-                <div>{{ row.stock_name }}</div>
-                <div class="text-muted">{{ row.stock_code }}</div>
+                <div
+                  class="stock-link-text"
+                  @click="handleStockCodeClick(row)"
+                >
+                  {{ row.stock_name }}
+                </div>
+                <div
+                  class="text-muted stock-link-code"
+                  @click="handleStockCodeClick(row)"
+                >
+                  {{ row.stock_code }}
+                </div>
               </template>
             </el-table-column>
             <el-table-column label="信号类型" width="110">
@@ -322,16 +341,20 @@
               <template #default="{ row }">
                 <el-button
                   link
-                  type="warning"
-                  @click="handleEditByConfigId(row.config_id)"
-                  >配置</el-button
-                >
-                <el-button
-                  link
                   type="primary"
                   @click="handleViewSignalDetail(row)"
                   >详情</el-button
                 >
+                <el-popconfirm
+                  title="确定删除该监控信号吗？"
+                  confirm-button-text="确定"
+                  cancel-button-text="取消"
+                  @confirm="handleDeleteSignal(row)"
+                >
+                  <template #reference>
+                    <el-button link type="danger">删除</el-button>
+                  </template>
+                </el-popconfirm>
               </template>
             </el-table-column>
           </el-table>
@@ -494,6 +517,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createGroupMonitorConfig,
   deleteGroupMonitorConfig,
+  deleteGroupMonitorSignal,
   getGroupMonitorConfigDetail,
   getGroupMonitorConfigs,
   getGroupMonitorOverview,
@@ -1086,6 +1110,40 @@ const handleViewSignalDetail = async (row) => {
   }
 };
 
+const handleStockCodeClick = (row) => {
+  const numberCode = row?.stock_code?.replace(/[^0-9]/g, '') || '';
+  if (!numberCode) {
+    ElMessage.warning('当前股票缺少有效代码');
+    return;
+  }
+  window.open(`https://finance.baidu.com/stock/ab-${numberCode}`, '_blank');
+};
+
+const handleDeleteSignal = async (row) => {
+  try {
+    await deleteGroupMonitorSignal(row.id);
+    ElMessage.success('删除监控信号成功');
+
+    if (signalList.value.length === 1 && signalPage.pageNo > 1) {
+      signalPage.pageNo -= 1;
+    }
+
+    if (signalDetail.value?.id === row.id) {
+      signalDetail.value = null;
+      signalDetailVisible.value = false;
+    }
+
+    await Promise.all([fetchSignals(), fetchOverview()]);
+  } catch (error) {
+    console.error('删除监控信号失败:', error);
+    ElMessage.error(
+      error?.response?.data?.detail ||
+        error?.response?.data?.message ||
+        '删除监控信号失败'
+    );
+  }
+};
+
 const formatNumber = (value) => {
   if (value === null || value === undefined || value === '') return '--';
   return Number(value).toFixed(2);
@@ -1236,6 +1294,20 @@ onMounted(async () => {
 
 .text-muted {
   color: #909399;
+}
+
+.stock-link-text,
+.stock-link-code {
+  cursor: pointer;
+}
+
+.stock-link-text {
+  color: #409eff;
+}
+
+.stock-link-code:hover,
+.stock-link-text:hover {
+  text-decoration: underline;
 }
 
 .pagination-wrap {

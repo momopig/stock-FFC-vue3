@@ -29,8 +29,6 @@
           v-model="localForm.group_ids"
           multiple
           filterable
-          collapse-tags
-          collapse-tags-tooltip
           placeholder="请选择至少一个分组"
           style="width: 100%"
         >
@@ -109,8 +107,6 @@
           filterable
           allow-create
           default-first-option
-          collapse-tags
-          collapse-tags-tooltip
           placeholder="格式：09:30-11:30，可多选或自定义输入"
           style="width: 100%"
         >
