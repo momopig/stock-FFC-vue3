@@ -409,6 +409,11 @@
           </div>
         </div>
 
+        <StockInsights
+          :insightsData="configStockInsightsData"
+          :showBasicStats="false"
+        />
+
         <StockList
           :stockList="configStockDisplayList"
           :loading="configStockLoading"
@@ -531,9 +536,11 @@ import {
   getGroupStocksByGroups,
   getUserGroups,
 } from '@/api/modules/stockGroup';
+import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import ConfigDialog from './components/ConfigDialog.vue';
 import { calculateDaysAdded, formatDateTime } from '@/utils/time';
+import { useStockInsights } from '../composables/useStockInsights';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
 
 const activeTab = ref('configs');
@@ -621,6 +628,13 @@ const configStockDisplayList = computed(() => {
   const end = start + configStockPage.pageSize;
   return configStockAllList.value.slice(start, end);
 });
+
+const configStockInsightList = computed(() => configStockAllList.value);
+
+const {
+  insightsData: configStockInsightsData,
+  calculateInsightsFromList: calculateConfigStockInsights,
+} = useStockInsights(configStockInsightList);
 
 const getPayload = (response) =>
   response?.payload || response?.data || response;
@@ -763,6 +777,7 @@ const fetchConfigStocks = async () => {
   if (!normalizedIds.length) {
     configStockAllList.value = [];
     configStockPage.total = 0;
+    calculateConfigStockInsights([]);
     return;
   }
 
@@ -794,10 +809,12 @@ const fetchConfigStocks = async () => {
 
     configStockAllList.value = mergeConfigStocks(allItems);
     configStockPage.total = configStockAllList.value.length;
+    calculateConfigStockInsights(configStockAllList.value);
   } catch (error) {
     console.error('获取监控配置股票失败:', error);
     configStockAllList.value = [];
     configStockPage.total = 0;
+    calculateConfigStockInsights([]);
     ElMessage.error(
       error?.response?.data?.detail ||
         error?.response?.data?.message ||

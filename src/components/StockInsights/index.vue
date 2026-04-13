@@ -1,62 +1,8 @@
 <template>
   <div class="insights-section">
     <el-row :gutter="16">
-      <!-- 自选以来 - 三角形布局 -->
-      <el-col :span="9">
-        <el-card class="insight-card triangle-card">
-          <div class="triangle-content">
-            <div class="triangle-title">📈 自选以来</div>
-            <div class="triangle-layout">
-              <div class="triangle-top">
-                <span class="value-container">
-                  AVG
-                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfAvgChange) }">
-                    {{ formatChangePercent(insightsData.selfAvgChange) }}
-                  </span>
-                </span>
-              </div>
-              <div class="triangle-bottom">
-                <div class="triangle-left">
-                  <span class="value-container">
-                    High
-                    <el-tooltip
-                      placement="top"
-                      :content="insightsData.selfMaxStockName || '暂无对应股票名称'"
-                    >
-                      <span
-                        class="value copyable"
-                        :style="{ color: getQuoteColor(insightsData.selfMaxChange) }"
-                        @click="handleCopyStockName(insightsData.selfMaxStockName)"
-                      >
-                        {{ formatChangePercent(insightsData.selfMaxChange) }}
-                      </span>
-                    </el-tooltip>
-                  </span>
-                </div>
-                <div class="triangle-right">
-                  <span class="value-container">
-                    Low
-                    <el-tooltip
-                      placement="top"
-                      :content="insightsData.selfMinStockName || '暂无对应股票名称'"
-                    >
-                      <span
-                        class="value copyable"
-                        :style="{ color: getQuoteColor(insightsData.selfMinChange) }"
-                        @click="handleCopyStockName(insightsData.selfMinStockName)"
-                      >
-                        {{ formatChangePercent(insightsData.selfMinChange) }}
-                      </span>
-                    </el-tooltip>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
       <!-- 当日 - 三角形布局 -->
-      <el-col :span="9">
+      <el-col :span="triangleCardSpan">
         <el-card class="insight-card triangle-card">
           <div class="triangle-content">
             <div class="triangle-title">📊 当日行情</div>
@@ -109,8 +55,62 @@
           </div>
         </el-card>
       </el-col>
+      <!-- 自选以来 - 三角形布局 -->
+      <el-col :span="triangleCardSpan">
+        <el-card class="insight-card triangle-card">
+          <div class="triangle-content">
+            <div class="triangle-title">📈 自选以来</div>
+            <div class="triangle-layout">
+              <div class="triangle-top">
+                <span class="value-container">
+                  AVG
+                  <span class="value" :style="{ color: getQuoteColor(insightsData.selfAvgChange) }">
+                    {{ formatChangePercent(insightsData.selfAvgChange) }}
+                  </span>
+                </span>
+              </div>
+              <div class="triangle-bottom">
+                <div class="triangle-left">
+                  <span class="value-container">
+                    High
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.selfMaxStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.selfMaxChange) }"
+                        @click="handleCopyStockName(insightsData.selfMaxStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.selfMaxChange) }}
+                      </span>
+                    </el-tooltip>
+                  </span>
+                </div>
+                <div class="triangle-right">
+                  <span class="value-container">
+                    Low
+                    <el-tooltip
+                      placement="top"
+                      :content="insightsData.selfMinStockName || '暂无对应股票名称'"
+                    >
+                      <span
+                        class="value copyable"
+                        :style="{ color: getQuoteColor(insightsData.selfMinChange) }"
+                        @click="handleCopyStockName(insightsData.selfMinStockName)"
+                      >
+                        {{ formatChangePercent(insightsData.selfMinChange) }}
+                      </span>
+                    </el-tooltip>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
       <!-- 基础统计 -->
-      <el-col :span="3">
+      <el-col v-if="showBasicStats" :span="3">
         <el-card class="insight-card basic-card">
           <div class="insight-content">
             <div class="insight-label">股票池总数</div>
@@ -118,7 +118,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="3">
+      <el-col v-if="showBasicStats" :span="3">
         <el-card class="insight-card basic-card">
           <div class="insight-content">
             <div class="insight-label">平均加入天数</div>
@@ -131,10 +131,11 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 
 // 接收洞察数据作为 props
-defineProps({
+const props = defineProps({
   insightsData: {
     type: Object,
     default: () => ({
@@ -152,8 +153,14 @@ defineProps({
       todayMaxStockName: null,
       todayMinStockName: null
     })
+  },
+  showBasicStats: {
+    type: Boolean,
+    default: true
   }
 })
+
+const triangleCardSpan = computed(() => (props.showBasicStats ? 9 : 12))
 
 // 格式化涨幅
 const formatChangePercent = (value, showSign = true) => {
