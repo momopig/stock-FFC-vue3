@@ -93,6 +93,7 @@
       </div>
       <!-- 股票列表表格 -->
       <el-table
+        ref="tableRef"
         class="stock-table"
         :max-height="
           isFullscreen
@@ -105,6 +106,8 @@
         v-loading="loading"
         element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
+        @filter-change="handleTableDisplayChange"
+        @sort-change="handleTableDisplayChange"
       >
         <el-table-column
           v-for="item in columns"
@@ -524,7 +527,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, nextTick } from 'vue';
 import { formatDateTime } from '@/utils/time';
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue';
 import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue';
@@ -623,12 +626,21 @@ const addTypeFiltersCache = new WeakMap();
 const stabilityFiltersCache = new WeakMap();
 const maTrendFiltersCache = new WeakMap();
 const riskSignsFiltersCache = new WeakMap();
+const tableRef = ref(null);
+
+const getDisplayedStockList = () => {
+  const tableData = tableRef.value?.store?.states?.data;
+  const displayedRows = tableData?.value ?? tableData;
+  return Array.isArray(displayedRows) ? displayedRows : props.stockList;
+};
 
 // 勿用 deep：大列表含 kline/ma/risk 等深层字段时，深度监听会极慢并阻塞 tab 绘制
 watch(
   () => props.stockList,
-  (newList) => {
-    emit('filter-change', newList);
+  () => {
+    nextTick(() => {
+      emit('filter-change', getDisplayedStockList());
+    });
   }
 );
 
@@ -979,6 +991,12 @@ const getDefaultFilterMethod = (key) => {
   return undefined;
 };
 
+const handleTableDisplayChange = () => {
+  nextTick(() => {
+    emit('filter-change', getDisplayedStockList());
+  });
+};
+
 // 防抖定时器
 let searchTimer = null;
 
@@ -1265,7 +1283,10 @@ const getRiskSigns = (row) => {
 };
 
 const copySinglePageStockNames = () => {
-  const stockNames = props.stockList.map((stock) => stock.stock_name).join(' ');
+  const stockNames = getDisplayedStockList()
+    .map((stock) => stock.stock_name)
+    .filter(Boolean)
+    .join(' ');
   copyToClipboard(stockNames);
 };
 </script>
