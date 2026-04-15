@@ -444,18 +444,7 @@ export const getBuySignals = async (params = {}) => {
  * @returns {Promise}
  */
 export const getStock = async (search, onlyA = false) => {
-  const result = await request.get(`/nest-api/stock?search=${search}`);
-  let data = result?.payload;
-  // 根据接口返回格式处理数据
-  if (data?.Result?.stock) {
-    data.Result.stock = data?.Result?.stock?.filter((stock) => {
-      const isStock = stock.type === 'stock';
-      if (onlyA) {
-        // 香港的market对应hk，A股的market对应ab
-        return isStock && stock.market === 'ab';
-      }
-      return isStock;
-    });
-  }
-  return data;
+  return await request.get(
+    `/stock-api/api/stock/search?query=${encodeURIComponent(search)}&only_a=${onlyA}&limit=20`
+  );
 };

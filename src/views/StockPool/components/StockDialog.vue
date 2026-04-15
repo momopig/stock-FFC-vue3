@@ -361,12 +361,32 @@ const EXCHANGE_MAP = {
 
 // 将 API 返回的股票转换为统一格式
 const normalizeStockFromApi = (stock) => {
-  const exchangeCode = EXCHANGE_MAP[stock?.exchange] || stock?.exchange || ''
+  const exchangeCode =
+    EXCHANGE_MAP[stock?.exchange_code] ||
+    EXCHANGE_MAP[stock?.exchange] ||
+    stock?.exchange_code ||
+    stock?.exchange ||
+    ''
   return {
     ...stock,
     exchange_code: exchangeCode,
+    code: stock?.code || stock?.stock_code || '',
+    name: stock?.name || stock?.stock_name || '',
     initialPrice: Number(stock?.price) || 0
   }
+}
+
+const getStockSearchItems = (result) => {
+  return result?.payload?.items || []
+}
+
+const hasStockSearchError = (result) => result?.success === false
+
+const getStockSearchErrorMessage = (result) => {
+  if (result?.code === 429) {
+    return result?.message || '百度股票搜索触发了限制，请稍后重试'
+  }
+  return result?.message || '股票搜索暂不可用，请稍后重试'
 }
 
 // 解析批量输入：支持逗号、空格分隔
@@ -395,10 +415,10 @@ const handleBatchMatch = async () => {
 
     for (const token of tokens) {
       const result = await getStock(token, false)
-      const stockList = result?.Result?.stock || []
-      const stockOptions = stockList
-        .filter((s) => s?.type === 'stock')
-        .map(normalizeStockFromApi)
+      if (hasStockSearchError(result)) {
+        throw new Error(getStockSearchErrorMessage(result))
+      }
+      const stockOptions = getStockSearchItems(result).map(normalizeStockFromApi)
 
       if (stockOptions?.length > 0) {
         const first = stockOptions[0]
@@ -423,7 +443,7 @@ const handleBatchMatch = async () => {
     }
   } catch (error) {
     console.error('批量匹配失败:', error)
-    ElMessage.error('批量匹配失败，请稍后重试')
+    ElMessage.error(error?.message || '批量匹配失败，请稍后重试')
   } finally {
     batchMatchLoading.value = false
   }
@@ -478,9 +498,12 @@ const suggestStocks = async (query) => {
     stockSearchLoading.value = true
     try {
       const result = await getStock(query, false)
-      const stockList = result?.Result?.stock || []
-      stockSelectOptions.value = stockList
-        .filter((stock) => stock?.type === 'stock')
+      if (hasStockSearchError(result)) {
+        stockSelectOptions.value = []
+        ElMessage.error(getStockSearchErrorMessage(result))
+        return
+      }
+      stockSelectOptions.value = getStockSearchItems(result)
         .map((stock) => {
           const normalized = normalizeStockFromApi(stock)
           return {
@@ -491,7 +514,7 @@ const suggestStocks = async (query) => {
         })
     } catch (error) {
       console.error('搜索股票失败:', error)
-      ElMessage.error('搜索股票失败，请稍后重试')
+      ElMessage.error(error?.message || '搜索股票失败，请稍后重试')
       stockSelectOptions.value = []
     } finally {
       stockSearchLoading.value = false
