@@ -141,9 +141,11 @@
                 <el-button link type="info" @click="handleViewConfigStocks(row)"
                   >查看股票</el-button
                 >
-                <el-button link type="success" @click="handleRun(row)"
-                  >立即执行</el-button
-                >
+                <el-tooltip content="可绕开监控时间段限制" placement="top">
+                  <el-button link type="success" @click="handleRun(row)"
+                    >立即执行</el-button
+                  >
+                </el-tooltip>
                 <el-button link type="warning" @click="handleViewSignals(row)"
                   >查看信号</el-button
                 >
