@@ -2,26 +2,95 @@
   <div class="buy-signal-monitor-page">
     <div class="summary-row">
       <div class="summary-card">
-        <div class="summary-label">监控配置总数</div>
-        <div class="summary-value">{{ overview.total_configs }}</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">启用中的配置</div>
-        <div class="summary-value enabled">{{ overview.enabled_configs }}</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">今日命中信号</div>
-        <div class="summary-value signal">{{ overview.today_signals }}</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">今日 webhook 次数</div>
-        <div class="summary-value webhook">{{ overview.today_webhooks }}</div>
+        <div class="summary-label">当前信号样本</div>
+        <div class="summary-value">
+          {{ signalAnalytics.summary.totalSignals }}
+        </div>
         <div class="summary-subtext">
-          最近运行：{{
-            overview.latest_run_at
-              ? formatDateTime(overview.latest_run_at)
-              : '--'
+          去重股票：{{ signalAnalytics.summary.uniqueStocks }}
+        </div>
+      </div>
+      <div class="summary-card">
+        <el-tooltip
+          :content="strongestDefinitionTips.config"
+          placement="top"
+          effect="dark"
+          popper-class="strength-definition-tooltip"
+        >
+          <div class="summary-label summary-label-help">最强配置</div>
+        </el-tooltip>
+        <div class="summary-value enabled summary-value-compact">
+          <el-button
+            v-if="signalAnalytics.summary.strongestConfig"
+            link
+            type="primary"
+            @click="
+              handleEditByConfigId(signalAnalytics.summary.strongestConfig.id)
+            "
+          >
+            {{ signalAnalytics.summary.strongestConfig.name }}
+          </el-button>
+          <span v-else>--</span>
+        </div>
+        <div class="summary-subtext">
+          平均涨幅：
+          {{
+            formatPercent(signalAnalytics.summary.strongestConfig?.avgChange)
           }}
+        </div>
+      </div>
+      <div class="summary-card">
+        <el-tooltip
+          :content="strongestDefinitionTips.group"
+          placement="top"
+          effect="dark"
+          popper-class="strength-definition-tooltip"
+        >
+          <div class="summary-label summary-label-help">最强分组</div>
+        </el-tooltip>
+        <div class="summary-value signal summary-value-compact">
+          <el-button
+            v-if="signalAnalytics.summary.strongestGroup"
+            link
+            type="primary"
+            @click="
+              openGroupInNewTab(signalAnalytics.summary.strongestGroup.id)
+            "
+          >
+            {{ signalAnalytics.summary.strongestGroup.name }}
+          </el-button>
+          <span v-else>--</span>
+        </div>
+        <div class="summary-subtext">
+          平均涨幅：
+          {{ formatPercent(signalAnalytics.summary.strongestGroup?.avgChange) }}
+        </div>
+      </div>
+      <div class="summary-card">
+        <el-tooltip
+          :content="strongestDefinitionTips.stock"
+          placement="top"
+          effect="dark"
+          popper-class="strength-definition-tooltip"
+        >
+          <div class="summary-label summary-label-help">最强个股 / 风格</div>
+        </el-tooltip>
+        <div class="summary-value webhook summary-value-compact">
+          <el-button
+            v-if="signalAnalytics.summary.strongestStock"
+            link
+            type="primary"
+            @click="
+              handleStockCodeClick(signalAnalytics.summary.strongestStock)
+            "
+          >
+            {{ signalAnalytics.summary.strongestStock.stock_name }}
+            {{ signalAnalytics.summary.strongestStock.stock_code }}
+          </el-button>
+          <span v-else>--</span>
+        </div>
+        <div class="summary-subtext">
+          {{ signalAnalytics.summary.marketBiasText }}
         </div>
       </div>
     </div>
@@ -248,10 +317,14 @@
             </div>
           </div>
 
+          <div class="signal-list-header text-muted">
+            统计分析已独立到“统计分析”页签，当前页面更聚焦信号列表。
+          </div>
+
           <el-table
             :data="signalList"
             v-loading="signalLoading"
-            height="calc(100vh - 360px)"
+            height="calc(100vh - 300px)"
           >
             <el-table-column label="时间" width="180">
               <template #default="{ row }">{{
@@ -393,6 +466,703 @@
               @current-change="fetchSignals"
               @size-change="handleSignalSizeChange"
             />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="统计分析" name="analytics">
+          <div class="toolbar-row">
+            <div class="toolbar-left toolbar-wrap">
+              <el-select
+                v-model="signalSearchForm.config_id"
+                clearable
+                filterable
+                placeholder="配置"
+                class="toolbar-select-wide"
+              >
+                <el-option
+                  v-for="item in configOptions"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+              <el-select
+                v-model="signalSearchForm.group_id"
+                clearable
+                filterable
+                placeholder="分组"
+                class="toolbar-select-wide"
+              >
+                <el-option
+                  v-for="group in groups"
+                  :key="group.id"
+                  :label="group.name"
+                  :value="group.id"
+                />
+              </el-select>
+              <el-select
+                v-model="signalSearchForm.signal_type"
+                clearable
+                placeholder="信号类型"
+                class="toolbar-select"
+              >
+                <el-option label="提醒买入" value="buy_alert" />
+                <el-option label="提醒上涨" value="rise_alert" />
+                <el-option label="提醒卖出" value="sell_alert" />
+              </el-select>
+              <el-input
+                v-model="signalSearchForm.stock_code"
+                clearable
+                placeholder="股票代码"
+                class="toolbar-input"
+                @keyup.enter="handleSignalSearch"
+              />
+              <el-input
+                v-model="signalSearchForm.stock_name"
+                clearable
+                placeholder="股票名称"
+                class="toolbar-input"
+                @keyup.enter="handleSignalSearch"
+              />
+              <el-date-picker
+                v-model="signalSearchForm.date_range"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                :shortcuts="signalDateShortcuts"
+                class="toolbar-date-range"
+              />
+              <el-button type="primary" @click="handleSignalSearch"
+                >查询</el-button
+              >
+              <el-button @click="handleSignalReset">重置</el-button>
+            </div>
+          </div>
+
+          <div class="signal-dashboard" v-loading="signalAnalyticsLoading">
+            <div class="signal-dashboard-header">
+              <div>
+                <div class="signal-dashboard-title">信号统计驾驶舱</div>
+                <div class="signal-dashboard-subtitle text-muted">
+                  基于当前筛选条件统计
+                  <template v-if="signalAnalyticsMeta.total">
+                    ，已加载 {{ signalAnalyticsMeta.loaded }} /
+                    {{ signalAnalyticsMeta.total }} 条信号
+                  </template>
+                  <template v-if="signalAnalyticsMeta.truncated">
+                    （已截取样本）
+                  </template>
+                </div>
+              </div>
+              <el-tag effect="plain" type="info">
+                正涨占比
+                {{ formatPercent(signalAnalytics.summary.positiveRate) }}
+              </el-tag>
+            </div>
+
+            <div class="signal-summary-grid">
+              <div class="signal-summary-card">
+                <div class="signal-summary-label">样本信号数</div>
+                <div class="signal-summary-value">
+                  {{ signalAnalytics.summary.totalSignals }}
+                </div>
+              </div>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">去重股票数</div>
+                    <div class="signal-summary-value signal-summary-stock">
+                      {{ signalAnalytics.summary.uniqueStocks }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">去重股票列表</div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按命中次数、最大涨幅排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.uniqueStocks"
+                    :key="`unique-stock-${item.stock_code}-${item.stock_name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        命中 {{ item.signalCount }} · 最大涨幅
+                        {{ formatPercent(item.maxChange) }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleStockCodeClick(item)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">命中配置数</div>
+                    <div class="signal-summary-value signal-summary-config">
+                      {{ signalAnalytics.summary.hitConfigs }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">命中配置列表</div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按综合强度分排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.hitConfigs"
+                    :key="`hit-config-${item.id || item.name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.name }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        命中 {{ item.signalCount }} · 平均涨幅
+                        {{ formatPercent(item.avgChange) }} · 强度
+                        {{ formatNumber(item.strengthScore) }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleEditByConfigId(item.id)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">命中分组数</div>
+                    <div class="signal-summary-value signal-summary-group">
+                      {{ signalAnalytics.summary.hitGroups }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">命中分组列表</div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按综合强度分排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.hitGroups"
+                    :key="`hit-group-${item.id || item.name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.name }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        命中 {{ item.signalCount }} · 平均涨幅
+                        {{ formatPercent(item.avgChange) }} · 龙头
+                        {{ item.leaderStockName || '--' }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="openGroupInNewTab(item.id)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">最大涨幅</div>
+                    <div class="signal-summary-value signal-summary-rise">
+                      {{ formatPercent(signalAnalytics.summary.maxChangePct) }}
+                    </div>
+                    <div class="signal-summary-subtext text-muted">
+                      {{ signalAnalytics.summary.maxChangeStockLabel || '--' }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">
+                  最大涨幅 Top 列表
+                </div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按个股最大涨幅从高到低排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.maxChangeStocks"
+                    :key="`max-change-${item.stock_code}-${item.stock_name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        最大涨幅 {{ formatPercent(item.maxChange) }} · 命中
+                        {{ item.signalCount }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleStockCodeClick(item)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">最小涨幅</div>
+                    <div class="signal-summary-value signal-summary-fall">
+                      {{ formatPercent(signalAnalytics.summary.minChangePct) }}
+                    </div>
+                    <div class="signal-summary-subtext text-muted">
+                      {{ signalAnalytics.summary.minChangeStockLabel || '--' }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">
+                  最小涨幅 Top 列表
+                </div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按个股最小涨幅从低到高排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.minChangeStocks"
+                    :key="`min-change-${item.stock_code}-${item.stock_name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        最小涨幅 {{ formatPercent(item.minChange) }} · 命中
+                        {{ item.signalCount }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleStockCodeClick(item)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">最大量比</div>
+                    <div class="signal-summary-value signal-summary-fluid">
+                      {{ formatNumber(signalAnalytics.summary.maxVolumeRatio) }}
+                    </div>
+                    <div class="signal-summary-subtext text-muted">
+                      {{
+                        signalAnalytics.summary.maxVolumeRatioStockLabel || '--'
+                      }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">
+                  最大量比 Top 列表
+                </div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按个股最大量比从高到低排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details.maxVolumeRatioStocks"
+                    :key="`max-volume-${item.stock_code}-${item.stock_name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        最大量比 {{ formatNumber(item.maxVolumeRatio) }} · 命中
+                        {{ item.signalCount }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleStockCodeClick(item)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+              <el-popover
+                trigger="hover"
+                placement="bottom-start"
+                :width="420"
+                popper-class="signal-summary-popover"
+              >
+                <template #reference>
+                  <div
+                    class="signal-summary-card signal-summary-card-hoverable"
+                  >
+                    <div class="signal-summary-label">最大换手率</div>
+                    <div class="signal-summary-value signal-summary-fluid">
+                      {{
+                        formatPercent(signalAnalytics.summary.maxTurnoverRate)
+                      }}
+                    </div>
+                    <div class="signal-summary-subtext text-muted">
+                      {{
+                        signalAnalytics.summary.maxTurnoverRateStockLabel ||
+                        '--'
+                      }}
+                    </div>
+                  </div>
+                </template>
+                <div class="signal-summary-popover-title">
+                  最大换手率 Top 列表
+                </div>
+                <div class="signal-summary-popover-subtitle text-muted">
+                  按个股最大换手率从高到低排序
+                </div>
+                <div class="signal-summary-popover-list">
+                  <div
+                    v-for="item in signalAnalytics.details
+                      .maxTurnoverRateStocks"
+                    :key="`max-turnover-${item.stock_code}-${item.stock_name}`"
+                    class="signal-summary-popover-item"
+                  >
+                    <div class="signal-summary-popover-main">
+                      <div class="signal-summary-popover-name">
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </div>
+                      <div class="signal-summary-popover-meta text-muted">
+                        最大换手率 {{ formatPercent(item.maxTurnoverRate) }} ·
+                        命中
+                        {{ item.signalCount }}
+                      </div>
+                    </div>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="handleStockCodeClick(item)"
+                    >
+                      查看
+                    </el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+
+            <template v-if="signalAnalytics.summary.totalSignals">
+              <div class="signal-panel-grid">
+                <div class="signal-panel">
+                  <div class="signal-panel-title">快速结论</div>
+                  <div class="signal-highlight-list">
+                    <div class="signal-highlight-item">
+                      <el-tooltip
+                        :content="strongestDefinitionTips.config"
+                        placement="top"
+                        effect="dark"
+                        popper-class="strength-definition-tooltip"
+                      >
+                        <span class="signal-highlight-label signal-help-label"
+                          >最强配置</span
+                        >
+                      </el-tooltip>
+                      <span class="signal-highlight-content">
+                        <el-button
+                          v-if="signalAnalytics.summary.strongestConfig"
+                          link
+                          type="primary"
+                          @click="
+                            handleEditByConfigId(
+                              signalAnalytics.summary.strongestConfig.id
+                            )
+                          "
+                        >
+                          {{ signalAnalytics.summary.strongestConfig.name }}
+                        </el-button>
+                        <span v-else>--</span>
+                        <span class="text-muted">
+                          强度
+                          {{
+                            formatNumber(
+                              signalAnalytics.summary.strongestConfig
+                                ?.strengthScore
+                            )
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="signal-highlight-item">
+                      <el-tooltip
+                        :content="strongestDefinitionTips.group"
+                        placement="top"
+                        effect="dark"
+                        popper-class="strength-definition-tooltip"
+                      >
+                        <span class="signal-highlight-label signal-help-label"
+                          >最强分组</span
+                        >
+                      </el-tooltip>
+                      <span class="signal-highlight-content">
+                        <el-button
+                          v-if="signalAnalytics.summary.strongestGroup"
+                          link
+                          type="primary"
+                          @click="
+                            openGroupInNewTab(
+                              signalAnalytics.summary.strongestGroup.id
+                            )
+                          "
+                        >
+                          {{ signalAnalytics.summary.strongestGroup.name }}
+                        </el-button>
+                        <span v-else>--</span>
+                        <span class="text-muted">
+                          平均涨幅
+                          {{
+                            formatPercent(
+                              signalAnalytics.summary.strongestGroup?.avgChange
+                            )
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="signal-highlight-item">
+                      <el-tooltip
+                        :content="strongestDefinitionTips.stock"
+                        placement="top"
+                        effect="dark"
+                        popper-class="strength-definition-tooltip"
+                      >
+                        <span class="signal-highlight-label signal-help-label"
+                          >最强个股</span
+                        >
+                      </el-tooltip>
+                      <span class="signal-highlight-content">
+                        <el-button
+                          v-if="signalAnalytics.summary.strongestStock"
+                          link
+                          type="primary"
+                          @click="
+                            handleStockCodeClick(
+                              signalAnalytics.summary.strongestStock
+                            )
+                          "
+                        >
+                          {{
+                            signalAnalytics.summary.strongestStock.stock_name
+                          }}
+                          {{
+                            signalAnalytics.summary.strongestStock.stock_code
+                          }}
+                        </el-button>
+                        <span v-else>--</span>
+                        <span class="text-muted">
+                          最高涨幅
+                          {{
+                            formatPercent(
+                              signalAnalytics.summary.strongestStock?.maxChange
+                            )
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="signal-highlight-item">
+                      <span class="signal-highlight-label">当前风格</span>
+                      <span class="signal-highlight-content">
+                        {{ signalAnalytics.summary.marketBiasText }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="signal-panel">
+                  <el-tooltip
+                    :content="rankingDefinitionTips.config"
+                    placement="top"
+                    effect="dark"
+                    popper-class="strength-definition-tooltip"
+                  >
+                    <div class="signal-panel-title signal-help-label">
+                      配置强度榜
+                    </div>
+                  </el-tooltip>
+                  <div
+                    v-for="(item, index) in signalAnalytics.configRankings"
+                    :key="`config-${item.id || item.name}`"
+                    class="signal-rank-row"
+                  >
+                    <div class="signal-rank-index">{{ index + 1 }}</div>
+                    <div class="signal-rank-main">
+                      <el-button
+                        link
+                        type="primary"
+                        @click="handleEditByConfigId(item.id)"
+                      >
+                        {{ item.name }}
+                      </el-button>
+                      <div class="signal-rank-meta text-muted">
+                        命中 {{ item.signalCount }} · 去重股票
+                        {{ item.stockCount }} · 最大涨幅
+                        {{ formatPercent(item.maxChange) }}
+                      </div>
+                    </div>
+                    <div class="signal-rank-value">
+                      {{ formatPercent(item.avgChange) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="signal-panel">
+                  <el-tooltip
+                    :content="rankingDefinitionTips.group"
+                    placement="top"
+                    effect="dark"
+                    popper-class="strength-definition-tooltip"
+                  >
+                    <div class="signal-panel-title signal-help-label">
+                      分组强度榜
+                    </div>
+                  </el-tooltip>
+                  <div
+                    v-for="(item, index) in signalAnalytics.groupRankings"
+                    :key="`group-${item.id || item.name}`"
+                    class="signal-rank-row"
+                  >
+                    <div class="signal-rank-index">{{ index + 1 }}</div>
+                    <div class="signal-rank-main">
+                      <el-button
+                        link
+                        type="primary"
+                        @click="openGroupInNewTab(item.id)"
+                      >
+                        {{ item.name }}
+                      </el-button>
+                      <div class="signal-rank-meta text-muted">
+                        命中 {{ item.signalCount }} · 去重股票
+                        {{ item.stockCount }} · 龙头
+                        {{ item.leaderStockName || '--' }}
+                      </div>
+                    </div>
+                    <div class="signal-rank-value">
+                      {{ formatPercent(item.avgChange) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="signal-panel">
+                  <el-tooltip
+                    :content="rankingDefinitionTips.stock"
+                    placement="top"
+                    effect="dark"
+                    popper-class="strength-definition-tooltip"
+                  >
+                    <div class="signal-panel-title signal-help-label">
+                      最强个股榜
+                    </div>
+                  </el-tooltip>
+                  <div
+                    v-for="(item, index) in signalAnalytics.stockRankings"
+                    :key="`stock-${item.stock_code}-${item.stock_name}`"
+                    class="signal-rank-row"
+                  >
+                    <div class="signal-rank-index">{{ index + 1 }}</div>
+                    <div class="signal-rank-main">
+                      <el-button
+                        link
+                        type="primary"
+                        @click="handleStockCodeClick(item)"
+                      >
+                        {{ item.stock_name || '--' }}
+                        {{ item.stock_code || '' }}
+                      </el-button>
+                      <div class="signal-rank-meta text-muted">
+                        命中 {{ item.signalCount }} · 配置
+                        {{ item.configCount }} · 分组 {{ item.groupCount }}
+                      </div>
+                    </div>
+                    <div class="signal-rank-value">
+                      {{ formatPercent(item.maxChange) }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div v-else class="signal-dashboard-empty text-muted">
+              当前筛选条件下暂无可统计的监控信号
+            </div>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -550,7 +1320,6 @@ import {
   deleteGroupMonitorSignal,
   getGroupMonitorConfigDetail,
   getGroupMonitorConfigs,
-  getGroupMonitorOverview,
   getGroupMonitorSignalDetail,
   getGroupMonitorSignals,
   runGroupMonitorConfig,
@@ -589,13 +1358,13 @@ const currentConfigStockMeta = ref(null);
 const signalDetailVisible = ref(false);
 const signalDetailLoading = ref(false);
 const signalDetail = ref(null);
+const signalAnalyticsLoading = ref(false);
+const signalAnalyticsRows = ref([]);
 
-const overview = reactive({
-  total_configs: 0,
-  enabled_configs: 0,
-  today_signals: 0,
-  today_webhooks: 0,
-  latest_run_at: null,
+const signalAnalyticsMeta = reactive({
+  loaded: 0,
+  total: 0,
+  truncated: false,
 });
 
 const configSearchForm = reactive({
@@ -694,6 +1463,467 @@ const signalSortMethods = {
   volume_ratio: (a, b) => compareNullableNumberByKey(a, b, 'volume_ratio'),
   turnover_rate: (a, b) => compareNullableNumberByKey(a, b, 'turnover_rate'),
 };
+
+const strongestDefinitionTips = {
+  config:
+    '最强配置 = 综合强度分最高。\n计算逻辑：平均涨幅×4 + 最大涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中次数归一化×6 + 正涨占比×3。\n其中：命中次数归一化 = 当前配置命中次数 ÷ 配置榜最高命中次数；正涨占比 = 正涨信号数 ÷ 有涨幅信号数。\n结论含义：不是只看命中数量，而是优先找“涨得更强、放量更明显、持续命中更多”的配置。',
+  group:
+    '最强分组 = 综合强度分最高。\n计算逻辑：平均涨幅×4 + 最大涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中次数归一化×6 + 正涨占比×3。\n其中：命中次数归一化 = 当前分组命中次数 ÷ 分组榜最高命中次数。\n结论含义：优先找“组内整体更强、信号更多、正涨一致性更高”的分组，而不是只看单只龙头。',
+  stock:
+    '最强个股 = 个股热度分最高；风格 = 当前样本整体强弱结论。\n个股热度分计算逻辑：最大涨幅×4 + 平均涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中配置数×2 + 命中分组数×1.5 + 重复命中次数归一化×4。\n其中：重复命中次数归一化 = 当前个股命中次数 ÷ 个股榜最高命中次数。\n风格结论逻辑：正涨占比≥70% 且平均涨幅≥3% = 高强度共振；正涨占比≥55% 且平均涨幅≥1% = 偏强运行；平均涨幅<0 = 整体偏弱；其余 = 强弱分化。',
+};
+
+const rankingDefinitionTips = {
+  config:
+    '配置强度榜 = 按 strengthScore 从高到低排序。\nstrengthScore = 平均涨幅×4 + 最大涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中次数归一化×6 + 正涨占比×3。\n同分时：先比平均涨幅，再比命中次数。\n卡片右侧显示的是“平均涨幅”，不是最终排名分；真正排序依据是综合强度分。',
+  group:
+    '分组强度榜 = 按 strengthScore 从高到低排序。\nstrengthScore = 平均涨幅×4 + 最大涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中次数归一化×6 + 正涨占比×3。\n同分时：先比平均涨幅，再比命中次数。\n榜单更强调“分组整体强度 + 一致性 + 持续命中”，不是只看单只龙头。',
+  stock:
+    '最强个股榜 = 按 hotScore 从高到低排序。\nhotScore = 最大涨幅×4 + 平均涨幅×2 + 平均量比×1.5 + 平均换手率×1 + 命中配置数×2 + 命中分组数×1.5 + 重复命中次数归一化×4。\n同分时：先比平均涨幅，再比命中次数。\n卡片右侧显示的是“最高涨幅”，不是最终排名分；真正排序依据是综合热度分。',
+};
+
+const SIGNAL_ANALYTICS_PAGE_SIZE = 200;
+const SIGNAL_ANALYTICS_MAX_RECORDS = 1000;
+const SIGNAL_ANALYTICS_TOP_COUNT = 5;
+
+const sumAverage = (sum, count) => (count ? sum / count : null);
+
+const toSignalTimeValue = (value) => {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const toStockKey = (item) =>
+  `${item?.exchange_code || ''}::${item?.stock_code || ''}`;
+
+const toStockDisplayName = (item) => {
+  if (!item) return '--';
+  const stockName = item.stock_name || '--';
+  const stockCode = item.stock_code || '--';
+  return `${stockName} ${stockCode}`;
+};
+
+const createSignalAggregate = (seed = {}) => ({
+  ...seed,
+  signalCount: 0,
+  stockSet: new Set(),
+  configSet: new Set(),
+  groupSet: new Set(),
+  changeSum: 0,
+  changeCount: 0,
+  volumeSum: 0,
+  volumeCount: 0,
+  turnoverSum: 0,
+  turnoverCount: 0,
+  positiveCount: 0,
+  maxChange: null,
+  minChange: null,
+  lastSignalAt: '',
+  leaderStockName: '',
+  leaderStockCode: '',
+});
+
+const applySignalMetrics = (entry, item) => {
+  entry.signalCount += 1;
+
+  const stockKey = toStockKey(item);
+  if (stockKey !== '::') {
+    entry.stockSet.add(stockKey);
+  }
+  if (
+    item?.config_id !== null &&
+    item?.config_id !== undefined &&
+    item?.config_id !== ''
+  ) {
+    entry.configSet.add(String(item.config_id));
+  }
+  if (
+    item?.group_id !== null &&
+    item?.group_id !== undefined &&
+    item?.group_id !== ''
+  ) {
+    entry.groupSet.add(String(item.group_id));
+  }
+
+  const changePct = toSortableNumber(item?.change_pct);
+  if (changePct !== null) {
+    entry.changeSum += changePct;
+    entry.changeCount += 1;
+    if (changePct > 0) {
+      entry.positiveCount += 1;
+    }
+    if (entry.maxChange === null || changePct > entry.maxChange) {
+      entry.maxChange = changePct;
+      entry.leaderStockName = item?.stock_name || '';
+      entry.leaderStockCode = item?.stock_code || '';
+    }
+    if (entry.minChange === null || changePct < entry.minChange) {
+      entry.minChange = changePct;
+    }
+  }
+
+  const volumeRatio = toSortableNumber(item?.volume_ratio);
+  if (volumeRatio !== null) {
+    entry.volumeSum += volumeRatio;
+    entry.volumeCount += 1;
+  }
+
+  const turnoverRate = toSortableNumber(item?.turnover_rate);
+  if (turnoverRate !== null) {
+    entry.turnoverSum += turnoverRate;
+    entry.turnoverCount += 1;
+  }
+
+  if (
+    toSignalTimeValue(item?.created_at) > toSignalTimeValue(entry.lastSignalAt)
+  ) {
+    entry.lastSignalAt = item?.created_at || '';
+  }
+};
+
+const finalizeSignalAggregate = (entry) => ({
+  ...entry,
+  stockCount: entry.stockSet.size,
+  configCount: entry.configSet.size,
+  groupCount: entry.groupSet.size,
+  avgChange: sumAverage(entry.changeSum, entry.changeCount),
+  avgVolumeRatio: sumAverage(entry.volumeSum, entry.volumeCount),
+  avgTurnoverRate: sumAverage(entry.turnoverSum, entry.turnoverCount),
+  positiveRate: entry.changeCount
+    ? (entry.positiveCount / entry.changeCount) * 100
+    : null,
+});
+
+const computeStrengthScore = (entry, maxSignalCount = 1) => {
+  const countFactor =
+    maxSignalCount > 0 ? entry.signalCount / maxSignalCount : 0;
+  return (
+    (entry.avgChange || 0) * 4 +
+    (entry.maxChange || 0) * 2 +
+    (entry.avgVolumeRatio || 0) * 1.5 +
+    (entry.avgTurnoverRate || 0) * 1 +
+    countFactor * 6 +
+    ((entry.positiveRate || 0) / 100) * 3
+  );
+};
+
+const computeStockHotScore = (entry, maxSignalCount = 1) => {
+  const countFactor =
+    maxSignalCount > 0 ? entry.signalCount / maxSignalCount : 0;
+  return (
+    (entry.maxChange || 0) * 4 +
+    (entry.avgChange || 0) * 2 +
+    (entry.avgVolumeRatio || 0) * 1.5 +
+    (entry.avgTurnoverRate || 0) * 1 +
+    entry.configCount * 2 +
+    entry.groupCount * 1.5 +
+    countFactor * 4
+  );
+};
+
+const rankSignalAggregates = (entries, scoreKey = 'strengthScore') =>
+  [...entries]
+    .sort((a, b) => {
+      const scoreDiff = (b?.[scoreKey] || 0) - (a?.[scoreKey] || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const avgChangeDiff = (b?.avgChange || 0) - (a?.avgChange || 0);
+      if (avgChangeDiff !== 0) return avgChangeDiff;
+
+      return (b?.signalCount || 0) - (a?.signalCount || 0);
+    })
+    .slice(0, SIGNAL_ANALYTICS_TOP_COUNT);
+
+const toExtremeText = (item, value, formatter) => {
+  if (!item || value === null || value === undefined) return '--';
+  return `${toStockDisplayName(item)} · ${formatter(value)}`;
+};
+
+const buildMarketBiasText = (summary) => {
+  if (!summary.totalSignals) return '暂无信号样本';
+  if ((summary.positiveRate || 0) >= 70 && (summary.avgChangePct || 0) >= 3) {
+    return '高强度共振，优先关注最强配置与最强分组';
+  }
+  if ((summary.positiveRate || 0) >= 55 && (summary.avgChangePct || 0) >= 1) {
+    return '偏强运行，适合围绕共振个股做强中选强';
+  }
+  if ((summary.avgChangePct || 0) < 0) {
+    return '整体偏弱，优先规避弱分组与低量能信号';
+  }
+  return '强弱分化，建议重点观察量价共振与重复命中个股';
+};
+
+const signalAnalytics = computed(() => {
+  const items = signalAnalyticsRows.value || [];
+
+  if (!items.length) {
+    const emptySummary = {
+      totalSignals: 0,
+      uniqueStocks: 0,
+      hitConfigs: 0,
+      hitGroups: 0,
+      avgChangePct: null,
+      maxChangePct: null,
+      minChangePct: null,
+      avgVolumeRatio: null,
+      avgTurnoverRate: null,
+      maxVolumeRatio: null,
+      maxTurnoverRate: null,
+      positiveRate: null,
+      maxChangeStockLabel: '--',
+      minChangeStockLabel: '--',
+      maxVolumeRatioStockLabel: '--',
+      maxTurnoverRateStockLabel: '--',
+      strongestConfig: null,
+      strongestGroup: null,
+      strongestStock: null,
+      marketBiasText: '暂无信号样本',
+    };
+
+    return {
+      summary: emptySummary,
+      configRankings: [],
+      groupRankings: [],
+      stockRankings: [],
+      details: {
+        uniqueStocks: [],
+        hitConfigs: [],
+        hitGroups: [],
+      },
+      extremes: {
+        maxChangeStockText: '--',
+        minChangeStockText: '--',
+        maxVolumeRatioStockText: '--',
+        maxTurnoverRateStockText: '--',
+      },
+    };
+  }
+
+  const uniqueStocks = new Set();
+  const configMap = new Map();
+  const groupMap = new Map();
+  const stockMap = new Map();
+
+  let changeSum = 0;
+  let changeCount = 0;
+  let positiveCount = 0;
+  let maxChange = null;
+  let minChange = null;
+  let volumeSum = 0;
+  let volumeCount = 0;
+  let turnoverSum = 0;
+  let turnoverCount = 0;
+  let maxChangeItem = null;
+  let minChangeItem = null;
+  let maxVolumeItem = null;
+  let maxVolumeValue = null;
+  let maxTurnoverItem = null;
+  let maxTurnoverValue = null;
+
+  items.forEach((item) => {
+    const stockKey = toStockKey(item);
+    if (stockKey !== '::') {
+      uniqueStocks.add(stockKey);
+    }
+
+    const changePct = toSortableNumber(item?.change_pct);
+    if (changePct !== null) {
+      changeSum += changePct;
+      changeCount += 1;
+      if (changePct > 0) positiveCount += 1;
+      if (maxChange === null || changePct > maxChange) {
+        maxChange = changePct;
+        maxChangeItem = item;
+      }
+      if (minChange === null || changePct < minChange) {
+        minChange = changePct;
+        minChangeItem = item;
+      }
+    }
+
+    const volumeRatio = toSortableNumber(item?.volume_ratio);
+    if (volumeRatio !== null) {
+      volumeSum += volumeRatio;
+      volumeCount += 1;
+      if (maxVolumeValue === null || volumeRatio > maxVolumeValue) {
+        maxVolumeValue = volumeRatio;
+        maxVolumeItem = item;
+      }
+    }
+
+    const turnoverRate = toSortableNumber(item?.turnover_rate);
+    if (turnoverRate !== null) {
+      turnoverSum += turnoverRate;
+      turnoverCount += 1;
+      if (maxTurnoverValue === null || turnoverRate > maxTurnoverValue) {
+        maxTurnoverValue = turnoverRate;
+        maxTurnoverItem = item;
+      }
+    }
+
+    if (
+      item?.config_id !== null &&
+      item?.config_id !== undefined &&
+      item?.config_id !== ''
+    ) {
+      const configKey = String(item.config_id);
+      if (!configMap.has(configKey)) {
+        configMap.set(
+          configKey,
+          createSignalAggregate({
+            id: item.config_id,
+            name: item.config_name || `配置${item.config_id}`,
+          })
+        );
+      }
+      applySignalMetrics(configMap.get(configKey), item);
+    }
+
+    if (
+      item?.group_id !== null &&
+      item?.group_id !== undefined &&
+      item?.group_id !== ''
+    ) {
+      const groupKey = String(item.group_id);
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(
+          groupKey,
+          createSignalAggregate({
+            id: item.group_id,
+            name: item.group_name || `分组${item.group_id}`,
+          })
+        );
+      }
+      applySignalMetrics(groupMap.get(groupKey), item);
+    }
+
+    if (!stockMap.has(stockKey)) {
+      stockMap.set(
+        stockKey,
+        createSignalAggregate({
+          stock_code: item?.stock_code || '',
+          stock_name: item?.stock_name || '',
+          exchange_code: item?.exchange_code || '',
+        })
+      );
+    }
+    applySignalMetrics(stockMap.get(stockKey), item);
+  });
+
+  const configEntries = [...configMap.values()].map(finalizeSignalAggregate);
+  const groupEntries = [...groupMap.values()].map(finalizeSignalAggregate);
+  const stockEntries = [...stockMap.values()].map(finalizeSignalAggregate);
+
+  const maxConfigSignalCount = Math.max(
+    1,
+    ...configEntries.map((item) => item.signalCount || 0)
+  );
+  const maxGroupSignalCount = Math.max(
+    1,
+    ...groupEntries.map((item) => item.signalCount || 0)
+  );
+  const maxStockSignalCount = Math.max(
+    1,
+    ...stockEntries.map((item) => item.signalCount || 0)
+  );
+
+  configEntries.forEach((item) => {
+    item.strengthScore = computeStrengthScore(item, maxConfigSignalCount);
+  });
+  groupEntries.forEach((item) => {
+    item.strengthScore = computeStrengthScore(item, maxGroupSignalCount);
+  });
+  stockEntries.forEach((item) => {
+    item.hotScore = computeStockHotScore(item, maxStockSignalCount);
+  });
+
+  const configRankings = rankSignalAggregates(configEntries, 'strengthScore');
+  const groupRankings = rankSignalAggregates(groupEntries, 'strengthScore');
+  const stockRankings = rankSignalAggregates(stockEntries, 'hotScore');
+  const uniqueStockDetails = [...stockEntries].sort((a, b) => {
+    const signalCountDiff = (b?.signalCount || 0) - (a?.signalCount || 0);
+    if (signalCountDiff !== 0) return signalCountDiff;
+
+    const maxChangeDiff = (b?.maxChange || 0) - (a?.maxChange || 0);
+    if (maxChangeDiff !== 0) return maxChangeDiff;
+
+    return String(a?.stock_code || '').localeCompare(
+      String(b?.stock_code || '')
+    );
+  });
+  const hitConfigDetails = [...configEntries].sort((a, b) => {
+    const scoreDiff = (b?.strengthScore || 0) - (a?.strengthScore || 0);
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return (b?.signalCount || 0) - (a?.signalCount || 0);
+  });
+  const hitGroupDetails = [...groupEntries].sort((a, b) => {
+    const scoreDiff = (b?.strengthScore || 0) - (a?.strengthScore || 0);
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return (b?.signalCount || 0) - (a?.signalCount || 0);
+  });
+
+  const summary = {
+    totalSignals: items.length,
+    uniqueStocks: uniqueStocks.size,
+    hitConfigs: configEntries.length,
+    hitGroups: groupEntries.length,
+    avgChangePct: sumAverage(changeSum, changeCount),
+    maxChangePct: maxChange,
+    minChangePct: minChange,
+    avgVolumeRatio: sumAverage(volumeSum, volumeCount),
+    avgTurnoverRate: sumAverage(turnoverSum, turnoverCount),
+    maxVolumeRatio: maxVolumeValue,
+    maxTurnoverRate: maxTurnoverValue,
+    positiveRate: changeCount ? (positiveCount / changeCount) * 100 : null,
+    maxChangeStockLabel: toStockDisplayName(maxChangeItem),
+    minChangeStockLabel: toStockDisplayName(minChangeItem),
+    maxVolumeRatioStockLabel: toStockDisplayName(maxVolumeItem),
+    maxTurnoverRateStockLabel: toStockDisplayName(maxTurnoverItem),
+    strongestConfig: configRankings[0] || null,
+    strongestGroup: groupRankings[0] || null,
+    strongestStock: stockRankings[0] || null,
+    marketBiasText: '',
+  };
+
+  summary.marketBiasText = buildMarketBiasText(summary);
+
+  return {
+    summary,
+    configRankings,
+    groupRankings,
+    stockRankings,
+    details: {
+      uniqueStocks: uniqueStockDetails,
+      hitConfigs: hitConfigDetails,
+      hitGroups: hitGroupDetails,
+    },
+    extremes: {
+      maxChangeStockText: toExtremeText(
+        maxChangeItem,
+        maxChange,
+        formatPercent
+      ),
+      minChangeStockText: toExtremeText(
+        minChangeItem,
+        minChange,
+        formatPercent
+      ),
+      maxVolumeRatioStockText: toExtremeText(
+        maxVolumeItem,
+        maxVolumeValue,
+        formatNumber
+      ),
+      maxTurnoverRateStockText: toExtremeText(
+        maxTurnoverItem,
+        maxTurnoverValue,
+        formatPercent
+      ),
+    },
+  };
+});
 
 const formattedQuotePayload = computed(() => {
   if (!signalDetail.value?.quote_payload) return '--';
@@ -911,20 +2141,6 @@ const fetchConfigStocks = async () => {
   }
 };
 
-const fetchOverview = async () => {
-  try {
-    const response = await getGroupMonitorOverview();
-    const payload = getPayload(response) || {};
-    overview.total_configs = payload.total_configs || 0;
-    overview.enabled_configs = payload.enabled_configs || 0;
-    overview.today_signals = payload.today_signals || 0;
-    overview.today_webhooks = payload.today_webhooks || 0;
-    overview.latest_run_at = payload.latest_run_at || null;
-  } catch (error) {
-    console.error('获取监控概览失败:', error);
-  }
-};
-
 const fetchConfigs = async () => {
   try {
     tableLoading.value = true;
@@ -964,6 +2180,52 @@ const buildSignalQuery = () => ({
     : undefined,
 });
 
+const fetchSignalAnalytics = async () => {
+  try {
+    signalAnalyticsLoading.value = true;
+
+    const baseQuery = buildSignalQuery();
+    const allItems = [];
+    let total = 0;
+    let page = 1;
+
+    do {
+      const response = await getGroupMonitorSignals({
+        ...baseQuery,
+        page,
+        page_size: SIGNAL_ANALYTICS_PAGE_SIZE,
+      });
+      const payload = getPayload(response) || {};
+      const items = payload?.items || [];
+      total = payload?.total || 0;
+      allItems.push(...items);
+
+      if (
+        !items.length ||
+        items.length < SIGNAL_ANALYTICS_PAGE_SIZE ||
+        allItems.length >= SIGNAL_ANALYTICS_MAX_RECORDS
+      ) {
+        break;
+      }
+      page += 1;
+    } while (allItems.length < total);
+
+    signalAnalyticsRows.value = allItems.slice(0, SIGNAL_ANALYTICS_MAX_RECORDS);
+    signalAnalyticsMeta.loaded = signalAnalyticsRows.value.length;
+    signalAnalyticsMeta.total = total;
+    signalAnalyticsMeta.truncated = total > signalAnalyticsRows.value.length;
+  } catch (error) {
+    console.error('获取监控信号统计失败:', error);
+    signalAnalyticsRows.value = [];
+    signalAnalyticsMeta.loaded = 0;
+    signalAnalyticsMeta.total = 0;
+    signalAnalyticsMeta.truncated = false;
+    ElMessage.error(error?.response?.data?.message || '获取监控信号统计失败');
+  } finally {
+    signalAnalyticsLoading.value = false;
+  }
+};
+
 const fetchSignals = async () => {
   try {
     signalLoading.value = true;
@@ -982,6 +2244,10 @@ const fetchSignals = async () => {
 const handleTabChange = async (tab) => {
   if (tab === 'signals' && !signalList.value.length) {
     await fetchSignals();
+  }
+
+  if (tab === 'analytics' && !signalAnalyticsRows.value.length) {
+    await fetchSignalAnalytics();
   }
 };
 
@@ -1005,6 +2271,7 @@ const handleConfigSizeChange = () => {
 const handleSignalSearch = () => {
   signalPage.pageNo = 1;
   fetchSignals();
+  fetchSignalAnalytics();
 };
 
 const handleSignalReset = () => {
@@ -1016,6 +2283,7 @@ const handleSignalReset = () => {
   signalSearchForm.date_range = [];
   signalPage.pageNo = 1;
   fetchSignals();
+  fetchSignalAnalytics();
 };
 
 const handleSignalSizeChange = () => {
@@ -1045,7 +2313,7 @@ const handleEdit = async (row) => {
 };
 
 const refreshConfigRelatedData = async () => {
-  await Promise.all([fetchConfigs(), fetchOverview(), fetchConfigOptions()]);
+  await Promise.all([fetchConfigs(), fetchConfigOptions()]);
 };
 
 const handleSubmit = async (payload) => {
@@ -1123,7 +2391,11 @@ const handleRun = async (row) => {
         confirmButtonText: '知道了',
       }
     );
-    await Promise.all([refreshConfigRelatedData(), fetchSignals()]);
+    await Promise.all([
+      refreshConfigRelatedData(),
+      fetchSignals(),
+      fetchSignalAnalytics(),
+    ]);
   } catch (error) {
     console.error('手动执行监控配置失败:', error);
     ElMessage.error(
@@ -1163,7 +2435,7 @@ const handleViewSignals = async (row) => {
   activeTab.value = 'signals';
   signalSearchForm.config_id = row.id;
   signalPage.pageNo = 1;
-  await fetchSignals();
+  await Promise.all([fetchSignals(), fetchSignalAnalytics()]);
 };
 
 const openRouteInNewTab = (location) => {
@@ -1186,8 +2458,7 @@ const handleEditByConfigId = async (configId) => {
   });
 };
 
-const handleGroupClick = (row) => {
-  const groupId = row?.group_id;
+const openGroupInNewTab = (groupId) => {
   if (groupId === null || groupId === undefined || groupId === '') {
     ElMessage.warning('当前信号缺少关联分组');
     return;
@@ -1199,6 +2470,10 @@ const handleGroupClick = (row) => {
       groupId: String(groupId),
     },
   });
+};
+
+const handleGroupClick = (row) => {
+  openGroupInNewTab(row?.group_id);
 };
 
 const handleInitialRouteAction = async () => {
@@ -1280,7 +2555,7 @@ const handleDeleteSignal = async (row) => {
       signalDetailVisible.value = false;
     }
 
-    await Promise.all([fetchSignals(), fetchOverview()]);
+    await Promise.all([fetchSignals(), fetchSignalAnalytics()]);
   } catch (error) {
     console.error('删除监控信号失败:', error);
     ElMessage.error(
@@ -1339,7 +2614,7 @@ const getSignalTagType = (value) => {
 onMounted(async () => {
   await Promise.all([
     fetchGroups(),
-    fetchOverview(),
+    fetchSignalAnalytics(),
     fetchConfigOptions(),
     fetchConfigs(),
   ]);
@@ -1381,10 +2656,34 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
+.summary-label-help,
+.signal-help-label {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+:deep(.strength-definition-tooltip) {
+  max-width: 420px;
+  white-space: pre-line;
+  line-height: 1.7;
+}
+
 .summary-value {
   font-size: 28px;
   font-weight: 600;
   color: #303133;
+}
+
+.summary-value-compact {
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.summary-value-compact :deep(.el-button) {
+  font-size: inherit;
+  font-weight: 600;
+  padding: 0;
 }
 
 .summary-value.enabled {
@@ -1432,6 +2731,263 @@ onMounted(async () => {
 }
 .toolbar-date-range {
   width: 280px;
+}
+
+.signal-list-header {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.signal-dashboard {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f5f7fa 100%);
+  border: 1px solid #e4ecf5;
+}
+
+.signal-dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.signal-dashboard-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.signal-dashboard-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.signal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.signal-summary-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e8eef5;
+}
+
+.signal-summary-card-hoverable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.signal-summary-card-hoverable:hover {
+  border-color: #c6e2ff;
+  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.08);
+}
+
+.signal-summary-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.signal-summary-value {
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.signal-summary-subtext {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.signal-summary-stock {
+  color: #409eff;
+}
+
+.signal-summary-config {
+  color: #67c23a;
+}
+
+.signal-summary-group {
+  color: #9b59b6;
+}
+
+.signal-summary-rise {
+  color: #f56c6c;
+}
+
+.signal-summary-fall {
+  color: #909399;
+}
+
+.signal-summary-fluid {
+  color: #e6a23c;
+}
+
+.signal-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.signal-panel {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e8eef5;
+}
+
+.signal-panel-title {
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.signal-highlight-list,
+.signal-extreme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signal-highlight-item,
+.signal-extreme-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.signal-highlight-label,
+.signal-extreme-label {
+  min-width: 72px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.signal-highlight-content,
+.signal-extreme-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #303133;
+  text-align: right;
+}
+
+.signal-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.signal-rank-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.signal-rank-index {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #409eff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.signal-rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.signal-rank-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.signal-rank-value {
+  min-width: 76px;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f56c6c;
+}
+
+.signal-dashboard-empty {
+  padding: 20px 0 4px;
+  text-align: center;
+}
+
+:deep(.signal-summary-popover) {
+  max-width: 420px;
+}
+
+.signal-summary-popover-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.signal-summary-popover-subtitle {
+  margin-top: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.signal-summary-popover-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signal-summary-popover-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.signal-summary-popover-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.signal-summary-popover-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.signal-summary-popover-name {
+  color: #303133;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.signal-summary-popover-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .group-tags {
@@ -1531,14 +3087,17 @@ onMounted(async () => {
 }
 
 @media (max-width: 1400px) {
-  .summary-row {
+  .summary-row,
+  .signal-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1200px) {
   .summary-row,
-  .detail-grid {
+  .detail-grid,
+  .signal-summary-grid,
+  .signal-panel-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1549,6 +3108,20 @@ onMounted(async () => {
 
   .toolbar-left {
     flex-wrap: wrap;
+  }
+
+  .signal-dashboard-header,
+  .signal-highlight-item,
+  .signal-extreme-item,
+  .signal-highlight-content,
+  .signal-extreme-content {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .signal-rank-value {
+    min-width: auto;
   }
 }
 </style>
