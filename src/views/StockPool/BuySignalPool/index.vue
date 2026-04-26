@@ -238,6 +238,7 @@
                 start-placeholder="开始日期"
                 end-placeholder="结束日期"
                 value-format="YYYY-MM-DD"
+                :shortcuts="signalDateShortcuts"
                 class="toolbar-date-range"
               />
               <el-button type="primary" @click="handleSignalSearch"
@@ -280,10 +281,7 @@
             />
             <el-table-column label="股票" min-width="160">
               <template #default="{ row }">
-                <div
-                  class="stock-link-text"
-                  @click="handleStockCodeClick(row)"
-                >
+                <div class="stock-link-text" @click="handleStockCodeClick(row)">
                   {{ row.stock_name }}
                 </div>
                 <div
@@ -594,7 +592,7 @@ const configPage = reactive({
 
 const signalPage = reactive({
   pageNo: 1,
-  pageSize: 10,
+  pageSize: 100,
   total: 0,
 });
 
@@ -610,6 +608,38 @@ const configStockSearchParams = reactive({
   exchange_code: '',
   snapshot_date: '',
 });
+
+const buildRecentDateShortcut = (text, getStartDate) => ({
+  text,
+  value: () => {
+    const end = new Date();
+    const start = getStartDate(new Date(end));
+    return [start, end];
+  },
+});
+
+const signalDateShortcuts = [
+  buildRecentDateShortcut('最近3日', (date) => {
+    date.setDate(date.getDate() - 2);
+    return date;
+  }),
+  buildRecentDateShortcut('最近5日', (date) => {
+    date.setDate(date.getDate() - 4);
+    return date;
+  }),
+  buildRecentDateShortcut('最近10日', (date) => {
+    date.setDate(date.getDate() - 9);
+    return date;
+  }),
+  buildRecentDateShortcut('最近20日', (date) => {
+    date.setDate(date.getDate() - 19);
+    return date;
+  }),
+  buildRecentDateShortcut('最近1个月', (date) => {
+    date.setMonth(date.getMonth() - 1);
+    return date;
+  }),
+];
 
 const formattedQuotePayload = computed(() => {
   if (!signalDetail.value?.quote_payload) return '--';
