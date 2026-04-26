@@ -278,7 +278,13 @@
               label="分组名"
               min-width="120"
               show-overflow-tooltip
-            />
+            >
+              <template #default="{ row }">
+                <el-button link type="primary" @click="handleGroupClick(row)">
+                  {{ row.group_name || '--' }}
+                </el-button>
+              </template>
+            </el-table-column>
             <el-table-column label="股票" min-width="160">
               <template #default="{ row }">
                 <div class="stock-link-text" @click="handleStockCodeClick(row)">
@@ -306,17 +312,35 @@
                 formatNumber(row.current_price)
               }}</template>
             </el-table-column>
-            <el-table-column label="涨幅" width="100">
+            <el-table-column
+              prop="change_pct"
+              label="涨幅"
+              width="100"
+              sortable
+              :sort-method="signalSortMethods.change_pct"
+            >
               <template #default="{ row }">{{
                 formatPercent(row.change_pct)
               }}</template>
             </el-table-column>
-            <el-table-column label="量比" width="100">
+            <el-table-column
+              prop="volume_ratio"
+              label="量比"
+              width="100"
+              sortable
+              :sort-method="signalSortMethods.volume_ratio"
+            >
               <template #default="{ row }">{{
                 formatNumber(row.volume_ratio)
               }}</template>
             </el-table-column>
-            <el-table-column label="换手率" width="100">
+            <el-table-column
+              prop="turnover_rate"
+              label="换手率"
+              width="100"
+              sortable
+              :sort-method="signalSortMethods.turnover_rate"
+            >
               <template #default="{ row }">{{
                 formatPercent(row.turnover_rate)
               }}</template>
@@ -518,6 +542,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   createGroupMonitorConfig,
@@ -542,6 +567,9 @@ import ConfigDialog from './components/ConfigDialog.vue';
 import { calculateDaysAdded, formatDateTime } from '@/utils/time';
 import { useStockInsights } from '../composables/useStockInsights';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
+
+const route = useRoute();
+const router = useRouter();
 
 const activeTab = ref('configs');
 const tableLoading = ref(false);
@@ -640,6 +668,32 @@ const signalDateShortcuts = [
     return date;
   }),
 ];
+
+const toSortableNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const compareNullableNumberByKey = (a, b, key) => {
+  const leftValue = toSortableNumber(a?.[key]);
+  const rightValue = toSortableNumber(b?.[key]);
+
+  if (leftValue === null && rightValue === null) return 0;
+  if (leftValue === null) return 1;
+  if (rightValue === null) return -1;
+
+  return leftValue - rightValue;
+};
+
+const signalSortMethods = {
+  change_pct: (a, b) => compareNullableNumberByKey(a, b, 'change_pct'),
+  volume_ratio: (a, b) => compareNullableNumberByKey(a, b, 'volume_ratio'),
+  turnover_rate: (a, b) => compareNullableNumberByKey(a, b, 'turnover_rate'),
+};
 
 const formattedQuotePayload = computed(() => {
   if (!signalDetail.value?.quote_payload) return '--';
@@ -1112,13 +1166,57 @@ const handleViewSignals = async (row) => {
   await fetchSignals();
 };
 
+const openRouteInNewTab = (location) => {
+  const resolvedRoute = router.resolve(location);
+  window.open(resolvedRoute.href, '_blank', 'noopener');
+};
+
 const handleEditByConfigId = async (configId) => {
   if (!configId) {
     ElMessage.warning('当前信号缺少关联配置');
     return;
   }
 
-  activeTab.value = 'configs';
+  openRouteInNewTab({
+    path: '/stock-pool/buy-signal',
+    query: {
+      tab: 'configs',
+      configId: String(configId),
+    },
+  });
+};
+
+const handleGroupClick = (row) => {
+  const groupId = row?.group_id;
+  if (groupId === null || groupId === undefined || groupId === '') {
+    ElMessage.warning('当前信号缺少关联分组');
+    return;
+  }
+
+  openRouteInNewTab({
+    path: '/stock-pool/self-selected',
+    query: {
+      groupId: String(groupId),
+    },
+  });
+};
+
+const handleInitialRouteAction = async () => {
+  const tab = Array.isArray(route.query?.tab)
+    ? route.query.tab[0]
+    : route.query?.tab;
+  const configId = Array.isArray(route.query?.configId)
+    ? route.query.configId[0]
+    : route.query?.configId;
+
+  if (tab === 'configs') {
+    activeTab.value = 'configs';
+  }
+
+  if (!configId) {
+    return;
+  }
+
   await handleEdit({ id: configId });
 };
 
@@ -1245,6 +1343,7 @@ onMounted(async () => {
     fetchConfigOptions(),
     fetchConfigs(),
   ]);
+  await handleInitialRouteAction();
 });
 </script>
 

@@ -111,6 +111,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useGetDerivedNamespace } from 'element-plus';
 import Sortable from 'sortablejs';
+import { useRoute } from 'vue-router';
 import {
   getUserGroups,
   createGroup,
@@ -133,6 +134,8 @@ import { buildStockListRequestParams } from '../composables/useStockListRequestC
 import { useStockInsights } from '../composables/useStockInsights';
 import { useStockListPagingHandlers } from '../composables/useStockListPagingHandlers';
 import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow';
+
+const route = useRoute();
 
 // 分组相关数据
 const ALL_GROUP_TAB_ID = 'all';
@@ -161,6 +164,20 @@ function clearTabDragEdgeScroll() {
 }
 
 let lastSortableGroupOrderKey = '';
+function getTargetGroupIdFromRoute() {
+  const rawGroupId = route.query?.groupId;
+  if (Array.isArray(rawGroupId)) {
+    return String(rawGroupId[0] || '');
+  }
+  return String(rawGroupId || '');
+}
+
+function applyRouteGroupId() {
+  const targetGroupId = getTargetGroupIdFromRoute();
+  if (!targetGroupId || targetGroupId === 'add') return;
+  activeGroupId.value = targetGroupId;
+}
+
 function flushGroupTabsLayout() {
   const orderKey = groups.value.map((g) => g.id).join(',');
   if (orderKey === lastSortableGroupOrderKey) return;
@@ -234,8 +251,19 @@ watch(activeGroupId, () => {
   nextTick(() => tabRef.value?.tabNavRef?.scrollToActiveTab?.());
 });
 
+watch(
+  () => route.query?.groupId,
+  async () => {
+    applyRouteGroupId();
+    if (groups.value.length > 0 && activeGroupId.value !== 'add') {
+      await getStockList();
+    }
+  }
+);
+
 // 页面加载时获取分组列表（分组变化由 watch 触发 flush；ResizeObserver 覆盖窗口与侧栏变宽）
 onMounted(async () => {
+  applyRouteGroupId();
   await fetchGroups();
   await nextTick();
   groupTabsResizeObserver = new ResizeObserver(() => {
