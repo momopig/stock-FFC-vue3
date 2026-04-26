@@ -31,12 +31,22 @@
             </el-tab-pane>
           </el-tabs>
         </div>
-        <div
-          class="add-group-btn"
-          @click.stop="handleCreateGroup"
-          title="新建分组"
-        >
-          <el-icon><Plus /></el-icon>
+        <div class="group-actions">
+          <GroupSearchPopover
+            :groups="groups"
+            :active-group-id="activeGroupId"
+            :all-group-id="ALL_GROUP_TAB_ID"
+            storage-key="stock:self-selected:recent-group-ids"
+            @select="handleGroupChange"
+          />
+
+          <div
+            class="group-action-btn"
+            @click.stop="handleCreateGroup"
+            title="新建分组"
+          >
+            <el-icon><Plus /></el-icon>
+          </div>
         </div>
       </div>
     </div>
@@ -94,7 +104,6 @@ import {
   reactive,
   onMounted,
   onBeforeUnmount,
-  computed,
   nextTick,
   watch,
 } from 'vue';
@@ -115,6 +124,7 @@ import {
 } from '@/api/modules/stockGroup';
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
+import GroupSearchPopover from '../components/GroupSearchPopover.vue';
 import StockDialog from '../components/StockDialog.vue';
 import AddToGroupDialog from '../components/AddToGroupDialog.vue';
 import { calculateDaysAdded } from '@/utils/time';
@@ -209,7 +219,7 @@ const initStockForm = () => {
 const stockForm = ref(initStockForm());
 
 // 显示股票列表（直接使用 stockList，不再筛选）
-const displayStockList = computed(() => stockList.value);
+const displayStockList = stockList;
 
 const { insightsData, calculateInsightsFromList, handleFilterChange } =
   useStockInsights(displayStockList);
@@ -972,7 +982,14 @@ const submitStock = async (formData) => {
   vertical-align: middle;
 }
 
-.add-group-btn {
+.group-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.group-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -983,7 +1000,6 @@ const submitStock = async (formData) => {
   cursor: pointer;
   color: #909399;
   transition: all 0.2s ease;
-  flex-shrink: 0;
   align-self: center;
 
   &:hover {
