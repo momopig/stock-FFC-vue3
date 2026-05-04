@@ -14,6 +14,8 @@ const routes = [
   { path: '/stock-pool/self-selected', component: lazy(() => import('@/views/StockPool/SelfSelectedPool/index.vue'))},
   { path: '/stock-pool/buy-signal', component: lazy(() => import('@/views/StockPool/BuySignalPool/index.vue'))},
   { path: '/stock-pool/sell-signal', component: lazy(() => import('@/views/StockPool/SellSignalPool/index.vue'))},
+  { path: '/sim-trading/accounts', component: lazy(() => import('@/views/SimTrading/AccountList/index.vue'))},
+  { path: '/sim-trading/account-detail', component: lazy(() => import('@/views/SimTrading/AccountDetail/index.vue'))},
 ];
 
 const router = createRouter({

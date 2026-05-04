@@ -74,6 +74,24 @@ export const menuList = [
     ],
   },
   {
+    name: '模拟交易',
+    foldName: '模拟交易',
+    icon: 'Coin',
+    path: '/sim-trading',
+    children: [
+      {
+        name: '账号管理',
+        foldName: '账号管理',
+        path: '/sim-trading/accounts',
+      },
+      {
+        name: '账号详情',
+        foldName: '账号详情',
+        path: '/sim-trading/account-detail',
+      },
+    ],
+  },
+  {
     name: '用户管理',
     foldName: '用户',
     icon: 'User', // 用户
