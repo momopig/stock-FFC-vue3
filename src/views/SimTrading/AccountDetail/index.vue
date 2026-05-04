@@ -80,6 +80,10 @@
           </el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="自动化策略" name="strategy">
+          <StrategyPanel v-if="currentAccount" :account-id="activeAccountId" />
+        </el-tab-pane>
+
         <el-tab-pane label="买入" name="buy">
           <div class="order-tab-grid">
             <div class="form-panel">
@@ -626,6 +630,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
+import StrategyPanel from './StrategyPanel.vue';
 
 import {
   cancelSimTradingOrder,

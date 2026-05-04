@@ -74,6 +74,19 @@ export const menuList = [
     ],
   },
   {
+    name: '交易策略管理',
+    foldName: '交易策略',
+    icon: 'DataAnalysis',
+    path: '/trading-strategy',
+    children: [
+      {
+        name: '执行策略管理',
+        foldName: '执行策略',
+        path: '/trading-strategy/execution',
+      },
+    ],
+  },
+  {
     name: '模拟交易',
     foldName: '模拟交易',
     icon: 'Coin',
