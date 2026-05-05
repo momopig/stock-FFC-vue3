@@ -56,7 +56,16 @@ request.interceptors.response.use(
     return res;
   },
   (error) => {
-    // 对响应错误做点什么
+    const responseData = error?.response?.data || {};
+    const detail = responseData?.detail;
+    const payloadMessage = responseData?.message || responseData?.error_msg || responseData?.errorMsg;
+    const normalizedMessage =
+      (typeof detail === 'string' && detail)
+      || payloadMessage
+      || error?.message
+      || '请求失败';
+
+    error.message = normalizedMessage;
     return Promise.reject(error);
   }
 );

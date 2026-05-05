@@ -66,6 +66,18 @@
               <el-table-column prop="last_execute_result" label="最近结果" min-width="140">
                 <template #default="scope">{{ scope.row.last_execute_result || '-' }}</template>
               </el-table-column>
+              <el-table-column label="风控参数" min-width="220">
+                <template #default="scope">
+                  <div v-if="scope.row.strategy.strategy_code === 'EXEC_ACCOUNT_RISK_BASE'" class="risk-preview-cell">
+                    <span>市场环境：{{ getRiskPreview(scope.row).marketRegimeLabel }}</span>
+                    <span>最大持股：{{ getRiskPreview(scope.row).maxHoldings }}</span>
+                    <span>当前总分块数(M + N)：{{ getRiskPreview(scope.row).totalSlots }}</span>
+                    <span>单份金额：{{ getRiskPreview(scope.row).slotAmountText }}</span>
+                    <span>浮亏阈值：{{ getRiskPreview(scope.row).maxFloatingLossPercentText }}</span>
+                  </div>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
               <el-table-column label="备注" min-width="180">
                 <template #default="scope">{{ scope.row.strategy.remark || '-' }}</template>
               </el-table-column>
@@ -179,6 +191,10 @@ const props = defineProps({
   accountId: {
     type: [Number, String],
     required: true,
+  },
+  accountTotalAsset: {
+    type: [Number, String],
+    default: 0,
   },
 });
 
@@ -459,6 +475,61 @@ function formatDateTime(value) {
     hour12: false,
   });
 }
+
+function normalizeMarketRegime(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (raw === 'BEAR' || raw === '熊市') {
+    return { key: 'bear', label: '熊市' };
+  }
+  if (raw === 'BULL' || raw === '牛市') {
+    return { key: 'bull', label: '牛市' };
+  }
+  return { key: 'range', label: '震荡市' };
+}
+
+function normalizeRiskPercentValue(value) {
+  const num = Number(value ?? 0);
+  if (!Number.isFinite(num) || num <= 0) {
+    return 0;
+  }
+  return num <= 1 ? Number((num * 100).toFixed(2)) : num;
+}
+
+function formatMoney(value) {
+  const num = Number(value ?? 0);
+  if (!Number.isFinite(num)) {
+    return '-';
+  }
+  return num.toFixed(2);
+}
+
+function getRiskPreview(binding) {
+  const strategyRisk = binding?.strategy?.rule_config_json?.risk || {};
+  const overrideRisk = binding?.account_override_json?.risk || {};
+  const risk = {
+    ...strategyRisk,
+    ...overrideRisk,
+    max_holdings_by_market: {
+      ...(strategyRisk.max_holdings_by_market || {}),
+      ...(overrideRisk.max_holdings_by_market || {}),
+    },
+  };
+  const marketRegime = normalizeMarketRegime(risk.current_market_regime);
+  const maxHoldingsByMarket = risk.max_holdings_by_market || {};
+  const maxHoldings = Number(maxHoldingsByMarket[marketRegime.key] ?? 0);
+  const bullMaxHoldings = Number(maxHoldingsByMarket.bull ?? 0);
+  const reservedTSlotCount = Number(risk.reserved_t_slot_count ?? 0);
+  const totalSlots = Math.max(bullMaxHoldings + reservedTSlotCount, 0);
+  const totalAsset = Number(props.accountTotalAsset ?? 0);
+  const slotAmount = totalSlots > 0 && Number.isFinite(totalAsset) ? totalAsset / totalSlots : 0;
+  return {
+    marketRegimeLabel: marketRegime.label,
+    maxHoldings,
+    totalSlots,
+    slotAmountText: totalSlots > 0 ? formatMoney(slotAmount) : '-',
+    maxFloatingLossPercentText: `${normalizeRiskPercentValue(risk.max_floating_loss_ratio)}%`,
+  };
+}
 </script>
 
 <style scoped>
@@ -518,6 +589,14 @@ function formatDateTime(value) {
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+}
+
+.risk-preview-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #606266;
+  font-size: 12px;
 }
 
 .group-card-header h3 {

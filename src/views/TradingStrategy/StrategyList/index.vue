@@ -84,20 +84,20 @@
     </el-card>
 
     <el-dialog v-model="dialog.visible" :title="dialog.mode === 'create' ? '新建执行策略' : '编辑执行策略'" width="720px">
-      <el-form label-width="140px" class="strategy-form">
-        <el-form-item label="策略编码">
+      <el-form ref="strategyFormRef" :model="form" :rules="formRules" label-width="140px" class="strategy-form">
+        <el-form-item label="策略编码" prop="strategy_code">
           <el-input v-model="form.strategy_code" :disabled="dialog.mode === 'edit'" placeholder="例如 EXEC_CUSTOM_OPEN_001" />
         </el-form-item>
-        <el-form-item label="策略名称">
-          <el-input v-model="form.strategy_name" maxlength="128" />
+        <el-form-item label="策略名称" prop="strategy_name">
+          <el-input v-model="form.strategy_name" maxlength="128" :disabled="dialog.isBuiltin" />
         </el-form-item>
-        <el-form-item label="策略分类">
+        <el-form-item label="策略分类" prop="strategy_category">
           <el-select v-model="form.strategy_category" :disabled="dialog.mode === 'edit'" class="full-width">
             <el-option v-for="item in CATEGORY_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="上游信号来源">
-          <el-select v-model="form.signal_source" clearable filterable allow-create default-first-option class="full-width" placeholder="选择常见来源，或手动输入扩展来源">
+          <el-select v-model="form.signal_source" clearable filterable allow-create default-first-option class="full-width" placeholder="选择常见来源，或手动输入扩展来源" :disabled="dialog.isBuiltin">
             <el-option v-for="item in SIGNAL_SOURCE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
           <div class="field-help-text">
@@ -105,15 +105,90 @@
           </div>
         </el-form-item>
         <el-form-item label="设计原理">
-          <el-input v-model="form.design_principle" type="textarea" :rows="4" placeholder="说明该策略的核心思想、输入来源、决策逻辑和风险边界" />
+          <el-input v-model="form.design_principle" type="textarea" :rows="4" placeholder="说明该策略的核心思想、输入来源、决策逻辑和风险边界" :disabled="dialog.isBuiltin" />
         </el-form-item>
         <el-form-item label="默认启用">
           <el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" :disabled="dialog.mode === 'edit'" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" />
+          <el-input v-model="form.remark" type="textarea" :rows="3" :disabled="dialog.isBuiltin" />
         </el-form-item>
-        <el-form-item label="规则 JSON">
+        <el-form-item v-if="dialog.isBuiltin && currentBuiltinFields.length" label="参数配置">
+          <div class="builtin-config-panel full-width">
+            <div class="field-help-text builtin-config-help">
+              内置策略的代码逻辑保持内置，但参数支持在线调整。当前已按后端提供的字段描述渲染 GUI 表单；如果后续新增字段，只需在后端注册表补充表单描述即可自动透出。
+            </div>
+            <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help emphasis-help">
+              持仓个股最大可接受浮亏比例默认按百分比输入，例如 2 表示 2%，历史配置中的 0.02 会在前端自动换算显示为 2。
+            </div>
+            <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help">
+              最大持股数会自动保持“熊市 ≤ 震荡市 ≤ 牛市”的关系，避免提交时被后端校验拒绝。
+            </div>
+            <div class="builtin-config-grid">
+              <div v-for="field in currentBuiltinFields" :key="field.path" class="builtin-config-item">
+                <label class="builtin-config-label">{{ field.label }}</label>
+                <el-input-number
+                  v-if="field.component === 'number' || field.component === 'integer'"
+                  :model-value="getBuiltinFieldValue(field)"
+                  class="full-width"
+                  controls-position="right"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step || 1"
+                  :precision="field.component === 'number' ? field.precision : 0"
+                  @update:model-value="setBuiltinFieldValue(field, $event)"
+                />
+                <el-switch
+                  v-else-if="field.component === 'boolean'"
+                  :model-value="Boolean(getBuiltinFieldValue(field))"
+                  inline-prompt
+                  active-text="是"
+                  inactive-text="否"
+                  @update:model-value="setBuiltinFieldValue(field, $event)"
+                />
+                <el-select
+                  v-else-if="field.component === 'select'"
+                  :model-value="getBuiltinFieldValue(field)"
+                  class="full-width"
+                  @update:model-value="setBuiltinFieldValue(field, $event)"
+                >
+                  <el-option v-for="option in field.options || []" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+                <el-input
+                  v-else
+                  :model-value="formatBuiltinFieldValue(field)"
+                  class="full-width"
+                  :type="field.component === 'textarea' || field.component === 'string-array' ? 'textarea' : 'text'"
+                  :rows="field.component === 'textarea' || field.component === 'string-array' ? 3 : undefined"
+                  :placeholder="field.placeholder || ''"
+                  @input="setBuiltinFieldValue(field, $event)"
+                />
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item v-if="dialog.isBuiltin && isAccountRiskSlotStrategy" label="风控预览">
+          <div class="builtin-preview-panel full-width">
+            <div class="builtin-preview-card">
+              <span>当前市场环境</span>
+              <strong>{{ riskPreview.marketRegimeLabel }}</strong>
+            </div>
+            <div class="builtin-preview-card">
+              <span>当前最大可持股数</span>
+              <strong>{{ riskPreview.maxHoldings }}</strong>
+            </div>
+            <div class="builtin-preview-card">
+              <span>当前总分块数</span>
+              <small class="builtin-preview-subtitle">M + N</small>
+              <strong>{{ riskPreview.totalSlots }}</strong>
+            </div>
+            <div class="builtin-preview-card">
+              <span>浮亏阈值</span>
+              <strong>{{ riskPreview.maxFloatingLossPercentText }}</strong>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item :label="dialog.isBuiltin ? '参数 JSON（高级）' : '规则 JSON'" prop="rule_config_json_text">
           <el-input v-model="form.rule_config_json_text" type="textarea" :rows="12" placeholder="请输入合法 JSON" />
         </el-form-item>
       </el-form>
@@ -126,7 +201,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 
@@ -167,8 +242,84 @@ const strategies = reactive({ total: 0, items: [] });
 const filters = reactive({ strategy_category: '', enabled: undefined, keyword: '' });
 const pagination = reactive({ page: 1, pageSize: 10 });
 
-const dialog = reactive({ visible: false, mode: 'create', strategyId: null });
+const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
 const form = reactive(createInitialForm());
+const strategyFormRef = ref(null);
+
+const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
+const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
+const formRules = computed(() => ({
+  strategy_code: [
+    {
+      validator: (_rule, value, callback) => {
+        if (dialog.mode === 'edit') {
+          callback();
+          return;
+        }
+        if (!String(value || '').trim()) {
+          callback(new Error('请输入策略编码'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
+  strategy_name: [
+    {
+      validator: (_rule, value, callback) => {
+        if (dialog.isBuiltin) {
+          callback();
+          return;
+        }
+        if (!String(value || '').trim()) {
+          callback(new Error('请输入策略名称'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
+  strategy_category: [{ required: true, message: '请选择策略分类', trigger: 'change' }],
+  rule_config_json_text: [
+    {
+      validator: (_rule, value, callback) => {
+        try {
+          validateRuleConfigText(value);
+          callback();
+        } catch (error) {
+          callback(error instanceof Error ? error : new Error('规则 JSON 校验失败'));
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+}));
+const riskPreview = computed(() => {
+  if (!isAccountRiskSlotStrategy.value) {
+    return {
+      marketRegimeLabel: '-',
+      maxHoldings: '-',
+      totalSlots: '-',
+      maxFloatingLossPercentText: '-',
+    };
+  }
+  const config = parseCurrentRuleConfig();
+  const risk = config.risk || {};
+  const marketRegime = normalizeMarketRegime(risk.current_market_regime);
+  const maxHoldingsByMarket = risk.max_holdings_by_market || {};
+  const maxHoldings = Number(maxHoldingsByMarket[marketRegime.key] ?? 0);
+  const bullMaxHoldings = Number(maxHoldingsByMarket.bull ?? 0);
+  const reservedTSlotCount = Number(risk.reserved_t_slot_count ?? 0);
+  const totalSlots = Math.max(bullMaxHoldings + reservedTSlotCount, 0);
+  return {
+    marketRegimeLabel: marketRegime.label,
+    maxHoldings,
+    totalSlots,
+    maxFloatingLossPercentText: `${formatRiskPercent(risk.max_floating_loss_ratio)}%`,
+  };
+});
 
 onMounted(() => {
   loadStrategies();
@@ -179,10 +330,12 @@ function createInitialForm() {
     strategy_code: '',
     strategy_name: '',
     strategy_category: 'OPEN_POSITION',
+    strategy_mode: 'CONFIGURABLE',
     signal_source: '',
     design_principle: '',
     remark: '',
     enabled: true,
+    config_form_schema: null,
     rule_config_json_text: '{\n  "schedule": {},\n  "signal": {},\n  "order": {}\n}',
   };
 }
@@ -215,6 +368,16 @@ function buildStrategyPayload() {
     } catch {
       throw new Error('规则 JSON 格式不正确');
     }
+  }
+  if (dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE') {
+    ruleConfigJson = normalizeAccountRiskConfig(ruleConfigJson || {});
+    validateAccountRiskConfig(ruleConfigJson);
+    writeCurrentRuleConfig(ruleConfigJson);
+  }
+  if (dialog.isBuiltin) {
+    return {
+      rule_config_json: ruleConfigJson,
+    };
   }
   return {
     strategy_name: form.strategy_name,
@@ -261,32 +424,192 @@ function openCreateDialog() {
   dialog.visible = true;
   dialog.mode = 'create';
   dialog.strategyId = null;
+  dialog.isBuiltin = false;
   resetForm();
+  nextTick(() => strategyFormRef.value?.clearValidate());
 }
 
 function openEditDialog(row) {
-  if (row.strategy_mode === 'BUILTIN' || !row.editable) {
-    ElMessage.warning('内置策略仅支持查看使用情况与启停');
+  if (!row.editable) {
+    ElMessage.warning('当前策略不支持编辑');
     return;
   }
   dialog.visible = true;
   dialog.mode = 'edit';
   dialog.strategyId = row.id;
+  dialog.isBuiltin = row.strategy_mode === 'BUILTIN';
   Object.assign(form, {
     strategy_code: row.strategy_code,
     strategy_name: row.strategy_name,
     strategy_category: row.strategy_category,
+    strategy_mode: row.strategy_mode,
     signal_source: row.signal_source || '',
     design_principle: row.design_principle || '',
     remark: row.remark || '',
     enabled: row.enabled,
-    rule_config_json_text: row.rule_config_json ? JSON.stringify(row.rule_config_json, null, 2) : '{}',
+    config_form_schema: row.config_form_schema || null,
+    rule_config_json_text: JSON.stringify(normalizeRuleConfigForDisplay(row), null, 2),
   });
+  nextTick(() => strategyFormRef.value?.clearValidate());
+}
+
+function normalizeRuleConfigForDisplay(row) {
+  const base = row?.rule_config_json ? JSON.parse(JSON.stringify(row.rule_config_json)) : {};
+  if (row?.strategy_code !== 'EXEC_ACCOUNT_RISK_BASE') {
+    return base;
+  }
+  const risk = base.risk || {};
+  const nextValue = normalizeRiskPercentValue(risk.max_floating_loss_ratio);
+  base.risk = {
+    ...risk,
+    max_floating_loss_ratio: nextValue,
+  };
+  return base;
+}
+
+function parseCurrentRuleConfig() {
+  const trimmed = String(form.rule_config_json_text || '').trim();
+  if (!trimmed) {
+    return {};
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return {};
+  }
+}
+
+function writeCurrentRuleConfig(nextConfig) {
+  form.rule_config_json_text = JSON.stringify(nextConfig || {}, null, 2);
+}
+
+function normalizeMarketRegime(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (raw === 'BEAR' || raw === '熊市') {
+    return { key: 'bear', label: '熊市' };
+  }
+  if (raw === 'BULL' || raw === '牛市') {
+    return { key: 'bull', label: '牛市' };
+  }
+  return { key: 'range', label: '震荡市' };
+}
+
+function normalizeRiskPercentValue(value) {
+  const num = Number(value ?? 0);
+  if (!Number.isFinite(num) || num <= 0) {
+    return 0;
+  }
+  return num <= 1 ? Number((num * 100).toFixed(2)) : num;
+}
+
+function formatRiskPercent(value) {
+  const normalized = normalizeRiskPercentValue(value);
+  return normalized ? normalized.toFixed(2).replace(/\.00$/, '') : '0';
+}
+
+function getValueByPath(source, path) {
+  return String(path || '').split('.').filter(Boolean).reduce((current, key) => (current == null ? undefined : current[key]), source);
+}
+
+function setValueByPath(target, path, value) {
+  const keys = String(path || '').split('.').filter(Boolean);
+  if (!keys.length) {
+    return;
+  }
+  let cursor = target;
+  keys.slice(0, -1).forEach((key) => {
+    if (!cursor[key] || typeof cursor[key] !== 'object' || Array.isArray(cursor[key])) {
+      cursor[key] = {};
+    }
+    cursor = cursor[key];
+  });
+  cursor[keys[keys.length - 1]] = value;
+}
+
+function getBuiltinFieldValue(field) {
+  return getValueByPath(parseCurrentRuleConfig(), field.path);
+}
+
+function formatBuiltinFieldValue(field) {
+  const value = getBuiltinFieldValue(field);
+  if (field.component === 'string-array') {
+    return Array.isArray(value) ? value.join(',') : '';
+  }
+  return value ?? '';
+}
+
+function setBuiltinFieldValue(field, rawValue) {
+  const nextConfig = parseCurrentRuleConfig();
+  let value = rawValue;
+  if (field.component === 'string-array') {
+    value = String(rawValue || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  setValueByPath(nextConfig, field.path, value);
+  if (form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE') {
+    normalizeAccountRiskConfig(nextConfig, field.path);
+  }
+  writeCurrentRuleConfig(nextConfig);
+}
+
+function normalizePositiveInt(value, fallback = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return fallback;
+  }
+  return Math.max(1, Math.trunc(num));
+}
+
+function normalizeAccountRiskConfig(config, changedPath = '') {
+  const nextConfig = config || {};
+  const risk = nextConfig.risk || {};
+  const holdings = { ...(risk.max_holdings_by_market || {}) };
+  let bear = normalizePositiveInt(holdings.bear, 1);
+  let range = normalizePositiveInt(holdings.range, 2);
+  let bull = normalizePositiveInt(holdings.bull, 3);
+
+  if (changedPath === 'risk.max_holdings_by_market.bear') {
+    range = Math.max(range, bear);
+    bull = Math.max(bull, range);
+  } else if (changedPath === 'risk.max_holdings_by_market.range') {
+    bear = Math.min(bear, range);
+    bull = Math.max(bull, range);
+  } else if (changedPath === 'risk.max_holdings_by_market.bull') {
+    range = Math.min(range, bull);
+    bear = Math.min(bear, range);
+  } else {
+    range = Math.max(range, bear);
+    bull = Math.max(bull, range);
+  }
+
+  nextConfig.risk = {
+    ...risk,
+    max_holdings_by_market: {
+      ...holdings,
+      bear,
+      range,
+      bull,
+    },
+  };
+  return nextConfig;
+}
+
+function validateAccountRiskConfig(config) {
+  const holdings = config?.risk?.max_holdings_by_market || {};
+  const bear = normalizePositiveInt(holdings.bear, 1);
+  const range = normalizePositiveInt(holdings.range, 2);
+  const bull = normalizePositiveInt(holdings.bull, 3);
+  if (!(bear <= range && range <= bull)) {
+    throw new Error('最大持股数必须满足 熊市 ≤ 震荡市 ≤ 牛市');
+  }
 }
 
 async function submitStrategy() {
   submitting.value = true;
   try {
+    await strategyFormRef.value?.validate();
     const payload = buildStrategyPayload();
     if (dialog.mode === 'create') {
       await createTradingStrategy(payload);
@@ -302,6 +625,22 @@ async function submitStrategy() {
     ElMessage.error(error?.message || '保存执行策略失败');
   } finally {
     submitting.value = false;
+  }
+}
+
+function validateRuleConfigText(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error('规则 JSON 格式不正确');
+  }
+  if (dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE') {
+    validateAccountRiskConfig(parsed);
   }
 }
 
@@ -430,6 +769,64 @@ function goToAccountStrategy(accountId) {
   font-size: 12px;
 }
 
+.builtin-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.builtin-config-help {
+  margin-top: 0;
+}
+
+.emphasis-help {
+  color: #8a5a00;
+}
+
+.builtin-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.builtin-config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.builtin-config-label {
+  color: #606266;
+  font-size: 13px;
+}
+
+.builtin-preview-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.builtin-preview-card {
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.builtin-preview-card span {
+  color: #606266;
+  font-size: 12px;
+}
+
+.builtin-preview-subtitle {
+  color: #909399;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 .usage-drawer {
   display: flex;
   flex-direction: column;
@@ -471,6 +868,14 @@ function goToAccountStrategy(accountId) {
   }
 
   .usage-header {
+    grid-template-columns: 1fr;
+  }
+
+  .builtin-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .builtin-preview-panel {
     grid-template-columns: 1fr;
   }
 

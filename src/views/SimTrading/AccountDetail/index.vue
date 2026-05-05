@@ -47,6 +47,57 @@
         </div>
       </div>
 
+      <div v-if="accountRiskOverview.enabled" class="account-risk-overview-card">
+        <div class="account-risk-overview-header">
+          <div>
+            <h3>账号风控概览</h3>
+            <p>当前账号已绑定 EXEC_ACCOUNT_RISK_BASE，以下关键参数会同时约束手动交易与自动化策略。</p>
+          </div>
+        </div>
+        <div class="account-risk-overview-grid">
+          <div class="account-risk-overview-item">
+            <span>当前市场环境</span>
+            <strong>{{ accountRiskOverview.marketRegimeLabel }}</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>当前最大持股数</span>
+            <strong>{{ accountRiskOverview.maxHoldings }} 只</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>当前已持仓数</span>
+            <strong>{{ accountRiskOverview.currentHoldingCount }} 只</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>剩余可新开仓数</span>
+            <strong>{{ accountRiskOverview.remainingOpenSlots }} 只</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>牛市最大持股数(M)</span>
+            <strong>{{ accountRiskOverview.bullMaxHoldings }} 只</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>做T预留分块数(N)</span>
+            <strong>{{ accountRiskOverview.reservedTSlotCount }} 份</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>当前总分块数(M + N)</span>
+            <strong>{{ accountRiskOverview.totalSlots }} 份</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>单份资金上限</span>
+            <strong>{{ formatMoney(accountRiskOverview.slotAmount) }} 元</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>浮亏阈值比例</span>
+            <strong>{{ accountRiskOverview.maxFloatingLossPercentText }}</strong>
+          </div>
+          <div class="account-risk-overview-item">
+            <span>浮亏阈值金额</span>
+            <strong>{{ formatMoney(accountRiskOverview.maxFloatingLossAmount) }} 元</strong>
+          </div>
+        </div>
+      </div>
+
       <el-tabs v-model="activeTab">
         <el-tab-pane label="持仓" name="position">
           <el-table :data="positions" border>
@@ -60,6 +111,9 @@
             </el-table-column>
             <el-table-column label="现价" width="110">
               <template #default="scope">{{ formatMoney(scope.row.current_price) }}</template>
+            </el-table-column>
+            <el-table-column label="市值" width="130">
+              <template #default="scope">{{ formatMoney(scope.row.market_value) }}</template>
             </el-table-column>
             <el-table-column label="浮盈亏" width="130">
               <template #default="scope">
@@ -81,7 +135,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="自动化策略" name="strategy">
-          <StrategyPanel v-if="currentAccount" :account-id="activeAccountId" />
+          <StrategyPanel v-if="currentAccount" :account-id="activeAccountId" :account-total-asset="summary.current_total_asset" />
         </el-tab-pane>
 
         <el-tab-pane label="买入" name="buy">
@@ -121,6 +175,9 @@
                 <el-form-item label="交易所">
                   <el-input :model-value="getExchangeLabel(buyForm.exchange_code)" disabled placeholder="自动回填" />
                 </el-form-item>
+                <el-form-item label="当前价格">
+                  <el-input :model-value="formatMoney(getSelectedStockPrice(buyForm))" disabled placeholder="自动回填" />
+                </el-form-item>
                 <el-form-item label="委托类型">
                   <el-radio-group v-model="buyForm.order_type">
                     <el-radio-button label="LIMIT">限价</el-radio-button>
@@ -132,6 +189,15 @@
                 </el-form-item>
                 <el-form-item label="数量" :error="buyValidation.quantity">
                   <el-input-number v-model="buyForm.order_quantity" :min="getBuyOrderQuantityMin()" :step="getOrderQuantityStep(buyForm.exchange_code)" class="full-width" />
+                  <div
+                    v-if="buyRiskSummary.enabled"
+                    class="quantity-helper-text"
+                    :class="{ 'is-disabled': !canApplyBuyRiskMaxQuantity() }"
+                    @click="applyBuyRiskMaxQuantity"
+                    :title="canApplyBuyRiskMaxQuantity() ? '点击后自动填入数量' : '请先选择股票并确认可用买入价格'"
+                  >
+                    最多可买 {{ buyRiskSummary.maxBuyQuantity }} 股，点击填入
+                  </div>
                 </el-form-item>
                 <el-form-item label="快捷仓位">
                   <div class="quick-ratio-row">
@@ -167,6 +233,15 @@
                   <div class="order-estimate-item">
                     <span>当前可用资金</span>
                     <strong :class="buyEstimate.insufficient ? 'profit-down' : ''">{{ formatMoney(summary.available_cash) }}</strong>
+                  </div>
+                </div>
+                <div v-if="buyRiskSummary.enabled" class="risk-limit-card">
+                  <div class="risk-limit-title">买入参考</div>
+                  <div class="risk-limit-grid">
+                    <div class="risk-limit-item">
+                      <span>单份资金上限</span>
+                      <strong>{{ formatMoney(buyRiskSummary.slotAmount) }} 元</strong>
+                    </div>
                   </div>
                 </div>
                 <div v-if="buyValidation.form" class="form-error-text">{{ buyValidation.form }}</div>
@@ -235,6 +310,9 @@
                 <el-form-item label="交易所">
                   <el-input :model-value="getExchangeLabel(sellForm.exchange_code)" disabled placeholder="自动回填" />
                 </el-form-item>
+                <el-form-item label="当前价格">
+                  <el-input :model-value="formatMoney(getSelectedStockPrice(sellForm))" disabled placeholder="自动回填" />
+                </el-form-item>
                 <el-form-item label="委托类型">
                   <el-radio-group v-model="sellForm.order_type">
                     <el-radio-button label="LIMIT">限价</el-radio-button>
@@ -281,6 +359,30 @@
                   <div class="order-estimate-item">
                     <span>当前可卖数量</span>
                     <strong :class="sellEstimate.insufficient ? 'profit-down' : ''">{{ sellEstimate.sellableQuantity }}</strong>
+                  </div>
+                </div>
+                <div v-if="sellRiskSummary.enabled" class="risk-limit-card">
+                  <div class="risk-limit-title">账号风控卖出参考</div>
+                  <div class="risk-limit-grid">
+                    <div class="risk-limit-item">
+                      <span>当前市场环境</span>
+                      <strong>{{ sellRiskSummary.marketRegimeLabel }}</strong>
+                    </div>
+                    <div class="risk-limit-item">
+                      <span>浮亏阈值比例</span>
+                      <strong>{{ sellRiskSummary.maxFloatingLossPercentText }}</strong>
+                    </div>
+                    <div class="risk-limit-item">
+                      <span>浮亏阈值金额</span>
+                      <strong>{{ formatMoney(sellRiskSummary.maxFloatingLossAmount) }}</strong>
+                    </div>
+                    <div class="risk-limit-item">
+                      <span>当前可卖股数</span>
+                      <strong>{{ sellRiskSummary.sellableQuantity }}</strong>
+                    </div>
+                  </div>
+                  <div class="risk-limit-note">
+                    {{ sellRiskSummary.note }}
                   </div>
                 </div>
                 <div v-if="sellValidation.form" class="form-error-text">{{ sellValidation.form }}</div>
@@ -628,7 +730,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import StrategyPanel from './StrategyPanel.vue';
 
@@ -644,6 +746,7 @@ import {
   searchSimTradingStocks,
   withdrawSimTradingAccount,
 } from '@/api/modules/simTrading';
+import { getAccountStrategyBindings } from '@/api/modules/simTradingStrategy';
 
 
 const route = useRoute();
@@ -655,6 +758,7 @@ const accounts = ref([]);
 const activeAccountId = ref('');
 const activeTab = ref('position');
 const detailPayload = ref(null);
+const accountStrategyBindings = ref([]);
 const openOrders = ref([]);
 const allOrders = ref([]);
 const trades = ref([]);
@@ -689,6 +793,8 @@ const ORDER_QUICK_OPTIONS = [
   { label: '1/4', value: 0.25 },
   { label: '1/5', value: 0.2 },
 ];
+
+const VALID_ACCOUNT_DETAIL_TABS = ['position', 'strategy', 'buy', 'sell', 'order', 'trade', 'transfer', 'query'];
 
 const buyForm = reactive({
   stock_code: '',
@@ -738,6 +844,19 @@ const buyValidation = computed(() => getDisplayOrderValidation(buyForm, buyValid
 const sellValidation = computed(() => getDisplayOrderValidation(sellForm, sellValidationState.value));
 const canSubmitBuyOrder = computed(() => !hasValidationErrors(buyValidationState.value) && !actionLoading.value);
 const canSubmitSellOrder = computed(() => !hasValidationErrors(sellValidationState.value) && !actionLoading.value);
+const activeAccountRiskBinding = computed(() => {
+  return accountStrategyBindings.value.find((item) => item.enabled && item.strategy_category === 'ACCOUNT_RISK' && item.strategy?.strategy_code === 'EXEC_ACCOUNT_RISK_BASE') || null;
+});
+const accountRiskRuntimeConfig = computed(() => {
+  const binding = activeAccountRiskBinding.value;
+  if (!binding) {
+    return null;
+  }
+  return mergeRiskConfig(binding.strategy?.rule_config_json || {}, binding.account_override_json || {});
+});
+const buyRiskSummary = computed(() => buildBuyRiskSummary());
+const sellRiskSummary = computed(() => buildSellRiskSummary());
+const accountRiskOverview = computed(() => buildAccountRiskOverview());
 const queryPagination = reactive({
   'today-orders': { page: 1, pageSize: 10 },
   'today-trades': { page: 1, pageSize: 10 },
@@ -763,6 +882,17 @@ function formatMoney(value) {
 
 function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(2)}%`;
+}
+
+function normalizeMarketRegimePayload(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (raw === 'BEAR' || raw === '熊市') {
+    return { key: 'bear', label: '熊市' };
+  }
+  if (raw === 'BULL' || raw === '牛市') {
+    return { key: 'bull', label: '牛市' };
+  }
+  return { key: 'range', label: '震荡市' };
 }
 
 function decimalValue(value) {
@@ -1231,6 +1361,114 @@ function getAffordableQuantity(form, direction, budget) {
   return quantity >= minQuantity ? quantity : 0;
 }
 
+function mergeRiskConfig(base, override) {
+  const baseRisk = base?.risk || {};
+  const overrideRisk = override?.risk || {};
+  return {
+    risk: {
+      ...baseRisk,
+      ...overrideRisk,
+      max_holdings_by_market: {
+        ...(baseRisk.max_holdings_by_market || {}),
+        ...(overrideRisk.max_holdings_by_market || {}),
+      },
+    },
+  };
+}
+
+function normalizeRiskPercentValue(value) {
+  const numericValue = Number(value ?? 0);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 0;
+  }
+  return numericValue > 0 && numericValue < 1 ? numericValue * 100 : numericValue;
+}
+
+function getActiveRiskPayload() {
+  const config = accountRiskRuntimeConfig.value;
+  if (!config) {
+    return null;
+  }
+  const risk = config.risk || {};
+  const marketRegime = normalizeMarketRegimePayload(risk.current_market_regime);
+  const maxHoldingsByMarket = risk.max_holdings_by_market || {};
+  return {
+    marketRegime,
+    maxHoldings: Number(maxHoldingsByMarket[marketRegime.key] ?? 0),
+    bullMaxHoldings: Number(maxHoldingsByMarket.bull ?? 0),
+    reservedTSlotCount: Number(risk.reserved_t_slot_count ?? 0),
+    maxFloatingLossPercent: normalizeRiskPercentValue(risk.max_floating_loss_ratio),
+  };
+}
+
+function buildAccountRiskOverview() {
+  const riskPayload = getActiveRiskPayload();
+  if (!riskPayload) {
+    return { enabled: false };
+  }
+  const totalAsset = decimalValue(summary.value?.current_total_asset);
+  const currentHoldingCount = positions.value.length;
+  const totalSlots = Math.max(riskPayload.bullMaxHoldings + riskPayload.reservedTSlotCount, 0);
+  const slotAmount = totalSlots > 0 ? Number((totalAsset / totalSlots).toFixed(2)) : 0;
+  const maxFloatingLossAmount = Number(((totalAsset * riskPayload.maxFloatingLossPercent) / 100).toFixed(2));
+  return {
+    enabled: true,
+    marketRegimeLabel: riskPayload.marketRegime.label,
+    maxHoldings: riskPayload.maxHoldings,
+    bullMaxHoldings: riskPayload.bullMaxHoldings,
+    reservedTSlotCount: riskPayload.reservedTSlotCount,
+    totalSlots,
+    currentHoldingCount,
+    remainingOpenSlots: Math.max(riskPayload.maxHoldings - currentHoldingCount, 0),
+    slotAmount,
+    maxFloatingLossAmount,
+    maxFloatingLossPercentText: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}%`,
+  };
+}
+
+function buildBuyRiskSummary() {
+  const riskPayload = getActiveRiskPayload();
+  if (!riskPayload) {
+    return { enabled: false };
+  }
+  const totalSlots = Math.max(riskPayload.bullMaxHoldings + riskPayload.reservedTSlotCount, 0);
+  const currentHoldingCount = positions.value.length;
+  const remainingOpenSlots = Math.max(riskPayload.maxHoldings - currentHoldingCount, 0);
+  const totalAsset = decimalValue(summary.value?.current_total_asset);
+  const slotAmount = totalSlots > 0 ? Number((totalAsset / totalSlots).toFixed(2)) : 0;
+  const maxBuyQuantityByRisk = getAffordableQuantity(buyForm, 'BUY', slotAmount);
+  const maxBuyQuantityByCash = getAffordableQuantity(buyForm, 'BUY', summary.value?.available_cash);
+  const maxBuyQuantity = maxBuyQuantityByRisk > 0 && maxBuyQuantityByCash > 0
+    ? Math.min(maxBuyQuantityByRisk, maxBuyQuantityByCash)
+    : Math.max(maxBuyQuantityByRisk, maxBuyQuantityByCash);
+  return {
+    enabled: true,
+    marketRegimeLabel: riskPayload.marketRegime.label,
+    maxHoldings: riskPayload.maxHoldings,
+    currentHoldingCount,
+    remainingOpenSlots,
+    slotAmount,
+    maxBuyQuantity,
+  };
+}
+
+function buildSellRiskSummary() {
+  const riskPayload = getActiveRiskPayload();
+  if (!riskPayload) {
+    return { enabled: false };
+  }
+  const totalAsset = decimalValue(summary.value?.current_total_asset);
+  const maxFloatingLossAmount = Number(((totalAsset * riskPayload.maxFloatingLossPercent) / 100).toFixed(2));
+  return {
+    enabled: true,
+    marketRegimeLabel: riskPayload.marketRegime.label,
+    maxFloatingLossPercentText: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}%`,
+    maxFloatingLossAmount,
+    sellableQuantity: getMaxAllowedOrderQuantity('SELL', sellForm),
+    note: '卖出方向当前不做额外账号级数量拦截；主要参考当前可卖数量，以及个股浮亏超过阈值时系统可能触发风控清仓。',
+  };
+}
+
 function getQuickRatioQuantity(direction, form, ratio) {
   const normalizedRatio = Number(ratio || 0);
   if (!(normalizedRatio > 0)) {
@@ -1269,6 +1507,18 @@ function applyQuickRatio(direction, ratio) {
   targetForm.order_quantity = quantity;
 }
 
+function canApplyBuyRiskMaxQuantity() {
+  return buyRiskSummary.value.enabled && Number(buyRiskSummary.value.maxBuyQuantity || 0) > 0;
+}
+
+function applyBuyRiskMaxQuantity() {
+  if (!canApplyBuyRiskMaxQuantity()) {
+    ElMessage.info('请先选择股票并确认可用买入价格');
+    return;
+  }
+  buyForm.order_quantity = Number(buyRiskSummary.value.maxBuyQuantity || 0);
+}
+
 async function suggestStocks(query) {
   if (!query) {
     stockSearchOptions.value = [];
@@ -1302,12 +1552,13 @@ async function suggestStocks(query) {
 const searchBuyStocks = (query) => suggestStocks(query);
 const searchSellStocks = (query) => suggestStocks(query);
 
-function applyStockSelection(stock, targetForm) {
+function applyStockSelection(stock, targetForm, options = {}) {
   if (!stock) return;
+  const { syncPrice = false } = options;
   targetForm.stock_code = `${stock.code}.${stock.exchange_code}`;
   targetForm.stock_name = stock.name || '';
   targetForm.exchange_code = stock.exchange_code || '';
-  if (!Number(targetForm.order_price) || targetForm.order_type === 'MARKET') {
+  if (syncPrice || !Number(targetForm.order_price) || targetForm.order_type === 'MARKET') {
     targetForm.order_price = stock.initialPrice || 0;
   }
 }
@@ -1321,7 +1572,7 @@ function refreshSelectedStock(selectedStock, targetForm, side) {
   suggestStocks(query).then(() => {
     if (!stockSearchOptions.value.length) return;
     const matched = stockSearchOptions.value.find((item) => item.key === selectedStock.key) || stockSearchOptions.value[0];
-    applyStockSelection(matched, targetForm);
+    applyStockSelection(matched, targetForm, { syncPrice: true });
     if (side === 'buy') {
       selectedBuyStock.value = matched;
     } else {
@@ -1434,14 +1685,70 @@ async function submitOrder(direction) {
         buyForm.order_quantity = 0;
       }
     } else {
-      ElMessage.error(res?.message || '下单失败');
+      await showOrderSubmitError(res?.message || '下单失败');
     }
   } catch (error) {
     console.error(error);
-    ElMessage.error(error?.message || '下单失败');
+    await showOrderSubmitError(error?.message || '下单失败');
   } finally {
     actionLoading.value = false;
   }
+}
+
+function buildAccountRiskErrorHtml(message) {
+  const text = String(message || '').trim();
+  if (!text.includes('账号风控限制')) {
+    return '';
+  }
+
+  const amountMatch = text.match(/单次手动买入金额\s*([0-9.]+)\s*超过单份额度\s*([0-9.]+)/);
+  const totalSlotsMatch = text.match(/当前总分块数\(M\s*\+\s*N\)=([0-9]+)/);
+  const maxHoldingMatch = text.match(/当前市场环境=([^，,]+)，最大持股数=([0-9]+)，当前已持仓\s*([0-9]+)/);
+
+  const lines = ['<div style="line-height:1.8;">', '<div><strong>账号风控拦截，手动买入未提交。</strong></div>'];
+
+  if (maxHoldingMatch) {
+    lines.push(`<div>当前市场环境：${normalizeMarketRegimeLabel(maxHoldingMatch[1])}</div>`);
+    lines.push(`<div>当前最大持股数：${maxHoldingMatch[2]}</div>`);
+    lines.push(`<div>当前已持仓数：${maxHoldingMatch[3]}</div>`);
+  }
+
+  if (totalSlotsMatch) {
+    lines.push(`<div>当前总分块数(M + N)：${totalSlotsMatch[1]}</div>`);
+  }
+
+  if (amountMatch) {
+    lines.push(`<div>本次买入金额：${amountMatch[1]}</div>`);
+    lines.push(`<div>单份额度上限：${amountMatch[2]}</div>`);
+  }
+
+  lines.push(`<div style="margin-top:8px;color:#606266;">原始原因：${text}</div>`);
+  lines.push('</div>');
+  return lines.join('');
+}
+
+function normalizeMarketRegimeLabel(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (raw === 'BEAR' || raw === '熊市') {
+    return '熊市';
+  }
+  if (raw === 'BULL' || raw === '牛市') {
+    return '牛市';
+  }
+  return '震荡市';
+}
+
+async function showOrderSubmitError(message) {
+  const accountRiskHtml = buildAccountRiskErrorHtml(message);
+  if (accountRiskHtml) {
+    await ElMessageBox.alert(accountRiskHtml, '下单失败', {
+      type: 'warning',
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '知道了',
+    });
+    return;
+  }
+  ElMessage.error(message || '下单失败');
 }
 
 async function submitTransfer(action) {
@@ -1495,6 +1802,17 @@ async function loadAccountDetail() {
   detailPayload.value = res.payload;
 }
 
+async function loadAccountStrategyBindings() {
+  if (!activeAccountId.value) {
+    accountStrategyBindings.value = [];
+    return;
+  }
+  const res = await getAccountStrategyBindings(Number(activeAccountId.value));
+  if (res?.success) {
+    accountStrategyBindings.value = res.payload?.items || [];
+  }
+}
+
 async function loadOrders(onlyOpen = false) {
   if (!activeAccountId.value) return;
   const res = await getSimTradingOrders({
@@ -1536,6 +1854,7 @@ async function refreshWorkspace() {
     ]);
     await Promise.all([
       loadAccountDetail(),
+      loadAccountStrategyBindings(),
       loadOrders(true),
       loadOrders(false),
       loadTrades(),
@@ -1561,13 +1880,17 @@ function handleAccountChange(value) {
 }
 
 watch(activeTab, (value) => {
+  const nextQuery = {
+    ...route.query,
+    accountId: activeAccountId.value,
+    tab: value,
+  };
+  if (value !== 'transfer' && 'action' in nextQuery) {
+    delete nextQuery.action;
+  }
   router.replace({
     path: '/sim-trading/account-detail',
-    query: {
-      ...route.query,
-      accountId: activeAccountId.value,
-      tab: value,
-    },
+    query: nextQuery,
   });
 });
 
@@ -1602,8 +1925,18 @@ watch(
 watch(
   () => route.query,
   (query) => {
-    if (query.tab) {
-      activeTab.value = String(query.tab);
+    const routeTab = query.tab ? String(query.tab) : '';
+    if (routeTab && VALID_ACCOUNT_DETAIL_TABS.includes(routeTab)) {
+      activeTab.value = routeTab;
+      if (routeTab !== 'transfer' && query.action) {
+        const nextQuery = { ...query };
+        delete nextQuery.action;
+        router.replace({
+          path: '/sim-trading/account-detail',
+          query: nextQuery,
+        });
+      }
+      return;
     }
     if (query.action === 'deposit' || query.action === 'withdraw') {
       activeTab.value = 'transfer';
@@ -1614,7 +1947,7 @@ watch(
 
 watch(activeAccountId, async () => {
   if (activeAccountId.value) {
-    await Promise.all([loadAccountDetail(), loadOrders(true), loadOrders(false), loadTrades(), loadCashFlows()]);
+    await Promise.all([loadAccountDetail(), loadAccountStrategyBindings(), loadOrders(true), loadOrders(false), loadTrades(), loadCashFlows()]);
   }
 });
 
@@ -1675,6 +2008,84 @@ onMounted(async () => {
 .overview-card strong {
   font-size: 24px;
   color: #17324d;
+}
+
+.quantity-helper-text {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8a641f;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 2px;
+  transition: color 0.2s ease;
+}
+
+.quantity-helper-text:hover {
+  color: #6a4510;
+}
+
+.quantity-helper-text.is-disabled {
+  color: #b8a27a;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.account-risk-overview-card {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid #f0d7a1;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fffaf0 0%, #fff4d8 100%);
+  box-shadow: 0 10px 30px rgba(163, 104, 15, 0.08);
+}
+
+.account-risk-overview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.account-risk-overview-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #6a4510;
+}
+
+.account-risk-overview-header p {
+  margin: 6px 0 0;
+  color: #8a641f;
+  font-size: 13px;
+}
+
+.account-risk-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.account-risk-overview-item {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(205, 156, 73, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-risk-overview-item span {
+  font-size: 13px;
+  color: #8a641f;
+}
+
+.account-risk-overview-item strong {
+  font-size: 22px;
+  color: #6a4510;
 }
 
 .form-panel {

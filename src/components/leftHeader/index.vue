@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { computed, defineEmits, defineProps, reactive, onMounted, ref, onUnmounted, inject, watch, nextTick } from 'vue';
+import { computed, reactive, onMounted, ref, onUnmounted, inject, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { menuList } from './config';
 import * as Icons from '@element-plus/icons-vue';
