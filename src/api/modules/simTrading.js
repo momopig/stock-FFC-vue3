@@ -79,6 +79,11 @@ export async function getSimTradingPositionDetail(accountId, positionId) {
 }
 
 
+export async function updateSimTradingPosition(accountId, positionId, data) {
+  return await request.patch(`${API_PREFIX}/accounts/${accountId}/positions/${positionId}`, data);
+}
+
+
 export async function getSimTradingTrades(params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(`${API_PREFIX}/trades${query ? `?${query}` : ''}`);

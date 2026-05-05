@@ -100,38 +100,22 @@
 
       <el-tabs v-model="activeTab">
         <el-tab-pane label="持仓" name="position">
-          <el-table :data="positions" border>
-            <el-table-column prop="stock_name" label="股票名称" min-width="140" />
-            <el-table-column prop="stock_code" label="代码" width="120" />
-            <el-table-column prop="total_quantity" label="总持仓" width="100" />
-            <el-table-column prop="sellable_quantity" label="可卖数量" width="100" />
-            <el-table-column prop="frozen_quantity" label="冻结数量" width="100" />
-            <el-table-column label="成本价" width="110">
-              <template #default="scope">{{ formatMoney(scope.row.avg_cost_price) }}</template>
-            </el-table-column>
-            <el-table-column label="现价" width="110">
-              <template #default="scope">{{ formatMoney(scope.row.current_price) }}</template>
-            </el-table-column>
-            <el-table-column label="市值" width="130">
-              <template #default="scope">{{ formatMoney(scope.row.market_value) }}</template>
-            </el-table-column>
-            <el-table-column label="浮盈亏" width="130">
-              <template #default="scope">
-                <span :class="profitClass(scope.row.unrealized_pnl)">{{ formatMoney(scope.row.unrealized_pnl) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="持仓占比" width="110">
-              <template #default="scope">{{ formatPercent(scope.row.position_ratio) }}</template>
-            </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="scope">
-                <el-space>
-                  <el-button link type="primary" @click="presetOrder('SELL', scope.row)">卖出</el-button>
-                  <el-button link @click="viewTradeHistory(scope.row)">成交</el-button>
-                </el-space>
-              </template>
-            </el-table-column>
-          </el-table>
+          <PositionTable
+            :items="positions"
+            :show-total-quantity="true"
+            :show-sellable-quantity="true"
+            :show-frozen-quantity="true"
+            :show-position-ratio="true"
+            :show-actions="true"
+            :show-edit-action="true"
+            :show-sell-action="true"
+            :show-trade-action="true"
+            action-mode="main"
+            :action-column-width="200"
+            @edit="openEditPositionDialog"
+            @sell="(row) => presetOrder('SELL', row)"
+            @trade="viewTradeHistory"
+          />
         </el-tab-pane>
 
         <el-tab-pane label="自动化策略" name="strategy">
@@ -256,19 +240,21 @@
                 <h3>当前持股列表</h3>
                 <span>点击“选中买入”可快速带入股票搜索</span>
               </div>
-              <el-table :data="buyQuickPositions" border max-height="520" empty-text="当前无持仓，可直接搜索股票下单">
-                <el-table-column prop="stock_name" label="股票" min-width="140" />
-                <el-table-column prop="stock_code" label="代码" width="120" />
-                <el-table-column label="现价" width="110">
-                  <template #default="scope">{{ formatMoney(scope.row.current_price) }}</template>
-                </el-table-column>
-                <el-table-column prop="total_quantity" label="持仓" width="90" />
-                <el-table-column label="操作" width="120" fixed="right">
-                  <template #default="scope">
-                    <el-button link type="primary" @click="quickSelectPosition('BUY', scope.row)">选中买入</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+              <PositionTable
+                :items="buyQuickPositions"
+                empty-text="当前无持仓，可直接搜索股票下单"
+                :max-height="520"
+                name-label="股票名称"
+                total-quantity-label="总持仓"
+                :show-total-quantity="true"
+                :show-sellable-quantity="true"
+                :show-frozen-quantity="true"
+                :show-position-ratio="true"
+                :show-actions="true"
+                action-mode="buy"
+                :action-column-width="120"
+                @buy-select="(row) => quickSelectPosition('BUY', row)"
+              />
             </div>
           </div>
         </el-tab-pane>
@@ -397,19 +383,22 @@
                 <h3>当前持股列表</h3>
                 <span>点击“选中卖出”可快速带入股票搜索</span>
               </div>
-              <el-table :data="sellQuickPositions" border max-height="520" empty-text="暂无可卖持仓">
-                <el-table-column prop="stock_name" label="股票" min-width="140" />
-                <el-table-column prop="stock_code" label="代码" width="120" />
-                <el-table-column prop="sellable_quantity" label="可卖" width="90" />
-                <el-table-column label="现价" width="110">
-                  <template #default="scope">{{ formatMoney(scope.row.current_price) }}</template>
-                </el-table-column>
-                <el-table-column label="操作" width="120" fixed="right">
-                  <template #default="scope">
-                    <el-button link type="primary" :disabled="Number(scope.row.sellable_quantity || 0) <= 0" @click="quickSelectPosition('SELL', scope.row)">选中卖出</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+              <PositionTable
+                :items="sellQuickPositions"
+                empty-text="暂无可卖持仓"
+                :max-height="520"
+                name-label="股票名称"
+                total-quantity-label="总持仓"
+                sellable-quantity-label="可卖数量"
+                :show-total-quantity="true"
+                :show-sellable-quantity="true"
+                :show-frozen-quantity="true"
+                :show-position-ratio="true"
+                :show-actions="true"
+                action-mode="sell"
+                :action-column-width="120"
+                @sell-select="(row) => quickSelectPosition('SELL', row)"
+              />
             </div>
           </div>
         </el-tab-pane>
@@ -440,6 +429,34 @@
             <el-table-column prop="filled_quantity" label="已成交" width="100" />
             <el-table-column label="委托价" width="110">
               <template #default="scope">{{ formatMoney(scope.row.order_price) }}</template>
+            </el-table-column>
+            <el-table-column label="交易原因" min-width="260">
+              <template #default="scope">
+                <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
+                  <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                    <div
+                      v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                      :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
+                      class="trade-reason-item"
+                    >
+                      <span v-if="item.label" class="trade-reason-label">{{ item.label }}</span>
+                      <span class="trade-reason-value">{{ item.value }}</span>
+                    </div>
+                  </template>
+                  <span v-else>--</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="交易前持仓快照" width="140">
+              <template #default="scope">
+                <el-popover v-if="scope.row.pre_trade_position_snapshot_json" placement="left" :width="520" trigger="click">
+                  <pre class="snapshot-pre">{{ formatSnapshotJson(scope.row.pre_trade_position_snapshot_json) }}</pre>
+                  <template #reference>
+                    <el-button link type="primary">查看快照</el-button>
+                  </template>
+                </el-popover>
+                <span v-else class="muted-placeholder">--</span>
+              </template>
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="scope">
@@ -582,6 +599,34 @@
                   <el-table-column label="已成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.filled_amount) }}</template>
                   </el-table-column>
+                  <el-table-column label="交易原因" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
+                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                          <div
+                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span v-if="item.label" class="trade-reason-label">{{ item.label }}</span>
+                            <span class="trade-reason-value">{{ item.value }}</span>
+                          </div>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易前持仓快照" width="140">
+                    <template #default="scope">
+                      <el-popover v-if="scope.row.pre_trade_position_snapshot_json" placement="left" :width="520" trigger="click">
+                        <pre class="snapshot-pre">{{ formatSnapshotJson(scope.row.pre_trade_position_snapshot_json) }}</pre>
+                        <template #reference>
+                          <el-button link type="primary">查看快照</el-button>
+                        </template>
+                      </el-popover>
+                      <span v-else class="muted-placeholder">--</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="委托时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.placed_time) }}</template>
                   </el-table-column>
@@ -611,6 +656,34 @@
                   </el-table-column>
                   <el-table-column label="成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
+                  </el-table-column>
+                  <el-table-column label="交易原因" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
+                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                          <div
+                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span v-if="item.label" class="trade-reason-label">{{ item.label }}</span>
+                            <span class="trade-reason-value">{{ item.value }}</span>
+                          </div>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易前持仓快照" width="140">
+                    <template #default="scope">
+                      <el-popover v-if="scope.row.pre_trade_position_snapshot_json" placement="left" :width="520" trigger="click">
+                        <pre class="snapshot-pre">{{ formatSnapshotJson(scope.row.pre_trade_position_snapshot_json) }}</pre>
+                        <template #reference>
+                          <el-button link type="primary">查看快照</el-button>
+                        </template>
+                      </el-popover>
+                      <span v-else class="muted-placeholder">--</span>
+                    </template>
                   </el-table-column>
                   <el-table-column label="成交时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.traded_time) }}</template>
@@ -644,6 +717,34 @@
                   <el-table-column label="已成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.filled_amount) }}</template>
                   </el-table-column>
+                  <el-table-column label="交易原因" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
+                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                          <div
+                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span v-if="item.label" class="trade-reason-label">{{ item.label }}</span>
+                            <span class="trade-reason-value">{{ item.value }}</span>
+                          </div>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易前持仓快照" width="140">
+                    <template #default="scope">
+                      <el-popover v-if="scope.row.pre_trade_position_snapshot_json" placement="left" :width="520" trigger="click">
+                        <pre class="snapshot-pre">{{ formatSnapshotJson(scope.row.pre_trade_position_snapshot_json) }}</pre>
+                        <template #reference>
+                          <el-button link type="primary">查看快照</el-button>
+                        </template>
+                      </el-popover>
+                      <span v-else class="muted-placeholder">--</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="委托时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.placed_time) }}</template>
                   </el-table-column>
@@ -673,6 +774,34 @@
                   </el-table-column>
                   <el-table-column label="成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
+                  </el-table-column>
+                  <el-table-column label="交易原因" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
+                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                          <div
+                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span v-if="item.label" class="trade-reason-label">{{ item.label }}</span>
+                            <span class="trade-reason-value">{{ item.value }}</span>
+                          </div>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易前持仓快照" width="140">
+                    <template #default="scope">
+                      <el-popover v-if="scope.row.pre_trade_position_snapshot_json" placement="left" :width="520" trigger="click">
+                        <pre class="snapshot-pre">{{ formatSnapshotJson(scope.row.pre_trade_position_snapshot_json) }}</pre>
+                        <template #reference>
+                          <el-button link type="primary">查看快照</el-button>
+                        </template>
+                      </el-popover>
+                      <span v-else class="muted-placeholder">--</span>
+                    </template>
                   </el-table-column>
                   <el-table-column label="成交时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.traded_time) }}</template>
@@ -724,14 +853,36 @@
           </div>
         </el-tab-pane>
       </el-tabs>
+
+      <el-dialog v-model="positionEditVisible" title="编辑持仓" width="460px">
+        <el-form :model="positionEditForm" label-width="110px">
+          <el-form-item label="股票名称">
+            <el-input :model-value="editingPosition?.stock_name || '--'" disabled />
+          </el-form-item>
+          <el-form-item label="股票代码">
+            <el-input :model-value="editingPosition?.stock_code || '--'" disabled />
+          </el-form-item>
+          <el-form-item label="总持仓">
+            <el-input :model-value="editingPosition?.total_quantity || 0" disabled />
+          </el-form-item>
+          <el-form-item label="成本价">
+            <el-input-number v-model="positionEditForm.avg_cost_price" :min="0" :precision="6" :step="0.01" class="full-width" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="positionEditVisible = false">取消</el-button>
+          <el-button type="primary" :loading="positionEditSubmitting" @click="submitPositionEdit">保存</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
+import PositionTable from './PositionTable.vue';
 import StrategyPanel from './StrategyPanel.vue';
 
 import {
@@ -742,6 +893,7 @@ import {
   getSimTradingAccounts,
   getSimTradingCashFlows,
   getSimTradingOrders,
+  updateSimTradingPosition,
   getSimTradingTrades,
   searchSimTradingStocks,
   withdrawSimTradingAccount,
@@ -769,6 +921,12 @@ const stockSearchLoading = ref(false);
 const stockSearchOptions = ref([]);
 const selectedBuyStock = ref(null);
 const selectedSellStock = ref(null);
+const positionEditVisible = ref(false);
+const positionEditSubmitting = ref(false);
+const editingPosition = ref(null);
+const AUTO_REFRESH_INTERVAL_MS = 15000;
+let autoRefreshTimer = null;
+let silentRefreshRunning = false;
 const queryFilters = reactive({
   keyword: '',
   direction: '',
@@ -818,6 +976,7 @@ const sellForm = reactive({
 
 const depositForm = reactive({ amount: 10000, reason: '' });
 const withdrawForm = reactive({ amount: 1000, reason: '' });
+const positionEditForm = reactive({ avg_cost_price: 0 });
 
 const currentAccount = computed(() =>
   accounts.value.find((item) => String(item.id) === String(activeAccountId.value)) || null
@@ -882,6 +1041,41 @@ function formatMoney(value) {
 
 function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(2)}%`;
+}
+
+function formatTradeReason(value) {
+  const text = String(value || '').trim();
+  return text || '--';
+}
+
+function formatTradeReasonItems(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/[\r\n]+|[；;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const matched = item.match(/^([^：:]+[：:])\s*(.*)$/);
+      if (!matched) {
+        return { label: '', value: item };
+      }
+      return {
+        label: matched[1],
+        value: matched[2] || '--',
+      };
+    });
+}
+
+function formatSnapshotJson(value) {
+  if (!value) return '--';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function normalizeMarketRegimePayload(value) {
@@ -1581,6 +1775,40 @@ function refreshSelectedStock(selectedStock, targetForm, side) {
   });
 }
 
+function openEditPositionDialog(row) {
+  editingPosition.value = row;
+  positionEditForm.avg_cost_price = Number(row?.avg_cost_price || 0);
+  positionEditVisible.value = true;
+}
+
+async function submitPositionEdit() {
+  if (!activeAccountId.value || !editingPosition.value) {
+    return;
+  }
+  if (!(Number(positionEditForm.avg_cost_price) >= 0)) {
+    ElMessage.warning('成本价不能小于 0');
+    return;
+  }
+  positionEditSubmitting.value = true;
+  try {
+    const res = await updateSimTradingPosition(Number(activeAccountId.value), editingPosition.value.id, {
+      avg_cost_price: Number(positionEditForm.avg_cost_price),
+    });
+    if (!res?.success) {
+      ElMessage.error(res?.message || '更新持仓失败');
+      return;
+    }
+    ElMessage.success('持仓成本已更新');
+    positionEditVisible.value = false;
+    await loadAccountDetail();
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '更新持仓失败');
+  } finally {
+    positionEditSubmitting.value = false;
+  }
+}
+
 function goAccountList() {
   router.push('/sim-trading/accounts');
 }
@@ -1846,8 +2074,16 @@ async function loadCashFlows() {
   }
 }
 
-async function refreshWorkspace() {
-  pageLoading.value = true;
+async function refreshWorkspace(options = {}) {
+  const { silent = false } = options;
+  if (silent) {
+    if (silentRefreshRunning || actionLoading.value || positionEditVisible.value || positionEditSubmitting.value) {
+      return;
+    }
+    silentRefreshRunning = true;
+  } else {
+    pageLoading.value = true;
+  }
   try {
     await Promise.all([
       loadAccounts(),
@@ -1862,9 +2098,32 @@ async function refreshWorkspace() {
     ]);
   } catch (error) {
     console.error(error);
-    ElMessage.error(error?.message || '加载模拟交易页面失败');
+    if (!silent) {
+      ElMessage.error(error?.message || '加载模拟交易页面失败');
+    }
   } finally {
-    pageLoading.value = false;
+    if (silent) {
+      silentRefreshRunning = false;
+    } else {
+      pageLoading.value = false;
+    }
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoRefreshTimer = window.setInterval(() => {
+    if (!activeAccountId.value || document.visibilityState !== 'visible') {
+      return;
+    }
+    refreshWorkspace({ silent: true });
+  }, AUTO_REFRESH_INTERVAL_MS);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    window.clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
   }
 }
 
@@ -1953,6 +2212,11 @@ watch(activeAccountId, async () => {
 
 onMounted(async () => {
   await refreshWorkspace();
+  startAutoRefresh();
+});
+
+onUnmounted(() => {
+  stopAutoRefresh();
 });
 </script>
 
@@ -2008,6 +2272,50 @@ onMounted(async () => {
 .overview-card strong {
   font-size: 24px;
   color: #17324d;
+}
+
+.trade-reason-text {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
+  color: #4b5f75;
+}
+
+.trade-reason-item {
+  display: block;
+}
+
+.trade-reason-item + .trade-reason-item {
+  margin-top: 4px;
+}
+
+.trade-reason-label {
+  display: block;
+  font-weight: 600;
+  color: #304256;
+}
+
+.trade-reason-value {
+  display: block;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.snapshot-pre {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #304256;
+}
+
+.muted-placeholder {
+  color: #98a5b3;
 }
 
 .quantity-helper-text {
