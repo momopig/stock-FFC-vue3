@@ -78,11 +78,13 @@ export const menuList = [
     foldName: '交易策略',
     icon: 'DataAnalysis',
     path: '/trading-strategy',
+    permissions: ['is_superuser'],
     children: [
       {
         name: '执行策略管理',
         foldName: '执行策略',
         path: '/trading-strategy/execution',
+        permissions: ['is_superuser'],
       },
     ],
   },
@@ -91,16 +93,19 @@ export const menuList = [
     foldName: '模拟交易',
     icon: 'Coin',
     path: '/sim-trading',
+    permissions: ['is_superuser'],
     children: [
       {
         name: '账号管理',
         foldName: '账号管理',
         path: '/sim-trading/accounts',
+        permissions: ['is_superuser'],
       },
       {
         name: '账号详情',
         foldName: '账号详情',
         path: '/sim-trading/account-detail',
+        permissions: ['is_superuser'],
       },
     ],
   },
