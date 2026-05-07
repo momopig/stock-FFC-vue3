@@ -43,7 +43,18 @@
             <el-empty v-if="!group.items.length" description="当前未绑定策略" />
 
             <el-table v-else :data="group.items" border>
-              <el-table-column prop="strategy.strategy_name" label="策略名称" min-width="180" />
+              <el-table-column label="策略名称" min-width="180">
+                <template #default="scope">
+                  <el-button
+                    link
+                    type="primary"
+                    class="strategy-name-link"
+                    @click="openStrategyUsagePage(scope.row.strategy)"
+                  >
+                    {{ scope.row.strategy?.strategy_name || '-' }}
+                  </el-button>
+                </template>
+              </el-table-column>
               <el-table-column prop="strategy.strategy_code" label="编码" min-width="180" />
               <el-table-column label="类型" width="120">
                 <template #default="scope">
@@ -172,6 +183,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRouter } from 'vue-router';
 
 import {
   createAccountStrategyBinding,
@@ -185,6 +197,7 @@ import {
   toggleAccountStrategySettings,
   updateAccountStrategyBinding,
 } from '@/api/modules/simTradingStrategy';
+import { useTabsStore } from '@/composables/useTabsStore';
 
 
 const props = defineProps({
@@ -197,6 +210,9 @@ const props = defineProps({
     default: 0,
   },
 });
+
+const router = useRouter();
+const { addTab } = useTabsStore();
 
 const CATEGORY_OPTIONS = [
   { value: 'ACCOUNT_RISK', label: '账号风控', description: '账号级风控门禁，优先于其他执行策略。' },
@@ -459,6 +475,18 @@ function getModeLabel(mode) {
   return mode === 'BUILTIN' ? '内置' : '配置化';
 }
 
+function openStrategyUsagePage(strategy) {
+  const strategyId = Number(strategy?.id || 0);
+  if (!strategyId) {
+    ElMessage.warning('当前策略缺少有效 ID，无法打开查看页');
+    return;
+  }
+  const strategyName = strategy?.strategy_name || '策略查看';
+  const path = `/trading-strategy/execution/usage?strategyId=${strategyId}`;
+  addTab(path, `${strategyName}查看`);
+  router.push(path);
+}
+
 function getCategoryLabel(category) {
   return CATEGORY_OPTIONS.find((item) => item.value === category)?.label || category;
 }
@@ -597,6 +625,11 @@ function getRiskPreview(binding) {
   gap: 4px;
   color: #606266;
   font-size: 12px;
+}
+
+.strategy-name-link {
+  padding: 0;
+  font-weight: 600;
 }
 
 .group-card-header h3 {

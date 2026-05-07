@@ -140,10 +140,13 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item v-if="dialog.isBuiltin && currentBuiltinFields.length" label="参数配置">
+        <el-form-item v-if="showStructuredOpenPositionConfig || (dialog.isBuiltin && currentBuiltinFields.length)" label="参数配置">
           <div class="builtin-config-panel full-width">
             <div class="field-help-text builtin-config-help">
               内置策略的代码逻辑保持内置，但参数支持在线调整。当前已按后端提供的字段描述渲染 GUI 表单；如果后续新增字段，只需在后端注册表补充表单描述即可自动透出。
+            </div>
+            <div v-if="isConfigurableOpenPositionStrategy" class="field-help-text builtin-config-help">
+              配置化建仓策略也支持这里的结构化配置，保存时会自动写回规则 JSON。
             </div>
             <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help emphasis-help">
               持仓个股最大可接受浮亏比例默认按百分比输入，例如 2 表示 2%，历史配置中的 0.02 会在前端自动换算显示为 2。
@@ -151,7 +154,81 @@
             <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help">
               最大持股数会自动保持“熊市 ≤ 震荡市 ≤ 牛市”的关系，避免提交时被后端校验拒绝。
             </div>
-            <div class="builtin-config-grid">
+            <div v-if="showStructuredOpenPositionConfig" class="builtin-config-sections">
+              <section v-for="section in openPositionBuiltinSections" :key="section.key" class="builtin-config-section">
+                <div class="builtin-config-section__header">
+                  <div>
+                    <h4>{{ section.title }}</h4>
+                    <p>{{ section.description }}</p>
+                  </div>
+                </div>
+                <div class="builtin-config-grid">
+                  <div v-for="field in section.fields" :key="field.path" class="builtin-config-item">
+                    <label class="builtin-config-label">{{ field.label }}</label>
+                    <el-input-number
+                      v-if="field.component === 'number' || field.component === 'integer'"
+                      :model-value="getBuiltinFieldValue(field)"
+                      class="full-width"
+                      controls-position="right"
+                      :min="field.min"
+                      :max="field.max"
+                      :step="field.step || 1"
+                      :precision="field.component === 'number' ? field.precision : 0"
+                      @update:model-value="setBuiltinFieldValue(field, $event)"
+                    />
+                    <el-switch
+                      v-else-if="field.component === 'boolean'"
+                      :model-value="Boolean(getBuiltinFieldValue(field))"
+                      inline-prompt
+                      active-text="是"
+                      inactive-text="否"
+                      @update:model-value="setBuiltinFieldValue(field, $event)"
+                    />
+                    <el-select
+                      v-else-if="field.component === 'select'"
+                      :model-value="getBuiltinFieldValue(field)"
+                      class="full-width"
+                      @update:model-value="setBuiltinFieldValue(field, $event)"
+                    >
+                      <el-option v-for="option in getBuiltinFieldOptions(field)" :key="option.value" :label="option.label" :value="option.value" />
+                    </el-select>
+                    <el-select
+                      v-else-if="field.component === 'multi-select'"
+                      :model-value="normalizeBuiltinMultiSelectValue(field)"
+                      class="full-width"
+                      multiple
+                      filterable
+                      clearable
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :loading="groupOptionsLoading"
+                      @update:model-value="setBuiltinFieldValue(field, $event)"
+                    >
+                      <el-option v-for="option in getBuiltinFieldOptions(field)" :key="option.value" :label="option.label" :value="option.value" />
+                    </el-select>
+                    <el-date-picker
+                      v-else-if="field.component === 'date'"
+                      :model-value="getBuiltinFieldValue(field) || ''"
+                      class="full-width"
+                      type="date"
+                      value-format="YYYY-MM-DD"
+                      placeholder="请选择日期"
+                      @update:model-value="setBuiltinFieldValue(field, $event || null)"
+                    />
+                    <el-input
+                      v-else
+                      :model-value="formatBuiltinFieldValue(field)"
+                      class="full-width"
+                      :type="field.component === 'textarea' || field.component === 'string-array' ? 'textarea' : 'text'"
+                      :rows="field.component === 'textarea' || field.component === 'string-array' ? 3 : undefined"
+                      :placeholder="field.placeholder || ''"
+                      @input="setBuiltinFieldValue(field, $event)"
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div v-else class="builtin-config-grid">
               <div v-for="field in currentBuiltinFields" :key="field.path" class="builtin-config-item">
                 <label class="builtin-config-label">{{ field.label }}</label>
                 <el-input-number
@@ -179,8 +256,31 @@
                   class="full-width"
                   @update:model-value="setBuiltinFieldValue(field, $event)"
                 >
-                  <el-option v-for="option in field.options || []" :key="option.value" :label="option.label" :value="option.value" />
+                  <el-option v-for="option in getBuiltinFieldOptions(field)" :key="option.value" :label="option.label" :value="option.value" />
                 </el-select>
+                <el-select
+                  v-else-if="field.component === 'multi-select'"
+                  :model-value="normalizeBuiltinMultiSelectValue(field)"
+                  class="full-width"
+                  multiple
+                  filterable
+                  clearable
+                  collapse-tags
+                  collapse-tags-tooltip
+                  :loading="groupOptionsLoading"
+                  @update:model-value="setBuiltinFieldValue(field, $event)"
+                >
+                  <el-option v-for="option in getBuiltinFieldOptions(field)" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+                <el-date-picker
+                  v-else-if="field.component === 'date'"
+                  :model-value="getBuiltinFieldValue(field) || ''"
+                  class="full-width"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  placeholder="请选择日期"
+                  @update:model-value="setBuiltinFieldValue(field, $event || null)"
+                />
                 <el-input
                   v-else
                   :model-value="formatBuiltinFieldValue(field)"
@@ -243,6 +343,7 @@ import {
   validateTradingStrategy,
 } from '@/api/modules/tradingStrategy';
 import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
+import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 
@@ -264,13 +365,27 @@ const SIGNAL_SOURCE_OPTIONS = [
   { value: 'MANUAL_REVIEW', label: 'MANUAL_REVIEW · 人工确认结果输入' },
 ];
 
+const CONFIGURABLE_OPEN_POSITION_FIELDS = [
+  { path: 'universe.group_ids', label: '允许分组', component: 'multi-select', options: [] },
+  { path: 'universe.stock_codes', label: '指定股票池', component: 'string-array', placeholder: '如 000001.SZ,600000.SH' },
+  { path: 'order.position_ratio', label: '单次建仓仓位', component: 'number', min: 0.01, max: 1, step: 0.01, precision: 2 },
+  { path: 'order.max_symbol_count', label: '最大持股数', component: 'integer', min: 1, max: 50, step: 1 },
+  { path: 'order.order_type', label: '委托类型', component: 'select', options: [{ label: '限价单', value: 'LIMIT' }, { label: '市价单', value: 'MARKET' }] },
+  { path: 'schedule.min_interval_seconds', label: '最小执行间隔(秒)', component: 'integer', min: 0, max: 86400, step: 1 },
+  { path: 'schedule.time_windows', label: '允许交易时段', component: 'string-array', placeholder: '如 09:30-10:30,13:00-14:30' },
+  { path: 'schedule.start_date', label: '允许开始日期', component: 'date' },
+  { path: 'schedule.end_date', label: '允许结束日期', component: 'date' },
+];
+
 const loading = ref(false);
 const submitting = ref(false);
 const signalStrategyLoading = ref(false);
+const groupOptionsLoading = ref(false);
 const strategies = reactive({ total: 0, items: [] });
 const filters = reactive({ strategy_category: '', enabled: undefined, keyword: '' });
 const pagination = reactive({ page: 1, pageSize: 10 });
 const signalStrategyOptions = reactive({ buy: [], sell: [] });
+const builtinGroupOptions = ref([]);
 
 const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
 const form = reactive(createInitialForm());
@@ -278,6 +393,7 @@ const strategyFormRef = ref(null);
 
 const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
+const isOpenPositionBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_OPEN_POSITION_BASE');
 const currentEditableStrategyCategory = computed(() => {
   if (dialog.isBuiltin) {
     if (form.strategy_code === 'EXEC_OPEN_POSITION_BASE') {
@@ -290,6 +406,7 @@ const currentEditableStrategyCategory = computed(() => {
   }
   return form.strategy_category || '';
 });
+const isConfigurableOpenPositionStrategy = computed(() => !dialog.isBuiltin && currentEditableStrategyCategory.value === 'OPEN_POSITION');
 const currentSignalStrategyBindingPath = computed(() => {
   if (currentEditableStrategyCategory.value === 'OPEN_POSITION') {
     return 'signal.entry_signal_strategy_ids';
@@ -309,6 +426,59 @@ const currentSignalStrategyUsageScope = computed(() => {
   return '';
 });
 const currentSignalStrategyOptions = computed(() => signalStrategyOptions[currentSignalStrategyUsageScope.value] || []);
+const openPositionConfigFields = computed(() => {
+  if (isOpenPositionBuiltinStrategy.value) {
+    return currentBuiltinFields.value || [];
+  }
+  if (isConfigurableOpenPositionStrategy.value) {
+    return CONFIGURABLE_OPEN_POSITION_FIELDS;
+  }
+  return [];
+});
+const showStructuredOpenPositionConfig = computed(() => openPositionConfigFields.value.length > 0);
+const openPositionBuiltinSections = computed(() => {
+  if (!showStructuredOpenPositionConfig.value) {
+    return [];
+  }
+  const fields = openPositionConfigFields.value || [];
+  const sectionDefs = [
+    {
+      key: 'universe',
+      title: '分组范围',
+      description: '决定这条建仓策略从哪些分组和候选股票里挑选标的。',
+      paths: ['universe.group_ids', 'universe.stock_codes'],
+    },
+    {
+      key: 'order',
+      title: '仓位执行',
+      description: '控制单次建仓资金占比、最大持仓数量和委托类型。',
+      paths: ['order.position_ratio', 'order.max_symbol_count', 'order.order_type'],
+    },
+    {
+      key: 'schedule',
+      title: '时间约束',
+      description: '限制建仓允许执行的日期区间、时段和最小执行间隔。',
+      paths: ['schedule.min_interval_seconds', 'schedule.time_windows', 'schedule.start_date', 'schedule.end_date'],
+    },
+  ];
+  const usedPaths = new Set(sectionDefs.flatMap((item) => item.paths));
+  const sections = sectionDefs
+    .map((section) => ({
+      ...section,
+      fields: fields.filter((field) => section.paths.includes(field.path)),
+    }))
+    .filter((section) => section.fields.length > 0);
+  const remainingFields = fields.filter((field) => !usedPaths.has(field.path));
+  if (remainingFields.length > 0) {
+    sections.push({
+      key: 'others',
+      title: '其他参数',
+      description: '当前建仓策略扩展字段会统一放在这里，避免被隐藏。',
+      fields: remainingFields,
+    });
+  }
+  return sections;
+});
 const formRules = computed(() => ({
   strategy_code: [
     {
@@ -385,6 +555,7 @@ const riskPreview = computed(() => {
 onMounted(() => {
   loadStrategies();
   loadSignalStrategyOptions();
+  loadGroupOptions();
 });
 
 function createInitialForm() {
@@ -398,7 +569,7 @@ function createInitialForm() {
     remark: '',
     enabled: true,
     config_form_schema: null,
-    rule_config_json_text: '{\n  "schedule": {},\n  "signal": {},\n  "order": {}\n}',
+    rule_config_json_text: '{\n  "universe": {\n    "group_ids": [],\n    "stock_codes": []\n  },\n  "signal": {},\n  "order": {\n    "position_ratio": 0.2,\n    "max_symbol_count": 5,\n    "order_type": "LIMIT"\n  },\n  "schedule": {\n    "min_interval_seconds": 0,\n    "time_windows": [],\n    "start_date": null,\n    "end_date": null\n  }\n}',
   };
 }
 
@@ -468,6 +639,22 @@ async function loadSignalStrategyOptions() {
     ElMessage.error('获取信号策略实例选项失败');
   } finally {
     signalStrategyLoading.value = false;
+  }
+}
+
+async function loadGroupOptions() {
+  groupOptionsLoading.value = true;
+  try {
+    const res = await getUserGroups();
+    builtinGroupOptions.value = (res?.payload?.items || []).map((item) => ({
+      label: item.name,
+      value: item.id,
+    }));
+  } catch (error) {
+    console.error(error);
+    ElMessage.error('获取股票分组选项失败');
+  } finally {
+    groupOptionsLoading.value = false;
   }
 }
 
@@ -626,6 +813,18 @@ function setValueByPath(target, path, value) {
 
 function getBuiltinFieldValue(field) {
   return getValueByPath(parseCurrentRuleConfig(), field.path);
+}
+
+function normalizeBuiltinMultiSelectValue(field) {
+  const value = getBuiltinFieldValue(field);
+  return Array.isArray(value) ? value : [];
+}
+
+function getBuiltinFieldOptions(field) {
+  if (field.path === 'universe.group_ids') {
+    return builtinGroupOptions.value;
+  }
+  return field.options || [];
 }
 
 function formatBuiltinFieldValue(field) {
@@ -881,6 +1080,36 @@ function goToAccountStrategy(accountId) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.builtin-config-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.builtin-config-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  padding: 14px;
+}
+
+.builtin-config-section__header {
+  margin-bottom: 12px;
+}
+
+.builtin-config-section__header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #1f2937;
+}
+
+.builtin-config-section__header p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b7280;
 }
 
 .builtin-config-help {
