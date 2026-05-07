@@ -2,10 +2,10 @@
   <div class="strategy-list-page">
     <div class="page-header">
       <div>
-        <h2>执行策略管理</h2>
-        <p>从策略模板视角统一管理执行策略，并查看当前账号使用情况。</p>
+        <h2>{{ pageTitle }}</h2>
+        <p>{{ pageDescription }}</p>
       </div>
-      <el-button type="primary" @click="openCreateDialog">新建执行策略</el-button>
+      <el-button type="primary" @click="openCreateDialog">{{ createButtonText }}</el-button>
     </div>
 
     <el-card shadow="never" class="filter-card">
@@ -328,9 +328,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   createTradingStrategy,
@@ -347,6 +347,7 @@ import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 
+const route = useRoute();
 const router = useRouter();
 const { addTab } = useTabsStore();
 
@@ -390,6 +391,38 @@ const builtinGroupOptions = ref([]);
 const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
 const form = reactive(createInitialForm());
 const strategyFormRef = ref(null);
+const routeStrategyCategoryPreset = computed(() => String(route.meta?.strategyCategoryPreset || ''));
+const pageTitle = computed(() => String(route.meta?.executionMenuTitle || '执行策略管理'));
+const pageDescription = computed(() => {
+  if (routeStrategyCategoryPreset.value === 'ACCOUNT_RISK') {
+    return '集中查看账号层面的仓位与风险控制策略，并管理其启停与配置。';
+  }
+  if (routeStrategyCategoryPreset.value === 'OPEN_POSITION') {
+    return '集中查看建仓策略，并按分组、信号和时间约束管理建仓执行规则。';
+  }
+  if (routeStrategyCategoryPreset.value === 'CLOSE_POSITION') {
+    return '集中查看清仓策略，并管理卖出执行条件、信号引用和触发方式。';
+  }
+  if (routeStrategyCategoryPreset.value === 'INTRADAY_T') {
+    return '集中查看做T策略，并维护盘中高抛低吸相关的执行规则。';
+  }
+  return '从策略模板视角统一管理执行策略，并查看当前账号使用情况。';
+});
+const createButtonText = computed(() => {
+  if (routeStrategyCategoryPreset.value === 'ACCOUNT_RISK') {
+    return '新建仓位风控策略';
+  }
+  if (routeStrategyCategoryPreset.value === 'OPEN_POSITION') {
+    return '新建建仓策略';
+  }
+  if (routeStrategyCategoryPreset.value === 'CLOSE_POSITION') {
+    return '新建清仓策略';
+  }
+  if (routeStrategyCategoryPreset.value === 'INTRADAY_T') {
+    return '新建做T策略';
+  }
+  return '新建执行策略';
+});
 
 const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
@@ -553,16 +586,23 @@ const riskPreview = computed(() => {
 });
 
 onMounted(() => {
-  loadStrategies();
+  applyRoutePreset();
   loadSignalStrategyOptions();
   loadGroupOptions();
 });
 
-function createInitialForm() {
+watch(
+  () => route.fullPath,
+  () => {
+    applyRoutePreset();
+  }
+);
+
+function createInitialForm(strategyCategory = 'OPEN_POSITION') {
   return {
     strategy_code: '',
     strategy_name: '',
-    strategy_category: 'OPEN_POSITION',
+    strategy_category: strategyCategory,
     strategy_mode: 'CONFIGURABLE',
     signal_source: '',
     design_principle: '',
@@ -574,7 +614,15 @@ function createInitialForm() {
 }
 
 function resetForm() {
-  Object.assign(form, createInitialForm());
+  Object.assign(form, createInitialForm(routeStrategyCategoryPreset.value || 'OPEN_POSITION'));
+}
+
+function applyRoutePreset() {
+  filters.strategy_category = routeStrategyCategoryPreset.value || '';
+  filters.enabled = undefined;
+  filters.keyword = '';
+  pagination.page = 1;
+  loadStrategies();
 }
 
 function getCategoryLabel(value) {
@@ -679,7 +727,7 @@ async function loadStrategies() {
 }
 
 function resetFilters() {
-  filters.strategy_category = '';
+  filters.strategy_category = routeStrategyCategoryPreset.value || '';
   filters.enabled = undefined;
   filters.keyword = '';
   pagination.page = 1;

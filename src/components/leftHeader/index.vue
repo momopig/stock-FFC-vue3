@@ -320,6 +320,35 @@ const menus = computed(() => {
 // 打开集合（独立展开，可多开）
 const openSet = reactive(new Set());
 const isOpen = (pIndex) => openSet.has(pIndex);
+
+function doesMenuContainPath(menu, path) {
+  const menuPath = String(menu.path || '').trim();
+  if (menuPath && (path === menuPath || path.startsWith(`${menuPath}/`))) {
+    return true;
+  }
+  return (menu.children || []).some((child) => {
+    const childPath = String(child.path || '').trim();
+    return !!childPath && (path === childPath || path.startsWith(`${childPath}/`));
+  });
+}
+
+function syncOpenMenus(path) {
+  openSet.clear();
+  menus.value.forEach((item, index) => {
+    if (item.children?.length > 0 && doesMenuContainPath(item, path)) {
+      openSet.add(index);
+    }
+  });
+}
+
+watch(
+  () => activePath.value,
+  (path) => {
+    syncOpenMenus(path);
+  },
+  { immediate: true }
+);
+
 function onToggleOpen(item, pIndex) {
   if (!(item.children && item.children.length)) {
     onClickItem(item);

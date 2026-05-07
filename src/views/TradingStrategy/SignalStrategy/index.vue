@@ -2,10 +2,10 @@
   <div class="signal-strategy-page">
     <div class="page-header">
       <div>
-        <h2>买卖信号策略管理</h2>
-        <p>统一查看内置信号模板，并维护可供业务直接引用的信号策略实例。</p>
+        <h2>{{ pageTitle }}</h2>
+        <p>{{ pageDescription }}</p>
       </div>
-      <el-button type="primary" @click="openCreateDialog">新建实例</el-button>
+      <el-button type="primary" @click="openCreateDialog">{{ createButtonText }}</el-button>
     </div>
 
     <el-tabs v-model="activeTab" class="content-tabs">
@@ -239,8 +239,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRoute } from 'vue-router';
 
 import {
   createSignalStrategyInstance,
@@ -251,6 +252,7 @@ import {
   updateSignalStrategyInstance,
 } from '@/api/modules/signalStrategy';
 
+const route = useRoute();
 const activeTab = ref('templates');
 const templateLoading = ref(false);
 const instanceLoading = ref(false);
@@ -274,6 +276,33 @@ const usageScopeOptions = [
   { value: 'both', label: '买卖通用' },
 ];
 
+const routeUsageScopePreset = computed(() => String(route.meta?.signalUsageScopePreset || ''));
+const pageTitle = computed(() => String(route.meta?.signalMenuTitle || '信号策略管理'));
+const pageDescription = computed(() => {
+  if (routeUsageScopePreset.value === 'buy') {
+    return '统一查看买点相关信号模板，并维护可供建仓策略直接引用的买点策略实例。';
+  }
+  if (routeUsageScopePreset.value === 'sell') {
+    return '统一查看卖点相关信号模板，并维护可供清仓策略直接引用的卖点策略实例。';
+  }
+  if (routeUsageScopePreset.value === 'both') {
+    return '统一查看买卖通用的信号模板，并维护同时适用于买入和卖出的策略实例。';
+  }
+  return '统一查看内置信号模板，并维护可供业务直接引用的信号策略实例。';
+});
+const createButtonText = computed(() => {
+  if (routeUsageScopePreset.value === 'buy') {
+    return '新建买点策略实例';
+  }
+  if (routeUsageScopePreset.value === 'sell') {
+    return '新建卖点策略实例';
+  }
+  if (routeUsageScopePreset.value === 'both') {
+    return '新建通用策略实例';
+  }
+  return '新建实例';
+});
+
 const enabledTemplates = computed(() => templates.value.filter((item) => item.is_enabled));
 const currentTemplate = computed(() => templates.value.find((item) => item.template_code === instanceForm.template_code) || null);
 
@@ -283,9 +312,27 @@ const instanceFormRules = {
 };
 
 onMounted(async () => {
+  await applyRoutePreset();
+});
+
+watch(
+  () => route.fullPath,
+  () => {
+    applyRoutePreset();
+  }
+);
+
+async function applyRoutePreset() {
+  templateFilters.usage_scope = routeUsageScopePreset.value || '';
+  templateFilters.is_enabled = undefined;
+  instanceFilters.instance_name = '';
+  instanceFilters.template_code = '';
+  instanceFilters.usage_scope = routeUsageScopePreset.value || '';
+  instanceFilters.is_enabled = undefined;
+  instancePagination.page = 1;
   await loadTemplates();
   await loadInstances();
-});
+}
 
 async function loadTemplates() {
   templateLoading.value = true;
@@ -320,7 +367,7 @@ async function loadInstances() {
 }
 
 function resetTemplateFilters() {
-  templateFilters.usage_scope = '';
+  templateFilters.usage_scope = routeUsageScopePreset.value || '';
   templateFilters.is_enabled = undefined;
   loadTemplates();
 }
@@ -328,7 +375,7 @@ function resetTemplateFilters() {
 function resetInstanceFilters() {
   instanceFilters.instance_name = '';
   instanceFilters.template_code = '';
-  instanceFilters.usage_scope = '';
+  instanceFilters.usage_scope = routeUsageScopePreset.value || '';
   instanceFilters.is_enabled = undefined;
   instancePagination.page = 1;
   loadInstances();
