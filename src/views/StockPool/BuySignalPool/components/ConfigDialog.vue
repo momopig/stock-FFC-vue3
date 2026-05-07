@@ -41,6 +41,42 @@
         </el-select>
       </el-form-item>
 
+      <el-form-item label="买点策略实例" prop="buy_signal_strategy_id">
+        <el-select
+          v-model="localForm.buy_signal_strategy_id"
+          filterable
+          placeholder="请选择一个已启用的买点策略实例"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="item in signalStrategyOptions"
+            :key="item.id"
+            :label="item.instance_name"
+            :value="item.id"
+          >
+            <div class="strategy-option">
+              <span class="strategy-option__name">{{ item.instance_name }}</span>
+              <span class="strategy-option__meta">
+                {{ item.template_name }} / {{ item.params_preview }}
+              </span>
+            </div>
+          </el-option>
+        </el-select>
+      </el-form-item>
+
+      <el-alert
+        v-if="selectedSignalStrategy"
+        type="info"
+        :closable="false"
+        class="strategy-summary"
+      >
+        <template #title>
+          已选择：{{ selectedSignalStrategy.instance_name }}
+        </template>
+        <div>{{ selectedSignalStrategy.template_name }}</div>
+        <div>{{ selectedSignalStrategy.params_preview }}</div>
+      </el-alert>
+
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="扫描间隔(秒)" prop="monitor_interval_seconds">
@@ -61,39 +97,6 @@
               v-model="localForm.max_alerts_per_stock_per_day"
               :min="1"
               :max="100"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
-
-      <el-row :gutter="16">
-        <el-col :span="8">
-          <el-form-item label="最小涨幅(%)" prop="min_change_pct">
-            <el-input-number
-              v-model="localForm.min_change_pct"
-              :precision="2"
-              :step="0.1"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="最大涨幅(%)" prop="max_change_pct">
-            <el-input-number
-              v-model="localForm.max_change_pct"
-              :precision="2"
-              :step="0.1"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="最小量比" prop="min_volume_ratio">
-            <el-input-number
-              v-model="localForm.min_volume_ratio"
-              :precision="2"
-              :step="0.1"
               style="width: 100%"
             />
           </el-form-item>
@@ -207,6 +210,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  signalStrategyOptions: {
+    type: Array,
+    default: () => [],
+  },
   mode: {
     type: String,
     default: 'create',
@@ -226,10 +233,8 @@ const createDefaultForm = () => ({
   id: null,
   name: '',
   group_ids: [],
+  buy_signal_strategy_id: null,
   monitor_interval_seconds: 10,
-  min_change_pct: null,
-  max_change_pct: null,
-  min_volume_ratio: null,
   max_alerts_per_stock_per_day: 10,
   monitor_time_ranges: ['09:30-11:30', '13:00-15:00'],
   start_date: '',
@@ -244,6 +249,12 @@ const localForm = reactive(createDefaultForm());
 
 const dialogTitle = computed(() =>
   props.mode === 'edit' ? '编辑买入信号监控配置' : '新建买入信号监控配置'
+);
+
+const selectedSignalStrategy = computed(() =>
+  props.signalStrategyOptions.find(
+    (item) => item.id === localForm.buy_signal_strategy_id
+  ) || null
 );
 
 const syncForm = (value = {}) => {
@@ -300,20 +311,6 @@ const validateTimeRange = (rule, value, callback) => {
   callback();
 };
 
-const validateChangeRange = (rule, value, callback) => {
-  if (
-    localForm.min_change_pct !== null &&
-    localForm.min_change_pct !== undefined &&
-    localForm.max_change_pct !== null &&
-    localForm.max_change_pct !== undefined &&
-    Number(localForm.min_change_pct) > Number(localForm.max_change_pct)
-  ) {
-    callback(new Error('最小涨幅不能大于最大涨幅'));
-    return;
-  }
-  callback();
-};
-
 const validateDateRange = (rule, value, callback) => {
   if (
     localForm.start_date &&
@@ -345,13 +342,19 @@ const rules = {
       trigger: 'change',
     },
   ],
+  buy_signal_strategy_id: [
+    {
+      required: true,
+      message: '请选择买点策略实例',
+      trigger: 'change',
+    },
+  ],
   monitor_interval_seconds: [
     { required: true, message: '请输入扫描间隔', trigger: 'change' },
   ],
   max_alerts_per_stock_per_day: [
     { required: true, message: '请输入单股日上报上限', trigger: 'change' },
   ],
-  max_change_pct: [{ validator: validateChangeRange, trigger: 'change' }],
   end_date: [{ validator: validateDateRange, trigger: 'change' }],
   monitor_time_ranges: [{ validator: validateTimeRange, trigger: 'change' }],
 };
@@ -359,10 +362,8 @@ const rules = {
 const normalizePayload = () => ({
   name: localForm.name.trim(),
   group_ids: localForm.group_ids,
+  buy_signal_strategy_id: localForm.buy_signal_strategy_id,
   monitor_interval_seconds: localForm.monitor_interval_seconds,
-  min_change_pct: localForm.min_change_pct,
-  max_change_pct: localForm.max_change_pct,
-  min_volume_ratio: localForm.min_volume_ratio,
   max_alerts_per_stock_per_day: localForm.max_alerts_per_stock_per_day,
   monitor_time_ranges: localForm.monitor_time_ranges?.length
     ? localForm.monitor_time_ranges
@@ -388,5 +389,25 @@ const handleSubmit = async () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.strategy-option {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.strategy-option__name {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.strategy-option__meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.strategy-summary {
+  margin-bottom: 18px;
 }
 </style>

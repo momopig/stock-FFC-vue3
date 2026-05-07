@@ -86,6 +86,12 @@ export const menuList = [
         path: '/trading-strategy/execution',
         permissions: ['is_superuser'],
       },
+      {
+        name: '买卖信号策略',
+        foldName: '信号策略',
+        path: '/trading-strategy/signal-strategies',
+        permissions: ['is_superuser'],
+      },
     ],
   },
   {

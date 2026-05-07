@@ -121,7 +121,7 @@
               >
               <el-button @click="handleConfigReset">重置</el-button>
             </div>
-            <el-button type="primary" @click="handleCreate"
+            <el-button type="primary" @click="openCreateDialog"
               >新建监控配置</el-button
             >
           </div>
@@ -157,8 +157,8 @@
             </el-table-column>
             <el-table-column label="触发条件" min-width="240">
               <template #default="{ row }">
-                <div>涨幅：{{ formatChangeRange(row) }}</div>
-                <div>量比：{{ formatNumber(row.min_volume_ratio) }}</div>
+                <div>策略：{{ row.buy_signal_strategy_name || '--' }}</div>
+                <div>摘要：{{ row.buy_signal_strategy_params_preview || '--' }}</div>
               </template>
             </el-table-column>
             <el-table-column label="执行策略" min-width="240">
@@ -1172,6 +1172,7 @@
       v-model:visible="dialogVisible"
       :form-data="dialogForm"
       :groups="groups"
+      :signal-strategy-options="signalStrategyOptions"
       :mode="dialogMode"
       :submitting="dialogSubmitting"
       @submit="handleSubmit"
@@ -1326,6 +1327,7 @@ import {
   toggleGroupMonitorConfigStatus,
   updateGroupMonitorConfig,
 } from '@/api/modules/groupMonitor';
+import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
 import {
   getGroupStocksByGroups,
   getUserGroups,
@@ -1349,6 +1351,7 @@ const dialogMode = ref('create');
 const groups = ref([]);
 const configList = ref([]);
 const configOptions = ref([]);
+const signalStrategyOptions = ref([]);
 const signalList = ref([]);
 const dialogForm = ref({});
 const configStocksVisible = ref(false);
@@ -1959,10 +1962,8 @@ const createEmptyForm = () => ({
   id: null,
   name: '',
   group_ids: [],
+  buy_signal_strategy_id: null,
   monitor_interval_seconds: 10,
-  min_change_pct: null,
-  max_change_pct: null,
-  min_volume_ratio: null,
   max_alerts_per_stock_per_day: 10,
   monitor_time_ranges: ['09:30-11:30', '13:00-15:00'],
   start_date: '',
@@ -2080,6 +2081,15 @@ const fetchConfigOptions = async () => {
   const response = await getGroupMonitorConfigs({ page: 1, page_size: 200 });
   const payload = getPayload(response);
   configOptions.value = payload?.items || [];
+};
+
+const fetchSignalStrategyOptions = async () => {
+  const response = await getSignalStrategyOptions({
+    usage_scope: 'buy',
+    only_enabled: true,
+  });
+  const payload = getPayload(response);
+  signalStrategyOptions.value = payload?.items || [];
 };
 
 const fetchConfigStocks = async () => {
@@ -2297,10 +2307,16 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
+const openCreateDialog = async () => {
+  await fetchSignalStrategyOptions();
+  handleCreate();
+};
+
 const handleEdit = async (row) => {
   try {
     dialogMode.value = 'edit';
     dialogSubmitting.value = true;
+    await fetchSignalStrategyOptions();
     const response = await getGroupMonitorConfigDetail(row.id);
     dialogForm.value = { ...createEmptyForm(), ...getPayload(response) };
     dialogVisible.value = true;
@@ -2313,7 +2329,7 @@ const handleEdit = async (row) => {
 };
 
 const refreshConfigRelatedData = async () => {
-  await Promise.all([fetchConfigs(), fetchConfigOptions()]);
+  await Promise.all([fetchConfigs(), fetchConfigOptions(), fetchSignalStrategyOptions()]);
 };
 
 const handleSubmit = async (payload) => {
@@ -2576,18 +2592,6 @@ const formatPercent = (value) => {
   return `${Number(value).toFixed(2)}%`;
 };
 
-const formatChangeRange = (row) => {
-  const minText =
-    row.min_change_pct !== null && row.min_change_pct !== undefined
-      ? `${formatNumber(row.min_change_pct)}%`
-      : '--';
-  const maxText =
-    row.max_change_pct !== null && row.max_change_pct !== undefined
-      ? `${formatNumber(row.max_change_pct)}%`
-      : '--';
-  return `${minText} ~ ${maxText}`;
-};
-
 const formatTimeRanges = (ranges) => {
   if (!Array.isArray(ranges) || !ranges.length) return '--';
   return ranges.join(' / ');
@@ -2617,6 +2621,7 @@ onMounted(async () => {
     fetchSignalAnalytics(),
     fetchConfigOptions(),
     fetchConfigs(),
+    fetchSignalStrategyOptions(),
   ]);
   await handleInitialRouteAction();
 });

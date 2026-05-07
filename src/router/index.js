@@ -15,6 +15,7 @@ const routes = [
   { path: '/stock-pool/buy-signal', component: lazy(() => import('@/views/StockPool/BuySignalPool/index.vue'))},
   { path: '/stock-pool/sell-signal', component: lazy(() => import('@/views/StockPool/SellSignalPool/index.vue'))},
   { path: '/trading-strategy/execution', component: lazy(() => import('@/views/TradingStrategy/StrategyList/index.vue')), meta: { permissions: ['is_superuser'] } },
+  { path: '/trading-strategy/signal-strategies', component: lazy(() => import('@/views/TradingStrategy/SignalStrategy/index.vue')), meta: { permissions: ['is_superuser'] } },
   { path: '/trading-strategy/execution/usage', component: lazy(() => import('@/views/TradingStrategy/StrategyUsage/index.vue')), meta: { permissions: ['is_superuser'] } },
   { path: '/sim-trading/accounts', component: lazy(() => import('@/views/SimTrading/AccountList/index.vue')), meta: { permissions: ['is_superuser'] } },
   { path: '/sim-trading/account-detail', component: lazy(() => import('@/views/SimTrading/AccountDetail/index.vue')), meta: { permissions: ['is_superuser'] } },

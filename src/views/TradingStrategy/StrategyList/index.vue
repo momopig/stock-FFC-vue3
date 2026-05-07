@@ -113,6 +113,33 @@
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="3" :disabled="dialog.isBuiltin" />
         </el-form-item>
+        <el-form-item v-if="currentSignalStrategyBindingPath" label="绑定信号策略">
+          <div class="full-width signal-binding-panel">
+            <el-select
+              :model-value="getBoundSignalStrategyIds()"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              class="full-width"
+              :loading="signalStrategyLoading"
+              :placeholder="currentSignalStrategyUsageScope === 'buy' ? '选择买入信号策略实例' : '选择卖出信号策略实例'"
+              @change="handleBoundSignalStrategiesChange"
+            >
+              <el-option
+                v-for="item in currentSignalStrategyOptions"
+                :key="item.id"
+                :label="`${item.instance_name} (${item.template_name})`"
+                :value="item.id"
+              />
+            </el-select>
+            <div class="field-help-text signal-binding-help">
+              {{ currentSignalStrategyUsageScope === 'buy' ? '建仓策略' : '清仓策略' }}将直接引用这里选中的信号策略实例。
+              保存时后端会校验实例是否存在、是否启用，以及用途是否匹配。
+            </div>
+          </div>
+        </el-form-item>
         <el-form-item v-if="dialog.isBuiltin && currentBuiltinFields.length" label="参数配置">
           <div class="builtin-config-panel full-width">
             <div class="field-help-text builtin-config-help">
@@ -215,6 +242,7 @@ import {
   updateTradingStrategy,
   validateTradingStrategy,
 } from '@/api/modules/tradingStrategy';
+import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 
@@ -238,9 +266,11 @@ const SIGNAL_SOURCE_OPTIONS = [
 
 const loading = ref(false);
 const submitting = ref(false);
+const signalStrategyLoading = ref(false);
 const strategies = reactive({ total: 0, items: [] });
 const filters = reactive({ strategy_category: '', enabled: undefined, keyword: '' });
 const pagination = reactive({ page: 1, pageSize: 10 });
+const signalStrategyOptions = reactive({ buy: [], sell: [] });
 
 const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
 const form = reactive(createInitialForm());
@@ -248,6 +278,37 @@ const strategyFormRef = ref(null);
 
 const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
+const currentEditableStrategyCategory = computed(() => {
+  if (dialog.isBuiltin) {
+    if (form.strategy_code === 'EXEC_OPEN_POSITION_BASE') {
+      return 'OPEN_POSITION';
+    }
+    if (form.strategy_code === 'EXEC_CLOSE_POSITION_BASE') {
+      return 'CLOSE_POSITION';
+    }
+    return '';
+  }
+  return form.strategy_category || '';
+});
+const currentSignalStrategyBindingPath = computed(() => {
+  if (currentEditableStrategyCategory.value === 'OPEN_POSITION') {
+    return 'signal.entry_signal_strategy_ids';
+  }
+  if (currentEditableStrategyCategory.value === 'CLOSE_POSITION') {
+    return 'signal.exit_signal_strategy_ids';
+  }
+  return '';
+});
+const currentSignalStrategyUsageScope = computed(() => {
+  if (currentEditableStrategyCategory.value === 'OPEN_POSITION') {
+    return 'buy';
+  }
+  if (currentEditableStrategyCategory.value === 'CLOSE_POSITION') {
+    return 'sell';
+  }
+  return '';
+});
+const currentSignalStrategyOptions = computed(() => signalStrategyOptions[currentSignalStrategyUsageScope.value] || []);
 const formRules = computed(() => ({
   strategy_code: [
     {
@@ -323,6 +384,7 @@ const riskPreview = computed(() => {
 
 onMounted(() => {
   loadStrategies();
+  loadSignalStrategyOptions();
 });
 
 function createInitialForm() {
@@ -390,6 +452,23 @@ function buildStrategyPayload() {
     remark: form.remark || null,
     ...(dialog.mode === 'create' ? { strategy_code: form.strategy_code, enabled: form.enabled } : {}),
   };
+}
+
+async function loadSignalStrategyOptions() {
+  signalStrategyLoading.value = true;
+  try {
+    const [buyRes, sellRes] = await Promise.all([
+      getSignalStrategyOptions({ usage_scope: 'buy', only_enabled: true }),
+      getSignalStrategyOptions({ usage_scope: 'sell', only_enabled: true }),
+    ]);
+    signalStrategyOptions.buy = buyRes?.payload?.items || [];
+    signalStrategyOptions.sell = sellRes?.payload?.items || [];
+  } catch (error) {
+    console.error(error);
+    ElMessage.error('获取信号策略实例选项失败');
+  } finally {
+    signalStrategyLoading.value = false;
+  }
 }
 
 async function loadStrategies() {
@@ -481,6 +560,25 @@ function parseCurrentRuleConfig() {
 
 function writeCurrentRuleConfig(nextConfig) {
   form.rule_config_json_text = JSON.stringify(nextConfig || {}, null, 2);
+}
+
+function getBoundSignalStrategyIds() {
+  const bindingPath = currentSignalStrategyBindingPath.value;
+  if (!bindingPath) {
+    return [];
+  }
+  const value = getValueByPath(parseCurrentRuleConfig(), bindingPath);
+  return Array.isArray(value) ? value : [];
+}
+
+function handleBoundSignalStrategiesChange(value) {
+  const bindingPath = currentSignalStrategyBindingPath.value;
+  if (!bindingPath) {
+    return;
+  }
+  const nextConfig = parseCurrentRuleConfig();
+  setValueByPath(nextConfig, bindingPath, Array.isArray(value) ? value.map((item) => Number(item)) : []);
+  writeCurrentRuleConfig(nextConfig);
 }
 
 function normalizeMarketRegime(value) {
@@ -756,6 +854,16 @@ function goToAccountStrategy(accountId) {
 
 .full-width {
   width: 100%;
+}
+
+.signal-binding-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signal-binding-help {
+  line-height: 1.6;
 }
 
 .strategy-form :deep(.el-form-item__label) {
