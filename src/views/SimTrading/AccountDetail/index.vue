@@ -47,6 +47,26 @@
         </div>
       </div>
 
+      <div v-if="currentAccount" class="trade-mode-card">
+        <div class="trade-mode-card__content">
+          <div>
+            <h3>交易模式</h3>
+            <p>{{ currentTradeModeDescription }}</p>
+          </div>
+          <div class="trade-mode-card__switch">
+            <span class="trade-mode-card__label">{{ currentTradeModeLabel }}</span>
+            <el-switch
+              :model-value="isDebugModeEnabled"
+              :loading="debugModeSwitchLoading"
+              inline-prompt
+              active-text="调试"
+              inactive-text="正常"
+              @change="handleDebugModeSwitch"
+            />
+          </div>
+        </div>
+      </div>
+
       <div v-if="accountRiskOverview.enabled" class="account-risk-overview-card">
         <div class="account-risk-overview-header">
           <div>
@@ -162,10 +182,11 @@
                 <el-form-item label="当前价格">
                   <el-input :model-value="formatMoney(getSelectedStockPrice(buyForm))" disabled placeholder="自动回填" />
                 </el-form-item>
+                <el-alert :title="currentTradeModeFormHint" type="info" :closable="false" show-icon class="trade-mode-alert" />
                 <el-form-item label="委托类型">
                   <el-radio-group v-model="buyForm.order_type">
-                    <el-radio-button label="LIMIT">限价</el-radio-button>
                     <el-radio-button label="MARKET">市价</el-radio-button>
+                    <el-radio-button label="LIMIT">限价</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
                 <el-form-item label="委托价格" :error="buyValidation.orderPrice">
@@ -299,10 +320,11 @@
                 <el-form-item label="当前价格">
                   <el-input :model-value="formatMoney(getSelectedStockPrice(sellForm))" disabled placeholder="自动回填" />
                 </el-form-item>
+                <el-alert :title="currentTradeModeFormHint" type="info" :closable="false" show-icon class="trade-mode-alert" />
                 <el-form-item label="委托类型">
                   <el-radio-group v-model="sellForm.order_type">
-                    <el-radio-button label="LIMIT">限价</el-radio-button>
                     <el-radio-button label="MARKET">市价</el-radio-button>
+                    <el-radio-button label="LIMIT">限价</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
                 <el-form-item label="委托价格" :error="sellValidation.orderPrice">
@@ -429,6 +451,9 @@
             <el-table-column prop="filled_quantity" label="已成交" width="100" />
             <el-table-column label="委托价" width="110">
               <template #default="scope">{{ formatMoney(scope.row.order_price) }}</template>
+            </el-table-column>
+            <el-table-column label="委托时间" min-width="180">
+              <template #default="scope">{{ formatDateTime(scope.row.placed_time) }}</template>
             </el-table-column>
             <el-table-column label="交易原因" min-width="260">
               <template #default="scope">
@@ -893,6 +918,7 @@ import {
   getSimTradingAccounts,
   getSimTradingCashFlows,
   getSimTradingOrders,
+  updateSimTradingAccount,
   updateSimTradingPosition,
   getSimTradingTrades,
   searchSimTradingStocks,
@@ -924,6 +950,7 @@ const selectedSellStock = ref(null);
 const positionEditVisible = ref(false);
 const positionEditSubmitting = ref(false);
 const editingPosition = ref(null);
+const debugModeSwitchLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 let autoRefreshTimer = null;
 let silentRefreshRunning = false;
@@ -958,7 +985,7 @@ const buyForm = reactive({
   stock_code: '',
   stock_name: '',
   exchange_code: 'SH',
-  order_type: 'LIMIT',
+  order_type: 'MARKET',
   order_price: 0,
   order_quantity: 100,
   trade_reason: '',
@@ -968,7 +995,7 @@ const sellForm = reactive({
   stock_code: '',
   stock_name: '',
   exchange_code: 'SH',
-  order_type: 'LIMIT',
+  order_type: 'MARKET',
   order_price: 0,
   order_quantity: 100,
   trade_reason: '',
@@ -981,6 +1008,19 @@ const positionEditForm = reactive({ avg_cost_price: 0 });
 const currentAccount = computed(() =>
   accounts.value.find((item) => String(item.id) === String(activeAccountId.value)) || null
 );
+const currentDetailAccount = computed(() => detailPayload.value?.account || null);
+const isDebugModeEnabled = computed(() => Boolean(currentDetailAccount.value?.debug_mode ?? currentAccount.value?.debug_mode ?? false));
+const currentTradeModeLabel = computed(() => (isDebugModeEnabled.value ? '调试模式' : '正常模式'));
+const currentTradeModeDescription = computed(() => (
+  isDebugModeEnabled.value
+    ? '当前账号为调试模式：允许 T+0 交易，非交易时段若价格满足也可能直接撮合成交。'
+    : '当前账号为正常模式：A 股按 T+1 交易，非交易时段委托仅挂单，待开盘后参与撮合。'
+));
+const currentTradeModeFormHint = computed(() => (
+  isDebugModeEnabled.value
+    ? '当前为调试模式：允许 T+0，非交易时段若价格满足也可能立即成交。'
+    : '当前为正常模式：A 股按 T+1 执行，非交易时段只挂单不成交，今日新买入 A 股不可卖出。'
+));
 
 const summary = computed(() => detailPayload.value?.summary || {});
 const positions = computed(() => detailPayload.value?.positions || []);
@@ -1819,8 +1859,8 @@ function presetOrder(direction, row) {
   target.stock_code = row.stock_code;
   target.stock_name = row.stock_name;
   target.exchange_code = row.exchange_code;
-  target.order_type = 'LIMIT';
-  target.order_price = Number(row.current_price || 0);
+  target.order_type = 'MARKET';
+  target.order_price = null;
   target.order_quantity = direction === 'SELL'
     ? getNormalizedPresetQuantity(row.exchange_code, row.sellable_quantity)
     : getMinOrderQuantity(row.exchange_code);
@@ -2005,6 +2045,40 @@ async function submitTransfer(action) {
     ElMessage.error(error?.message || '转账失败');
   } finally {
     actionLoading.value = false;
+  }
+}
+
+async function handleDebugModeSwitch(nextValue) {
+  if (!currentAccount.value) return;
+  const targetMode = nextValue ? '调试模式' : '正常模式';
+  const confirmMessage = nextValue
+    ? '开启调试模式后，当前账号允许 T+0 交易，且在非交易时段若价格满足也可能撮合成交。该模式仅用于调试验证，不代表真实交易规则。是否继续？'
+    : '关闭调试模式后，当前账号将恢复正常模式：A 股按 T+1 交易，非交易时段委托仅挂单不成交。是否继续？';
+  try {
+    await ElMessageBox.confirm(confirmMessage, `切换为${targetMode}`, {
+      confirmButtonText: '确认切换',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+
+  debugModeSwitchLoading.value = true;
+  try {
+    const res = await updateSimTradingAccount(Number(activeAccountId.value), {
+      debug_mode: Boolean(nextValue),
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || '切换交易模式失败');
+    }
+    ElMessage.success(`已切换为${targetMode}`);
+    await refreshWorkspace();
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '切换交易模式失败');
+  } finally {
+    debugModeSwitchLoading.value = false;
   }
 }
 
@@ -2272,6 +2346,50 @@ onUnmounted(() => {
 .overview-card strong {
   font-size: 24px;
   color: #17324d;
+}
+
+.trade-mode-card {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid #cfe3fb;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  box-shadow: 0 10px 28px rgba(40, 92, 154, 0.08);
+}
+
+.trade-mode-card__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.trade-mode-card__content h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #17324d;
+}
+
+.trade-mode-card__content p {
+  margin: 6px 0 0;
+  color: #58708a;
+  line-height: 1.6;
+}
+
+.trade-mode-card__switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.trade-mode-card__label {
+  font-size: 13px;
+  color: #3e5872;
+}
+
+.trade-mode-alert {
+  margin-bottom: 18px;
 }
 
 .trade-reason-text {
