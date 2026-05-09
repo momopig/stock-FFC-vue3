@@ -83,7 +83,7 @@
                     <span>市场环境：{{ getRiskPreview(scope.row).marketRegimeLabel }}</span>
                     <span>最大持股：{{ getRiskPreview(scope.row).maxHoldings }}</span>
                     <span>当前总分块数(M + N)：{{ getRiskPreview(scope.row).totalSlots }}</span>
-                    <span>单份金额：{{ getRiskPreview(scope.row).slotAmountText }}</span>
+                    <span>单份分块金额：{{ getRiskPreview(scope.row).slotAmountText }}</span>
                     <span>浮亏阈值：{{ getRiskPreview(scope.row).maxFloatingLossPercentText }}</span>
                   </div>
                   <span v-else>-</span>
@@ -128,7 +128,40 @@
           </el-table-column>
           <el-table-column prop="result_code" label="结果" width="180" />
           <el-table-column prop="trigger_reason" label="原因" min-width="260">
-            <template #default="scope">{{ scope.row.trigger_reason || scope.row.system_remark || '-' }}</template>
+            <template #default="scope">
+              <div class="reason-cell">{{ scope.row.trigger_reason || scope.row.system_remark || '-' }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="风控协同" min-width="320">
+            <template #default="scope">
+              <div v-if="getCoordinationSummary(scope.row)" class="coordination-cell">
+                <div class="coordination-tags">
+                  <el-tag size="small" :type="getCoordinationStateTagType(getCoordinationSummary(scope.row)?.risk_state)">
+                    {{ getCoordinationStateLabel(getCoordinationSummary(scope.row)?.risk_state) }}
+                  </el-tag>
+                  <el-tag
+                    size="small"
+                    :type="getCoordinationSummary(scope.row)?.allow_open_position ? 'success' : 'warning'"
+                  >
+                    {{ getCoordinationSummary(scope.row)?.allow_open_position ? '允许开仓' : '禁止开仓' }}
+                  </el-tag>
+                  <el-tag
+                    size="small"
+                    :type="getCoordinationSummary(scope.row)?.allow_intraday_t ? 'success' : 'info'"
+                  >
+                    {{ getCoordinationSummary(scope.row)?.allow_intraday_t ? '允许做T' : '暂停做T' }}
+                  </el-tag>
+                </div>
+                <div class="coordination-metrics">
+                  <span>剩余开仓名额：{{ formatCoordinationValue(getCoordinationSummary(scope.row)?.remaining_open_slots) }}</span>
+                  <span>开仓参考金额：{{ formatCoordinationBudget(getCoordinationSummary(scope.row)?.recommended_open_budget) }}</span>
+                </div>
+                <div v-if="getCoordinationWarnings(scope.row).length" class="coordination-warnings">
+                  {{ getCoordinationWarnings(scope.row).join('；') }}
+                </div>
+              </div>
+              <span v-else>-</span>
+            </template>
           </el-table-column>
           <el-table-column label="时间" min-width="180">
             <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
@@ -558,6 +591,53 @@ function getRiskPreview(binding) {
     maxFloatingLossPercentText: `${normalizeRiskPercentValue(risk.max_floating_loss_ratio)}%`,
   };
 }
+
+function getCoordinationSummary(logRow) {
+  return logRow?.coordination_summary || logRow?.config_snapshot_json?.coordination_summary || null;
+}
+
+function getCoordinationWarnings(logRow) {
+  const warnings = getCoordinationSummary(logRow)?.warnings;
+  return Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+}
+
+function getCoordinationStateLabel(riskState) {
+  const mapping = {
+    FORCE_CLOSE_TRIGGERED: '强制降风险',
+    MAX_HOLDINGS_REACHED: '满仓边界',
+    PASSED: '风控通过',
+  };
+  return mapping[String(riskState || '').trim().toUpperCase()] || '协同快照';
+}
+
+function getCoordinationStateTagType(riskState) {
+  const normalized = String(riskState || '').trim().toUpperCase();
+  if (normalized === 'FORCE_CLOSE_TRIGGERED') {
+    return 'danger';
+  }
+  if (normalized === 'MAX_HOLDINGS_REACHED') {
+    return 'warning';
+  }
+  if (normalized === 'PASSED') {
+    return 'success';
+  }
+  return 'info';
+}
+
+function formatCoordinationValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  return value;
+}
+
+function formatCoordinationBudget(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return '-';
+  }
+  return formatMoney(num);
+}
 </script>
 
 <style scoped>
@@ -625,6 +705,37 @@ function getRiskPreview(binding) {
   gap: 4px;
   color: #606266;
   font-size: 12px;
+}
+
+.coordination-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #606266;
+
+.reason-cell {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+  font-size: 12px;
+}
+
+.coordination-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coordination-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coordination-warnings {
+  color: #8c6c1c;
+  line-height: 1.5;
 }
 
 .strategy-name-link {

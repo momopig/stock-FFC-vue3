@@ -148,11 +148,14 @@
             <div v-if="isConfigurableOpenPositionStrategy" class="field-help-text builtin-config-help">
               配置化建仓策略也支持这里的结构化配置，保存时会自动写回规则 JSON。
             </div>
+            <div v-if="isConfigurableOpenPositionStrategy" class="field-help-text builtin-config-help">
+              单次建仓仓位表示本策略期望使用的现金比例；实际下单金额还会再受账号风控策略的单份预算上限约束，系统最终按两者中更严格的一边执行。
+            </div>
             <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help emphasis-help">
               持仓个股最大可接受浮亏比例默认按百分比输入，例如 2 表示 2%，历史配置中的 0.02 会在前端自动换算显示为 2。
             </div>
             <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help">
-              最大持股数会自动保持“熊市 ≤ 震荡市 ≤ 牛市”的关系，避免提交时被后端校验拒绝。
+              股票最大持仓个数会自动保持“熊市 ≤ 震荡市 ≤ 牛市”的关系，避免提交时被后端校验拒绝。
             </div>
             <div v-if="showStructuredOpenPositionConfig" class="builtin-config-sections">
               <section v-for="section in openPositionBuiltinSections" :key="section.key" class="builtin-config-section">
@@ -370,7 +373,7 @@ const CONFIGURABLE_OPEN_POSITION_FIELDS = [
   { path: 'universe.group_ids', label: '允许分组', component: 'multi-select', options: [] },
   { path: 'universe.stock_codes', label: '指定股票池', component: 'string-array', placeholder: '如 000001.SZ,600000.SH' },
   { path: 'order.position_ratio', label: '单次建仓仓位', component: 'number', min: 0.01, max: 1, step: 0.01, precision: 2 },
-  { path: 'order.max_symbol_count', label: '最大持股数', component: 'integer', min: 1, max: 50, step: 1 },
+  { path: 'order.max_symbol_count', label: '股票最大持仓个数', component: 'integer', min: 1, max: 50, step: 1 },
   { path: 'order.order_type', label: '委托类型', component: 'select', options: [{ label: '限价单', value: 'LIMIT' }, { label: '市价单', value: 'MARKET' }] },
   { path: 'schedule.min_interval_seconds', label: '最小执行间隔(秒)', component: 'integer', min: 0, max: 86400, step: 1 },
   { path: 'schedule.time_windows', label: '允许交易时段', component: 'string-array', placeholder: '如 09:30-10:30,13:00-14:30' },
@@ -947,7 +950,7 @@ function validateAccountRiskConfig(config) {
   const range = normalizePositiveInt(holdings.range, 2);
   const bull = normalizePositiveInt(holdings.bull, 3);
   if (!(bear <= range && range <= bull)) {
-    throw new Error('最大持股数必须满足 熊市 ≤ 震荡市 ≤ 牛市');
+    throw new Error('股票最大持仓个数必须满足 熊市 ≤ 震荡市 ≤ 牛市');
   }
 }
 

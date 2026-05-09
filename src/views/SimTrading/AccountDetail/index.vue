@@ -74,47 +74,49 @@
             <p>当前账号已绑定 EXEC_ACCOUNT_RISK_BASE，以下关键参数会同时约束手动交易与自动化策略。</p>
           </div>
         </div>
-        <div class="account-risk-overview-grid">
-          <div class="account-risk-overview-item">
-            <span>当前市场环境</span>
-            <strong>{{ accountRiskOverview.marketRegimeLabel }}</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>当前最大持股数</span>
-            <strong>{{ accountRiskOverview.maxHoldings }} 只</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>当前已持仓数</span>
-            <strong>{{ accountRiskOverview.currentHoldingCount }} 只</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>剩余可新开仓数</span>
-            <strong>{{ accountRiskOverview.remainingOpenSlots }} 只</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>牛市最大持股数(M)</span>
-            <strong>{{ accountRiskOverview.bullMaxHoldings }} 只</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>做T预留分块数(N)</span>
-            <strong>{{ accountRiskOverview.reservedTSlotCount }} 份</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>当前总分块数(M + N)</span>
-            <strong>{{ accountRiskOverview.totalSlots }} 份</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>单份资金上限</span>
-            <strong>{{ formatMoney(accountRiskOverview.slotAmount) }} 元</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>浮亏阈值比例</span>
-            <strong>{{ accountRiskOverview.maxFloatingLossPercentText }}</strong>
-          </div>
-          <div class="account-risk-overview-item">
-            <span>浮亏阈值金额</span>
-            <strong>{{ formatMoney(accountRiskOverview.maxFloatingLossAmount) }} 元</strong>
-          </div>
+        <div class="account-risk-overview-sections">
+          <section class="account-risk-overview-section">
+            <div class="account-risk-overview-section__header">
+              <h4>风控边界</h4>
+              <p>这些是账号风控策略本身设定的边界参数，决定下面那些余量是如何计算出来的。</p>
+            </div>
+            <div class="account-risk-overview-grid">
+              <div v-for="item in accountRiskOverview.boundaryItems" :key="item.label" class="account-risk-overview-item">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="account-risk-overview-section">
+            <div class="account-risk-overview-section__header">
+              <h4>当前可操作余量</h4>
+              <p>把当前还能不能开仓、还能用多少预算，以及买入卖出做T是否可执行，放到更靠近下方操作区的位置。</p>
+            </div>
+            <div class="account-risk-permission-list">
+              <div
+                v-for="item in accountRiskOverview.permissionItems"
+                :key="item.label"
+                class="account-risk-permission-chip"
+                :class="item.allowed ? 'is-allowed' : 'is-blocked'"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+            <div class="account-risk-overview-grid">
+              <div v-for="item in accountRiskOverview.capacityItems" :key="item.label" class="account-risk-overview-item">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+                <small v-if="item.description" class="account-risk-overview-item__desc">{{ item.description }}</small>
+              </div>
+            </div>
+            <div v-if="accountRiskOverview.warnings.length" class="account-risk-warning-list">
+              <div v-for="warning in accountRiskOverview.warnings" :key="warning" class="account-risk-warning-item">
+                {{ warning }}
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -244,7 +246,7 @@
                   <div class="risk-limit-title">买入参考</div>
                   <div class="risk-limit-grid">
                     <div class="risk-limit-item">
-                      <span>单份资金上限</span>
+                      <span>风控单份分块金额</span>
                       <strong>{{ formatMoney(buyRiskSummary.slotAmount) }} 元</strong>
                     </div>
                   </div>
@@ -1641,22 +1643,80 @@ function buildAccountRiskOverview() {
     return { enabled: false };
   }
   const totalAsset = decimalValue(summary.value?.current_total_asset);
+  const availableCash = decimalValue(summary.value?.available_cash);
   const currentHoldingCount = positions.value.length;
   const totalSlots = Math.max(riskPayload.bullMaxHoldings + riskPayload.reservedTSlotCount, 0);
   const slotAmount = totalSlots > 0 ? Number((totalAsset / totalSlots).toFixed(2)) : 0;
   const maxFloatingLossAmount = Number(((totalAsset * riskPayload.maxFloatingLossPercent) / 100).toFixed(2));
+  const remainingOpenSlots = Math.max(riskPayload.maxHoldings - currentHoldingCount, 0);
+  const triggeredRiskPositionCount = positions.value.filter((item) => {
+    const pnlAmount = Number(item?.unrealized_pnl || 0);
+    if (!(totalAsset > 0) || !(pnlAmount < 0)) {
+      return false;
+    }
+    return Math.abs(pnlAmount) / totalAsset >= (riskPayload.maxFloatingLossPercent / 100);
+  }).length;
+  let riskState = 'PASSED';
+  let riskStateLabel = '通过';
+  let allowOpenPosition = true;
+  let allowIntradayT = riskPayload.reservedTSlotCount > 0;
+  const allowClosePosition = true;
+  let terminateRemaining = false;
+  const warnings = [];
+
+  if (!allowIntradayT) {
+    warnings.push('当前账号风控未预留做T分块，做T策略默认应保持关闭。');
+  }
+  if (triggeredRiskPositionCount > 0) {
+    riskState = 'FORCE_CLOSE_TRIGGERED';
+    riskStateLabel = '强制降风险';
+    allowOpenPosition = false;
+    allowIntradayT = false;
+    terminateRemaining = true;
+    warnings.push(`检测到 ${triggeredRiskPositionCount} 只持仓股票的浮亏占总资产比例超过阈值 ${riskPayload.maxFloatingLossPercent.toFixed(2)}%，账号进入强制降风险状态。`);
+  } else if (remainingOpenSlots <= 0) {
+    riskState = 'MAX_HOLDINGS_REACHED';
+    riskStateLabel = '已达持仓上限';
+    allowOpenPosition = false;
+    warnings.push(`当前市场环境=${riskPayload.marketRegime.label}，股票最大持仓个数=${riskPayload.maxHoldings}，当前已持仓数=${currentHoldingCount}，已无可新增仓位名额。`);
+  }
+
+  const recommendedOpenBudget = Number((slotAmount > 0 ? slotAmount : availableCash).toFixed(2));
   return {
     enabled: true,
     marketRegimeLabel: riskPayload.marketRegime.label,
-    maxHoldings: riskPayload.maxHoldings,
-    bullMaxHoldings: riskPayload.bullMaxHoldings,
-    reservedTSlotCount: riskPayload.reservedTSlotCount,
-    totalSlots,
-    currentHoldingCount,
-    remainingOpenSlots: Math.max(riskPayload.maxHoldings - currentHoldingCount, 0),
-    slotAmount,
-    maxFloatingLossAmount,
     maxFloatingLossPercentText: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}%`,
+    warnings,
+    capacityItems: [
+      { label: '风控状态', value: riskStateLabel },
+      {
+        label: '剩余可新增股票数',
+        value: `${remainingOpenSlots} 只`,
+        description: '表示在当前风控上限下，还能再新增多少只不同股票，不是还能买多少股。',
+      },
+      {
+        label: '本次开仓参考金额',
+        value: `${formatMoney(recommendedOpenBudget)} 元`,
+        description: '这是账号风控按当前总资产和分块规则推导出的本次开仓参考额度，不是固定配置项。',
+      },
+      { label: '触发强平预警持仓数', value: `${triggeredRiskPositionCount} 只` },
+      { label: '后续策略是否应终止', value: terminateRemaining ? '是' : '否' },
+    ],
+    permissionItems: [
+      { label: '建仓', value: allowOpenPosition ? '允许' : '拦截', allowed: allowOpenPosition },
+      { label: '卖出', value: allowClosePosition ? '允许' : '拦截', allowed: allowClosePosition },
+      { label: '做T', value: allowIntradayT ? '允许' : '关闭', allowed: allowIntradayT },
+    ],
+    boundaryItems: [
+      { label: '当前市场环境', value: riskPayload.marketRegime.label },
+      { label: '当前股票最大持仓个数', value: `${riskPayload.maxHoldings} 只` },
+      { label: '牛市股票最大持仓个数(M)', value: `${riskPayload.bullMaxHoldings} 只` },
+      { label: '做T预留分块数(N)', value: `${riskPayload.reservedTSlotCount} 份` },
+      { label: '当前总分块数(M + N)', value: `${totalSlots} 份` },
+      { label: '风控单份分块金额', value: `${formatMoney(slotAmount)} 元` },
+      { label: '浮亏阈值比例', value: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}%` },
+      { label: '浮亏阈值金额', value: `${formatMoney(maxFloatingLossAmount)} 元` },
+    ],
   };
 }
 
@@ -1971,13 +2031,13 @@ function buildAccountRiskErrorHtml(message) {
 
   const amountMatch = text.match(/单次手动买入金额\s*([0-9.]+)\s*超过单份额度\s*([0-9.]+)/);
   const totalSlotsMatch = text.match(/当前总分块数\(M\s*\+\s*N\)=([0-9]+)/);
-  const maxHoldingMatch = text.match(/当前市场环境=([^，,]+)，最大持股数=([0-9]+)，当前已持仓\s*([0-9]+)/);
+  const maxHoldingMatch = text.match(/当前市场环境=([^，,]+)，(?:股票最大持仓个数|最大持股数)=([0-9]+)，(?:当前已持仓数|当前已持仓)\s*([0-9]+)/);
 
   const lines = ['<div style="line-height:1.8;">', '<div><strong>账号风控拦截，手动买入未提交。</strong></div>'];
 
   if (maxHoldingMatch) {
     lines.push(`<div>当前市场环境：${normalizeMarketRegimeLabel(maxHoldingMatch[1])}</div>`);
-    lines.push(`<div>当前最大持股数：${maxHoldingMatch[2]}</div>`);
+    lines.push(`<div>当前股票最大持仓个数：${maxHoldingMatch[2]}</div>`);
     lines.push(`<div>当前已持仓数：${maxHoldingMatch[3]}</div>`);
   }
 
@@ -2488,6 +2548,64 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.account-risk-overview-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.account-risk-overview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-risk-overview-section__header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #6a4510;
+}
+
+.account-risk-overview-section__header p {
+  margin: 4px 0 0;
+  color: #8a641f;
+  font-size: 12px;
+}
+
+.account-risk-permission-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.account-risk-permission-chip {
+  min-width: 120px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(205, 156, 73, 0.24);
+  background: rgba(255, 255, 255, 0.78);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6a4510;
+}
+
+.account-risk-permission-chip strong {
+  font-size: 14px;
+}
+
+.account-risk-permission-chip.is-allowed {
+  border-color: rgba(51, 140, 96, 0.28);
+  background: rgba(234, 247, 238, 0.95);
+  color: #236745;
+}
+
+.account-risk-permission-chip.is-blocked {
+  border-color: rgba(186, 85, 65, 0.26);
+  background: rgba(255, 239, 234, 0.95);
+  color: #9b3a26;
+}
+
 .account-risk-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2512,6 +2630,28 @@ onUnmounted(() => {
 .account-risk-overview-item strong {
   font-size: 22px;
   color: #6a4510;
+}
+
+.account-risk-overview-item__desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #9b7a42;
+}
+
+.account-risk-warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-risk-warning-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(186, 85, 65, 0.18);
+  background: rgba(255, 244, 239, 0.92);
+  color: #9b3a26;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .form-panel {
