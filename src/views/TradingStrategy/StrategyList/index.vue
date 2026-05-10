@@ -44,6 +44,20 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="股票分组" min-width="220">
+          <template #default="scope">
+            <div v-if="getStrategyGroupNames(scope.row).length" class="strategy-group-tags-cell">
+              <el-tag
+                v-for="groupName in getStrategyGroupNames(scope.row)"
+                :key="`${scope.row.id}-${groupName}`"
+                size="small"
+              >
+                {{ groupName }}
+              </el-tag>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="config_version" label="版本" width="80" />
         <el-table-column label="更新时间" min-width="180">
           <template #default="scope">{{ formatDateTime(scope.row.updated_time) }}</template>
@@ -878,6 +892,25 @@ function getBuiltinFieldOptions(field) {
   return field.options || [];
 }
 
+function getStrategyGroupNames(row) {
+  if (row?.strategy_category !== 'OPEN_POSITION') {
+    return [];
+  }
+  const groupIds = Array.isArray(row?.rule_config_json?.universe?.group_ids)
+    ? row.rule_config_json.universe.group_ids
+    : [];
+  return groupIds
+    .map((groupId) => {
+      const normalizedId = Number(groupId);
+      if (!normalizedId) {
+        return null;
+      }
+      const matchedOption = builtinGroupOptions.value.find((item) => Number(item.value) === normalizedId);
+      return matchedOption?.label || `分组#${normalizedId}`;
+    })
+    .filter(Boolean);
+}
+
 function formatBuiltinFieldValue(field) {
   const value = getBuiltinFieldValue(field);
   if (field.component === 'string-array') {
@@ -1100,6 +1133,12 @@ function goToAccountStrategy(accountId) {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+.strategy-group-tags-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .full-width {

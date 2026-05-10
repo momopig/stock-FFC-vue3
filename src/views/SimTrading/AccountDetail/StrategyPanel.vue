@@ -89,6 +89,22 @@
                   <span v-else>-</span>
                 </template>
               </el-table-column>
+              <el-table-column label="股票分组" min-width="220">
+                <template #default="scope">
+                  <div v-if="getBoundGroups(scope.row).length" class="bound-group-cell">
+                    <el-tag
+                      v-for="groupItem in getBoundGroups(scope.row)"
+                      :key="`bound-group-${scope.row.id}-${groupItem.id}`"
+                      size="small"
+                      class="bound-group-tag"
+                      @click="openGroupStocksPage(groupItem)"
+                    >
+                      {{ groupItem.name }}
+                    </el-tag>
+                  </div>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
               <el-table-column label="备注" min-width="180">
                 <template #default="scope">{{ scope.row.strategy.remark || '-' }}</template>
               </el-table-column>
@@ -230,6 +246,7 @@ import {
   toggleAccountStrategySettings,
   updateAccountStrategyBinding,
 } from '@/api/modules/simTradingStrategy';
+import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 
@@ -260,6 +277,7 @@ const savingBindingId = ref(null);
 const activeInnerTab = ref('config');
 const availableStrategies = ref([]);
 const bindings = ref([]);
+const userGroups = ref([]);
 const settings = reactive({
   automation_enabled: false,
   last_dispatch_status: '',
@@ -290,6 +308,16 @@ const groupedBindings = computed(() =>
     items: bindings.value.filter((binding) => binding.strategy_category === item.value),
   }))
 );
+const userGroupNameMap = computed(() => {
+  const result = new Map();
+  userGroups.value.forEach((group) => {
+    const groupId = Number(group?.id);
+    if (groupId) {
+      result.set(groupId, group?.name || `分组#${groupId}`);
+    }
+  });
+  return result;
+});
 const selectableStrategies = computed(() => {
   const boundIds = new Set(bindings.value.map((item) => item.strategy_id));
   return availableStrategies.value.filter((item) => {
@@ -323,14 +351,20 @@ async function loadAll() {
   }
   loading.value = true;
   try {
-    const [settingsRes, bindingsRes, strategiesRes] = await Promise.all([
+    const [settingsRes, bindingsRes, strategiesRes, groupsRes] = await Promise.all([
       getAccountStrategySettings(accountIdNumber.value),
       getAccountStrategyBindings(accountIdNumber.value),
       getExecutionStrategies({ page: 1, page_size: 200 }),
+      getUserGroups().catch(() => ({ payload: [] })),
     ]);
     Object.assign(settings, settingsRes.payload || {});
     bindings.value = bindingsRes.payload?.items || [];
     availableStrategies.value = strategiesRes.payload?.items || [];
+    userGroups.value = Array.isArray(groupsRes?.payload?.items)
+      ? groupsRes.payload.items
+      : Array.isArray(groupsRes?.payload)
+        ? groupsRes.payload
+        : [];
     if (activeInnerTab.value === 'logs') {
       await loadLogs();
     }
@@ -564,6 +598,65 @@ function formatMoney(value) {
   return num.toFixed(2);
 }
 
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]';
+}
+
+function mergeConfig(baseValue, overrideValue) {
+  if (Array.isArray(overrideValue)) {
+    return [...overrideValue];
+  }
+  if (!isPlainObject(overrideValue)) {
+    return overrideValue === undefined ? baseValue : overrideValue;
+  }
+  const result = isPlainObject(baseValue) ? { ...baseValue } : {};
+  Object.keys(overrideValue).forEach((key) => {
+    result[key] = mergeConfig(result[key], overrideValue[key]);
+  });
+  return result;
+}
+
+function getBindingEffectiveConfig(binding) {
+  const strategyConfig = isPlainObject(binding?.strategy?.rule_config_json) ? binding.strategy.rule_config_json : {};
+  const overrideConfig = isPlainObject(binding?.account_override_json) ? binding.account_override_json : {};
+  return mergeConfig(strategyConfig, overrideConfig);
+}
+
+function getBoundGroups(binding) {
+  if (binding?.strategy_category !== 'OPEN_POSITION') {
+    return [];
+  }
+  const config = getBindingEffectiveConfig(binding);
+  const groupIds = Array.isArray(config?.universe?.group_ids) ? config.universe.group_ids : [];
+  return groupIds
+    .map((groupId) => {
+      const normalizedId = Number(groupId);
+      if (!normalizedId) {
+        return null;
+      }
+      return {
+        id: normalizedId,
+        name: userGroupNameMap.value.get(normalizedId) || `分组#${normalizedId}`,
+      };
+    })
+    .filter(Boolean);
+}
+
+function openGroupStocksPage(group) {
+  const groupId = Number(group?.id || 0);
+  if (!groupId) {
+    ElMessage.warning('当前分组缺少有效 ID，无法打开股票列表');
+    return;
+  }
+  const resolvedRoute = router.resolve({
+    path: '/stock-pool/self-selected',
+    query: {
+      groupId: String(groupId),
+    },
+  });
+  window.open(resolvedRoute.href, '_blank', 'noopener');
+}
+
 function getRiskPreview(binding) {
   const strategyRisk = binding?.strategy?.rule_config_json?.risk || {};
   const overrideRisk = binding?.account_override_json?.risk || {};
@@ -707,18 +800,28 @@ function formatCoordinationBudget(value) {
   font-size: 12px;
 }
 
+.bound-group-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bound-group-tag {
+  cursor: pointer;
+}
+
 .coordination-cell {
   display: flex;
   flex-direction: column;
   gap: 6px;
   color: #606266;
+  font-size: 12px;
+}
 
 .reason-cell {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
-}
-  font-size: 12px;
 }
 
 .coordination-tags {
