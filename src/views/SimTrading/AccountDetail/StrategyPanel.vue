@@ -26,23 +26,29 @@
       </el-space>
     </div>
 
-    <el-tabs v-model="activeInnerTab">
-      <el-tab-pane label="策略配置" name="config">
-        <div class="strategy-groups">
-          <el-card v-for="group in groupedBindings" :key="group.category" shadow="never" class="strategy-group-card">
-            <template #header>
-              <div class="group-card-header">
-                <div>
-                  <h3>{{ group.label }}</h3>
-                  <p>{{ group.description }}</p>
-                </div>
-                <el-button type="primary" link @click="openCreateDialog(group.category)">添加策略</el-button>
-              </div>
-            </template>
+    <el-tabs v-model="activeCategoryTab">
+      <el-tab-pane v-for="group in groupedBindings" :key="group.category" :label="group.label" :name="group.category">
+        <div class="category-header-card">
+          <h3>{{ group.label }}</h3>
+          <p>{{ group.description }}</p>
+        </div>
+        <el-tabs v-model="innerTabByCategory[group.category]">
+          <el-tab-pane label="策略配置" name="config">
+            <div class="strategy-groups">
+              <el-card shadow="never" class="strategy-group-card">
+                <template #header>
+                  <div class="group-card-header">
+                    <div>
+                      <h3>{{ group.label }}</h3>
+                      <p>{{ group.description }}</p>
+                    </div>
+                    <el-button type="primary" link @click="openCreateDialog(group.category)">添加策略</el-button>
+                  </div>
+                </template>
 
-            <el-empty v-if="!group.items.length" description="当前未绑定策略" />
+                <el-empty v-if="!group.items.length" description="当前未绑定策略" />
 
-            <el-table v-else :data="group.items" border>
+                <el-table v-else :data="group.items" border>
               <el-table-column label="策略名称" min-width="180">
                 <template #default="scope">
                   <el-button
@@ -118,16 +124,13 @@
                   </el-space>
                 </template>
               </el-table-column>
-            </el-table>
-          </el-card>
-        </div>
-      </el-tab-pane>
+                </el-table>
+              </el-card>
+            </div>
+          </el-tab-pane>
 
-      <el-tab-pane label="策略日志" name="logs">
+          <el-tab-pane label="策略日志" name="logs">
         <div class="log-toolbar">
-          <el-select v-model="logFilters.strategy_category" clearable placeholder="策略分类" class="toolbar-select">
-            <el-option v-for="item in CATEGORY_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
           <el-input v-model="logFilters.result_code" clearable placeholder="结果码" class="toolbar-input" />
           <el-input v-model="logFilters.keyword" clearable placeholder="策略名称/股票/原因" class="toolbar-input" />
           <el-button type="primary" @click="loadLogs">查询</el-button>
@@ -136,6 +139,12 @@
 
         <el-table :data="logs.items" border>
           <el-table-column prop="strategy_name" label="策略名称" min-width="180" />
+          <el-table-column label="股票" min-width="180">
+            <template #default="scope">
+              <span>{{ scope.row.stock_name || scope.row.stock_code || '-' }}</span>
+              <span v-if="scope.row.stock_code" class="muted-inline">{{ ` (${scope.row.stock_code})` }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="分类" width="130">
             <template #default="scope">{{ getCategoryLabel(scope.row.strategy_category) }}</template>
           </el-table-column>
@@ -180,7 +189,7 @@
             </template>
           </el-table-column>
           <el-table-column label="时间" min-width="180">
-            <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+            <template #default="scope">{{ formatDateTime(scope.row.last_trigger_time || scope.row.created_time) }}</template>
           </el-table-column>
         </el-table>
 
@@ -196,6 +205,8 @@
             @size-change="loadLogs"
           />
         </div>
+          </el-tab-pane>
+        </el-tabs>
       </el-tab-pane>
     </el-tabs>
 
@@ -217,7 +228,7 @@
         <el-form-item label="启用状态">
           <el-switch v-model="bindingForm.enabled" inline-prompt active-text="开启" inactive-text="关闭" />
         </el-form-item>
-        <el-form-item label="覆盖配置 JSON">
+        <el-form-item v-if="showBindingOverrideJson" label="覆盖配置 JSON">
           <el-input v-model="bindingForm.account_override_json_text" type="textarea" :rows="8" placeholder="可选，填写账号级覆盖配置 JSON" />
         </el-form-item>
       </el-form>
@@ -265,16 +276,22 @@ const router = useRouter();
 const { addTab } = useTabsStore();
 
 const CATEGORY_OPTIONS = [
-  { value: 'ACCOUNT_RISK', label: '账号风控', description: '账号级风控门禁，优先于其他执行策略。' },
-  { value: 'OPEN_POSITION', label: '建仓', description: '基于分组与买入监控信号执行建仓。' },
-  { value: 'CLOSE_POSITION', label: '清仓', description: '围绕止盈、止损和趋势破坏执行清仓。' },
-  { value: 'INTRADAY_T', label: '做T', description: '围绕底仓执行盘中高抛低吸。' },
+  { value: 'ACCOUNT_RISK', label: '账号风控策略', description: '账号级风控门禁，优先于其他执行策略。' },
+  { value: 'OPEN_POSITION', label: '建仓策略', description: '基于分组与买入监控信号执行建仓。' },
+  { value: 'CLOSE_POSITION', label: '清仓策略', description: '围绕止盈、止损和趋势破坏执行清仓。' },
+  { value: 'INTRADAY_T', label: '做T策略', description: '围绕底仓执行盘中高抛低吸。' },
 ];
 
 const loading = ref(false);
 const saving = ref(false);
 const savingBindingId = ref(null);
-const activeInnerTab = ref('config');
+const activeCategoryTab = ref('ACCOUNT_RISK');
+const innerTabByCategory = reactive({
+  ACCOUNT_RISK: 'config',
+  OPEN_POSITION: 'config',
+  CLOSE_POSITION: 'config',
+  INTRADAY_T: 'config',
+});
 const availableStrategies = ref([]);
 const bindings = ref([]);
 const userGroups = ref([]);
@@ -284,7 +301,7 @@ const settings = reactive({
   last_dispatch_time: '',
 });
 const logs = reactive({ total: 0, items: [] });
-const logFilters = reactive({ strategy_category: '', result_code: '', keyword: '' });
+const logFilters = reactive({ result_code: '', keyword: '' });
 const logPagination = reactive({ page: 1, pageSize: 10 });
 
 const bindingDialog = reactive({
@@ -327,6 +344,14 @@ const selectableStrategies = computed(() => {
     return item.strategy_category === bindingDialog.selectedCategory && !boundIds.has(item.id);
   });
 });
+const currentBindingStrategy = computed(() => {
+  if (bindingDialog.mode === 'create') {
+    return availableStrategies.value.find((item) => item.id === bindingForm.strategy_id) || null;
+  }
+  const currentBinding = bindings.value.find((item) => item.id === bindingDialog.bindingId) || null;
+  return currentBinding?.strategy || null;
+});
+const showBindingOverrideJson = computed(() => currentBindingStrategy.value?.strategy_code !== 'TAIL_BREAK_MA_SELL');
 
 watch(
   () => props.accountId,
@@ -339,8 +364,30 @@ watch(
   { immediate: true }
 );
 
-watch(activeInnerTab, (value) => {
-  if (value === 'logs') {
+function getActiveInnerTab() {
+  return innerTabByCategory[activeCategoryTab.value] || 'config';
+}
+
+watch(activeCategoryTab, () => {
+  if (getActiveInnerTab() === 'logs') {
+    loadLogs();
+  }
+});
+
+watch(
+  () => innerTabByCategory[activeCategoryTab.value],
+  (value) => {
+    if (value === 'logs') {
+      loadLogs();
+    }
+  }
+);
+
+watch(() => props.accountId, () => {
+  if (!accountIdNumber.value) {
+    return;
+  }
+  if (getActiveInnerTab() === 'logs') {
     loadLogs();
   }
 });
@@ -365,7 +412,7 @@ async function loadAll() {
       : Array.isArray(groupsRes?.payload)
         ? groupsRes.payload
         : [];
-    if (activeInnerTab.value === 'logs') {
+    if (getActiveInnerTab() === 'logs') {
       await loadLogs();
     }
   } finally {
@@ -380,6 +427,7 @@ async function loadLogs() {
   loading.value = true;
   try {
     const res = await getAccountStrategyLogs(accountIdNumber.value, {
+      strategy_category: activeCategoryTab.value,
       ...logFilters,
       page: logPagination.page,
       page_size: logPagination.pageSize,
@@ -423,6 +471,9 @@ function openEditDialog(binding) {
 }
 
 function parseOverrideJson() {
+  if (!showBindingOverrideJson.value) {
+    return null;
+  }
   const text = (bindingForm.account_override_json_text || '').trim();
   if (!text) {
     return null;
@@ -522,7 +573,7 @@ async function runDebugDispatch() {
     const res = await debugRunAccountStrategy(accountIdNumber.value);
     ElMessage.success(res.payload?.message || '调试触发完成');
     await loadAll();
-    if (activeInnerTab.value === 'logs') {
+    if (getActiveInnerTab() === 'logs') {
       await loadLogs();
     }
   } finally {
@@ -531,7 +582,6 @@ async function runDebugDispatch() {
 }
 
 function resetLogFilters() {
-  logFilters.strategy_category = '';
   logFilters.result_code = '';
   logFilters.keyword = '';
   logPagination.page = 1;

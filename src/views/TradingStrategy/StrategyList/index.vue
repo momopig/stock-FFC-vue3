@@ -127,7 +127,7 @@
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="3" :disabled="dialog.isBuiltin" />
         </el-form-item>
-        <el-form-item v-if="currentSignalStrategyBindingPath" label="绑定信号策略">
+        <el-form-item v-if="currentSignalStrategyBindingPath" label="绑定信号策略" required>
           <div class="full-width signal-binding-panel">
             <el-select
               :model-value="getBoundSignalStrategyIds()"
@@ -151,6 +151,9 @@
             <div class="field-help-text signal-binding-help">
               {{ currentSignalStrategyUsageScope === 'buy' ? '建仓策略' : '清仓策略' }}将直接引用这里选中的信号策略实例。
               保存时后端会校验实例是否存在、是否启用，以及用途是否匹配。
+            </div>
+            <div v-if="isTailBreakCloseStrategy" class="field-help-text signal-binding-help emphasis-help">
+              尾盘跌破N日均线清仓不再重复配置 N / 尾盘开始时间 / 最小持仓天数，统一复用这里绑定的“尾盘跌破N日均线未修复”卖点策略实例参数。
             </div>
           </div>
         </el-form-item>
@@ -332,7 +335,7 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item :label="dialog.isBuiltin ? '参数 JSON（高级）' : '规则 JSON'" prop="rule_config_json_text">
+        <el-form-item v-if="!hideRuleConfigEditor" :label="dialog.isBuiltin ? '参数 JSON（高级）' : '规则 JSON'" prop="rule_config_json_text">
           <el-input v-model="form.rule_config_json_text" type="textarea" :rows="12" placeholder="请输入合法 JSON" />
         </el-form-item>
       </el-form>
@@ -444,16 +447,8 @@ const createButtonText = computed(() => {
 const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
 const isOpenPositionBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_OPEN_POSITION_BASE');
+const isTailBreakCloseStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'TAIL_BREAK_MA_SELL');
 const currentEditableStrategyCategory = computed(() => {
-  if (dialog.isBuiltin) {
-    if (form.strategy_code === 'EXEC_OPEN_POSITION_BASE') {
-      return 'OPEN_POSITION';
-    }
-    if (form.strategy_code === 'EXEC_CLOSE_POSITION_BASE') {
-      return 'CLOSE_POSITION';
-    }
-    return '';
-  }
   return form.strategy_category || '';
 });
 const isConfigurableOpenPositionStrategy = computed(() => !dialog.isBuiltin && currentEditableStrategyCategory.value === 'OPEN_POSITION');
@@ -476,6 +471,7 @@ const currentSignalStrategyUsageScope = computed(() => {
   return '';
 });
 const currentSignalStrategyOptions = computed(() => signalStrategyOptions[currentSignalStrategyUsageScope.value] || []);
+const hideRuleConfigEditor = computed(() => isTailBreakCloseStrategy.value);
 const openPositionConfigFields = computed(() => {
   if (isOpenPositionBuiltinStrategy.value) {
     return currentBuiltinFields.value || [];
@@ -688,6 +684,17 @@ function buildStrategyPayload() {
     remark: form.remark || null,
     ...(dialog.mode === 'create' ? { strategy_code: form.strategy_code, enabled: form.enabled } : {}),
   };
+}
+
+function validateRequiredSignalStrategyBinding() {
+  const bindingPath = currentSignalStrategyBindingPath.value;
+  if (!bindingPath) {
+    return;
+  }
+  const boundIds = getBoundSignalStrategyIds();
+  if (!Array.isArray(boundIds) || !boundIds.length) {
+    throw new Error(currentSignalStrategyUsageScope.value === 'buy' ? '请至少绑定一个买入信号策略实例' : '请至少绑定一个卖出信号策略实例');
+  }
 }
 
 async function loadSignalStrategyOptions() {
@@ -991,6 +998,7 @@ async function submitStrategy() {
   submitting.value = true;
   try {
     await strategyFormRef.value?.validate();
+    validateRequiredSignalStrategyBinding();
     const payload = buildStrategyPayload();
     if (dialog.mode === 'create') {
       await createTradingStrategy(payload);
