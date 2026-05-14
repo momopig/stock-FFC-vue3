@@ -4,14 +4,17 @@
       <div class="toolbar-left">
         <div class="toolbar-card">
           <span class="toolbar-label">账号自动化</span>
-          <el-switch
-            :model-value="settings.automation_enabled"
-            :loading="saving"
-            inline-prompt
-            active-text="开启"
-            inactive-text="关闭"
-            @change="handleAutomationToggle"
-          />
+          <div class="toolbar-automation-control">
+            <el-switch
+              :model-value="settings.automation_enabled"
+              :loading="saving"
+              inline-prompt
+              active-text="开启"
+              inactive-text="关闭"
+              @change="handleAutomationToggle"
+            />
+            <small class="toolbar-automation-status">{{ settings.automation_enabled ? '已开启' : '已关闭' }}</small>
+          </div>
         </div>
         <div class="toolbar-card muted">
           <span class="toolbar-label">最近调度</span>
@@ -55,7 +58,7 @@
                     link
                     type="primary"
                     class="strategy-name-link"
-                    @click="openStrategyUsagePage(scope.row.strategy)"
+                    @click="openStrategyConfigPage(scope.row.strategy)"
                   >
                     {{ scope.row.strategy?.strategy_name || '-' }}
                   </el-button>
@@ -592,16 +595,28 @@ function getModeLabel(mode) {
   return mode === 'BUILTIN' ? '内置' : '配置化';
 }
 
-function openStrategyUsagePage(strategy) {
+function openStrategyConfigPage(strategy) {
   const strategyId = Number(strategy?.id || 0);
   if (!strategyId) {
     ElMessage.warning('当前策略缺少有效 ID，无法打开查看页');
     return;
   }
   const strategyName = strategy?.strategy_name || '策略查看';
-  const path = `/trading-strategy/execution/usage?strategyId=${strategyId}`;
-  addTab(path, `${strategyName}查看`);
-  router.push(path);
+  const categoryPathMap = {
+    ACCOUNT_RISK: '/trading-strategy/execution/account-risk',
+    OPEN_POSITION: '/trading-strategy/execution/open-position',
+    CLOSE_POSITION: '/trading-strategy/execution/close-position',
+    INTRADAY_T: '/trading-strategy/execution/intraday-t',
+  };
+  const path = categoryPathMap[String(strategy?.strategy_category || '').trim().toUpperCase()] || '/trading-strategy/execution';
+  const resolved = router.resolve({
+    path,
+    query: {
+      keyword: strategyName,
+    },
+  });
+  addTab(resolved.fullPath, strategyName);
+  router.push(resolved);
 }
 
 function getCategoryLabel(category) {
@@ -812,6 +827,18 @@ function formatCoordinationBudget(value) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.toolbar-automation-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.toolbar-automation-status {
+  font-size: 12px;
+  color: #7b8794;
 }
 
 .toolbar-card.muted {

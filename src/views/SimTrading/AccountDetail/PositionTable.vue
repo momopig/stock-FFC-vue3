@@ -1,6 +1,12 @@
 <template>
   <el-table :data="items" border :max-height="maxHeight" :empty-text="emptyText">
-    <el-table-column prop="stock_name" :label="nameLabel" min-width="140" />
+    <el-table-column :label="nameLabel" min-width="140">
+      <template #default="scope">
+        <el-button link type="primary" class="stock-name-link" @click="openStockDetail(scope.row)">
+          {{ scope.row.stock_name || '--' }}
+        </el-button>
+      </template>
+    </el-table-column>
     <el-table-column prop="stock_code" label="代码" width="120" />
     <el-table-column v-if="showTotalQuantity" prop="total_quantity" :label="totalQuantityLabel" width="100" />
     <el-table-column v-if="showSellableQuantity" prop="sellable_quantity" :label="sellableQuantityLabel" width="100" />
@@ -26,6 +32,12 @@
     </el-table-column>
     <el-table-column v-if="showPositionRatio" label="持仓占比" width="110">
       <template #default="scope">{{ formatPercent(scope.row.position_ratio) }}</template>
+    </el-table-column>
+    <el-table-column v-if="showHoldingDays" label="持仓天数" width="100">
+      <template #default="scope">{{ formatHoldingDays(scope.row) }}</template>
+    </el-table-column>
+    <el-table-column v-if="showFirstBuildTime" label="首次建仓日期" min-width="180">
+      <template #default="scope">{{ formatFirstBuildTime(scope.row) }}</template>
     </el-table-column>
     <el-table-column v-if="showActions" label="操作" :width="actionColumnWidth" fixed="right">
       <template #default="scope">
@@ -98,6 +110,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showHoldingDays: {
+    type: Boolean,
+    default: false,
+  },
+  showFirstBuildTime: {
+    type: Boolean,
+    default: false,
+  },
   showActions: {
     type: Boolean,
     default: false,
@@ -144,4 +164,86 @@ function profitClass(value) {
   if (num < 0) return 'profit-down';
   return '';
 }
+
+function normalizeDate(value) {
+  if (!value && value !== 0) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') {
+    const timestamp = value > 1e12 ? value : value * 1000;
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  let normalized = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
+  if (typeof normalized === 'string') {
+    const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized);
+    if (!hasTimezone && normalized.includes('T')) {
+      normalized = `${normalized}Z`;
+    }
+  }
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function padTimeNumber(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatDateTime(value) {
+  const date = normalizeDate(value);
+  if (!date) return '--';
+  const year = date.getFullYear();
+  const month = padTimeNumber(date.getMonth() + 1);
+  const day = padTimeNumber(date.getDate());
+  const hours = padTimeNumber(date.getHours());
+  const minutes = padTimeNumber(date.getMinutes());
+  const seconds = padTimeNumber(date.getSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function getFirstBuildDateValue(row) {
+  return row?.first_open_time
+    || row?.first_build_time
+    || row?.first_entry_time
+    || row?.opened_time
+    || row?.open_time
+    || row?.created_time
+    || null;
+}
+
+function formatHoldingDays(row) {
+  const explicitValue = row?.holding_days ?? row?.position_days ?? row?.hold_days;
+  if (explicitValue !== undefined && explicitValue !== null && explicitValue !== '') {
+    const normalized = Number(explicitValue);
+    return Number.isFinite(normalized) ? `${Math.max(0, Math.trunc(normalized))} 天` : '--';
+  }
+  const firstBuildDate = normalizeDate(getFirstBuildDateValue(row));
+  if (!firstBuildDate) {
+    return '--';
+  }
+  const diffMs = Date.now() - firstBuildDate.getTime();
+  if (diffMs < 0) {
+    return '0 天';
+  }
+  return `${Math.floor(diffMs / 86400000)} 天`;
+}
+
+function formatFirstBuildTime(row) {
+  return formatDateTime(getFirstBuildDateValue(row));
+}
+
+function openStockDetail(row) {
+  const stockCode = String(row?.stock_code || '').trim();
+  const numberCode = stockCode.replace(/[^0-9]/g, '');
+  if (!numberCode) {
+    return;
+  }
+  window.open(`https://finance.baidu.com/stock/ab-${numberCode}`, '_blank');
+}
 </script>
+
+<style scoped>
+.stock-name-link {
+  padding: 0;
+  font-weight: 600;
+}
+</style>

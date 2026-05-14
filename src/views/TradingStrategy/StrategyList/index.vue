@@ -184,7 +184,7 @@
                 </div>
                 <div class="builtin-config-grid">
                   <div v-for="field in section.fields" :key="field.path" class="builtin-config-item">
-                    <label class="builtin-config-label">{{ field.label }}</label>
+                    <label class="builtin-config-label">{{ getBuiltinFieldLabel(field) }}</label>
                     <el-input-number
                       v-if="field.component === 'number' || field.component === 'integer'"
                       :model-value="getBuiltinFieldValue(field)"
@@ -196,6 +196,7 @@
                       :precision="field.component === 'number' ? field.precision : 0"
                       @update:model-value="setBuiltinFieldValue(field, $event)"
                     />
+                    <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
                     <el-switch
                       v-else-if="field.component === 'boolean'"
                       :model-value="Boolean(getBuiltinFieldValue(field))"
@@ -250,7 +251,7 @@
             </div>
             <div v-else class="builtin-config-grid">
               <div v-for="field in currentBuiltinFields" :key="field.path" class="builtin-config-item">
-                <label class="builtin-config-label">{{ field.label }}</label>
+                <label class="builtin-config-label">{{ getBuiltinFieldLabel(field) }}</label>
                 <el-input-number
                   v-if="field.component === 'number' || field.component === 'integer'"
                   :model-value="getBuiltinFieldValue(field)"
@@ -262,6 +263,7 @@
                   :precision="field.component === 'number' ? field.precision : 0"
                   @update:model-value="setBuiltinFieldValue(field, $event)"
                 />
+                <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
                 <el-switch
                   v-else-if="field.component === 'boolean'"
                   :model-value="Boolean(getBuiltinFieldValue(field))"
@@ -389,7 +391,7 @@ const SIGNAL_SOURCE_OPTIONS = [
 const CONFIGURABLE_OPEN_POSITION_FIELDS = [
   { path: 'universe.group_ids', label: '允许分组', component: 'multi-select', options: [] },
   { path: 'universe.stock_codes', label: '指定股票池', component: 'string-array', placeholder: '如 000001.SZ,600000.SH' },
-  { path: 'order.position_ratio', label: '单次建仓仓位', component: 'number', min: 0.01, max: 1, step: 0.01, precision: 2 },
+  { path: 'order.position_ratio', label: '单次建仓仓位', component: 'number', min: 0, max: 100, step: 1, precision: 2 },
   { path: 'order.max_symbol_count', label: '股票最大持仓个数', component: 'integer', min: 1, max: 50, step: 1 },
   { path: 'order.order_type', label: '委托类型', component: 'select', options: [{ label: '限价单', value: 'LIMIT' }, { label: '市价单', value: 'MARKET' }] },
   { path: 'schedule.min_interval_seconds', label: '最小执行间隔(秒)', component: 'integer', min: 0, max: 86400, step: 1 },
@@ -622,7 +624,7 @@ function createInitialForm(strategyCategory = 'OPEN_POSITION') {
     remark: '',
     enabled: true,
     config_form_schema: null,
-    rule_config_json_text: '{\n  "universe": {\n    "group_ids": [],\n    "stock_codes": []\n  },\n  "signal": {},\n  "order": {\n    "position_ratio": 0.2,\n    "max_symbol_count": 5,\n    "order_type": "LIMIT"\n  },\n  "schedule": {\n    "min_interval_seconds": 0,\n    "time_windows": [],\n    "start_date": null,\n    "end_date": null\n  }\n}',
+    rule_config_json_text: '{\n  "universe": {\n    "group_ids": [],\n    "stock_codes": []\n  },\n  "signal": {},\n  "order": {\n    "position_ratio": 0.2,\n    "max_symbol_count": 5,\n    "order_type": "MARKET"\n  },\n  "schedule": {\n    "min_interval_seconds": 5,\n    "time_windows": [],\n    "start_date": null,\n    "end_date": null\n  }\n}',
   };
 }
 
@@ -633,9 +635,16 @@ function resetForm() {
 function applyRoutePreset() {
   filters.strategy_category = routeStrategyCategoryPreset.value || '';
   filters.enabled = undefined;
-  filters.keyword = '';
+  filters.keyword = String(route.query.keyword || route.query.strategyName || '').trim();
   pagination.page = 1;
   loadStrategies();
+}
+
+function getBuiltinFieldLabel(field) {
+  if (field.path === 'order.position_ratio') {
+    return '单次建仓仓位(%)';
+  }
+  return field.label;
 }
 
 function getCategoryLabel(value) {
@@ -884,7 +893,15 @@ function setValueByPath(target, path, value) {
 }
 
 function getBuiltinFieldValue(field) {
-  return getValueByPath(parseCurrentRuleConfig(), field.path);
+  const value = getValueByPath(parseCurrentRuleConfig(), field.path);
+  if (field.path === 'order.position_ratio') {
+    const numericValue = Number(value ?? 0);
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+    return numericValue <= 1 ? Number((numericValue * 100).toFixed(2)) : numericValue;
+  }
+  return value;
 }
 
 function normalizeBuiltinMultiSelectValue(field) {
@@ -929,6 +946,10 @@ function formatBuiltinFieldValue(field) {
 function setBuiltinFieldValue(field, rawValue) {
   const nextConfig = parseCurrentRuleConfig();
   let value = rawValue;
+  if (field.path === 'order.position_ratio') {
+    const numericValue = Number(rawValue ?? 0);
+    value = Number.isFinite(numericValue) ? Number((numericValue / 100).toFixed(4)) : 0;
+  }
   if (field.component === 'string-array') {
     value = String(rawValue || '')
       .split(',')
@@ -1233,6 +1254,11 @@ function goToAccountStrategy(accountId) {
 .builtin-config-label {
   color: #606266;
   font-size: 13px;
+}
+
+.builtin-config-meta {
+  font-size: 12px;
+  color: #909399;
 }
 
 .builtin-preview-panel {

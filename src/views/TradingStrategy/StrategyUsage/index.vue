@@ -18,6 +18,11 @@
             <strong>{{ strategy.strategy_name }}</strong>
             <small>{{ strategy.strategy_code }}</small>
           </div>
+          <div class="usage-card">
+            <span>策略类型</span>
+            <strong>{{ getCategoryLabel(strategy.strategy_category) }}</strong>
+            <small>{{ strategy.strategy_mode === 'BUILTIN' ? '内置策略' : '配置化策略' }}</small>
+          </div>
           <div class="usage-card principle-card">
             <span>设计原理</span>
             <strong>{{ strategy.design_principle || '未填写' }}</strong>
@@ -32,6 +37,22 @@
             <strong>{{ usageSummary.latest_result_code || '暂无' }}</strong>
             <small>{{ formatDateTime(usageSummary.latest_dispatch_time) }}</small>
           </div>
+        </div>
+
+        <div class="usage-signal-panel">
+          <div class="usage-signal-header">
+            <h3>关联买卖点策略</h3>
+            <p>展示当前执行策略已绑定的买点/卖点策略实例和参数预览。</p>
+          </div>
+          <div v-if="boundSignalStrategies.length" class="usage-signal-grid">
+            <div v-for="item in boundSignalStrategies" :key="`${item.usageScope}-${item.id}`" class="usage-signal-card">
+              <span>{{ item.usageScopeLabel }}</span>
+              <strong>{{ item.instance_name }}</strong>
+              <small>{{ item.template_name }}</small>
+              <p>{{ item.params_preview || '未提供参数预览' }}</p>
+            </div>
+          </div>
+          <el-empty v-else description="当前策略未绑定买卖点策略" :image-size="80" />
         </div>
 
         <el-alert v-if="usageSummary.usage_warning" :title="usageSummary.usage_warning" type="warning" show-icon :closable="false" class="usage-alert" />
@@ -83,7 +104,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 
@@ -92,6 +113,7 @@ import {
   getTradingStrategyUsageBindings,
   getTradingStrategyUsageSummary,
 } from '@/api/modules/tradingStrategy';
+import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 const route = useRoute();
@@ -111,8 +133,34 @@ const usageSummary = reactive({
 });
 const usageBindings = reactive({ total: 0, items: [] });
 const pagination = reactive({ page: 1, pageSize: 10 });
+const signalStrategyOptions = reactive({ buy: [], sell: [] });
 
 const strategyId = ref('');
+const boundSignalStrategies = computed(() => {
+  const signalConfig = strategy.rule_config_json?.signal || {};
+  const buyIds = Array.isArray(signalConfig.entry_signal_strategy_ids) ? signalConfig.entry_signal_strategy_ids : [];
+  const sellIds = Array.isArray(signalConfig.exit_signal_strategy_ids) ? signalConfig.exit_signal_strategy_ids : [];
+  const optionMaps = {
+    buy: new Map((signalStrategyOptions.buy || []).map((item) => [Number(item.id), item])),
+    sell: new Map((signalStrategyOptions.sell || []).map((item) => [Number(item.id), item])),
+  };
+  return [
+    ...buyIds.map((id) => ({ usageScope: 'buy', id: Number(id) })),
+    ...sellIds.map((id) => ({ usageScope: 'sell', id: Number(id) })),
+  ]
+    .filter((item) => item.id)
+    .map((item) => {
+      const option = optionMaps[item.usageScope].get(item.id);
+      return {
+        id: item.id,
+        usageScope: item.usageScope,
+        usageScopeLabel: item.usageScope === 'buy' ? '关联买点策略' : '关联卖点策略',
+        instance_name: option?.instance_name || `策略实例 #${item.id}`,
+        template_name: option?.template_name || '未知模板',
+        params_preview: option?.params_preview || '',
+      };
+    });
+});
 
 watch(
   () => route.query.strategyId,
@@ -141,6 +189,7 @@ async function loadPageData() {
         page: pagination.page,
         page_size: pagination.pageSize,
       }),
+      loadSignalStrategyOptions(),
     ]);
     Object.assign(strategy, detailRes.payload || {});
     Object.assign(usageSummary, summaryRes.payload || {});
@@ -152,6 +201,25 @@ async function loadPageData() {
   } finally {
     loading.value = false;
   }
+}
+
+async function loadSignalStrategyOptions() {
+  const [buyRes, sellRes] = await Promise.all([
+    getSignalStrategyOptions({ usage_scope: 'buy' }),
+    getSignalStrategyOptions({ usage_scope: 'sell' }),
+  ]);
+  signalStrategyOptions.buy = buyRes?.payload?.items || [];
+  signalStrategyOptions.sell = sellRes?.payload?.items || [];
+}
+
+function getCategoryLabel(value) {
+  const categoryMap = {
+    ACCOUNT_RISK: '账号风控',
+    OPEN_POSITION: '建仓',
+    CLOSE_POSITION: '清仓',
+    INTRADAY_T: '做T',
+  };
+  return categoryMap[String(value || '').trim().toUpperCase()] || value || '-';
 }
 
 async function loadUsageBindings() {
@@ -267,6 +335,66 @@ function goBack() {
 
 .usage-alert {
   margin-bottom: 16px;
+}
+
+.usage-signal-panel {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 16px;
+  background: #fcfcfd;
+}
+
+.usage-signal-header {
+  margin-bottom: 12px;
+}
+
+.usage-signal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+}
+
+.usage-signal-header p {
+  margin: 6px 0 0;
+  color: #909399;
+  font-size: 13px;
+}
+
+.usage-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.usage-signal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e6eaf0;
+  background: #ffffff;
+}
+
+.usage-signal-card span {
+  color: #909399;
+  font-size: 12px;
+}
+
+.usage-signal-card strong {
+  color: #303133;
+  font-size: 16px;
+}
+
+.usage-signal-card small {
+  color: #606266;
+}
+
+.usage-signal-card p {
+  margin: 0;
+  color: #606266;
+  line-height: 1.6;
 }
 
 .table-pagination {

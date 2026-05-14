@@ -122,12 +122,20 @@
 
       <el-tabs v-model="activeTab">
         <el-tab-pane label="持仓" name="position">
+          <div class="tab-toolbar position-toolbar">
+            <el-space>
+              <el-button :loading="positionRefreshing" @click="refreshPositions">刷新持仓</el-button>
+              <span class="position-toolbar__hint">股票名称支持直接跳转到百度财经查看详情</span>
+            </el-space>
+          </div>
           <PositionTable
             :items="positions"
             :show-total-quantity="true"
             :show-sellable-quantity="true"
             :show-frozen-quantity="true"
             :show-position-ratio="true"
+            :show-holding-days="true"
+            :show-first-build-time="true"
             :show-actions="true"
             :show-edit-action="true"
             :show-sell-action="true"
@@ -681,15 +689,20 @@
                   <el-table-column label="成交价" width="120">
                     <template #default="scope">{{ formatMoney(scope.row.fill_price) }}</template>
                   </el-table-column>
+                  <el-table-column label="成交时价格涨跌幅" width="140">
+                    <template #default="scope">
+                      <span :class="profitClass(getTradeChangeRateValue(scope.row))">{{ getTradeChangeRateText(scope.row) }}</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
                       <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
-                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                        <template v-if="getTradeReasonDisplayItems(scope.row).length">
                           <div
-                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            v-for="(item, index) in getTradeReasonDisplayItems(scope.row)"
                             :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
                             class="trade-reason-item"
                           >
@@ -799,15 +812,20 @@
                   <el-table-column label="成交价" width="120">
                     <template #default="scope">{{ formatMoney(scope.row.fill_price) }}</template>
                   </el-table-column>
+                  <el-table-column label="成交时价格涨跌幅" width="140">
+                    <template #default="scope">
+                      <span :class="profitClass(getTradeChangeRateValue(scope.row))">{{ getTradeChangeRateText(scope.row) }}</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="成交金额" width="140">
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
                       <div class="trade-reason-text" :title="formatTradeReason(scope.row.trade_reason)">
-                        <template v-if="formatTradeReasonItems(scope.row.trade_reason).length">
+                        <template v-if="getTradeReasonDisplayItems(scope.row).length">
                           <div
-                            v-for="(item, index) in formatTradeReasonItems(scope.row.trade_reason)"
+                            v-for="(item, index) in getTradeReasonDisplayItems(scope.row)"
                             :key="`${scope.row.id || scope.row.order_no || scope.row.trade_no || 'reason'}-${index}`"
                             class="trade-reason-item"
                           >
@@ -951,6 +969,7 @@ const selectedBuyStock = ref(null);
 const selectedSellStock = ref(null);
 const positionEditVisible = ref(false);
 const positionEditSubmitting = ref(false);
+const positionRefreshing = ref(false);
 const editingPosition = ref(null);
 const debugModeSwitchLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
@@ -1111,10 +1130,181 @@ function formatTradeReasonItems(value) {
     });
 }
 
+function parseJsonObject(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === 'object' ? value : null;
+}
+
+function getValueByPath(source, path) {
+  return String(path || '')
+    .split('.')
+    .filter(Boolean)
+    .reduce((current, key) => (current == null ? undefined : current[key]), source);
+}
+
+function getFirstExistingValue(source, paths = []) {
+  for (const path of paths) {
+    const value = getValueByPath(source, path);
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function formatSnapshotInlineValue(value) {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => formatSnapshotInlineValue(item)).filter(Boolean).join('；');
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizePercentNumber(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value === 'string' && value.includes('%')) {
+    const numericValue = Number(value.replace('%', '').trim());
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return null;
+  }
+  return Math.abs(numericValue) <= 1 ? numericValue * 100 : numericValue;
+}
+
+function formatPercentNumber(value) {
+  const numericValue = normalizePercentNumber(value);
+  if (numericValue === null) {
+    return '--';
+  }
+  return `${numericValue.toFixed(2)}%`;
+}
+
+function formatMetricNumber(value, precision = 2) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return '--';
+  }
+  return numericValue.toFixed(precision);
+}
+
+function getTradeSnapshotPayload(row) {
+  return parseJsonObject(row?.pre_trade_position_snapshot_json) || {};
+}
+
+function getTradeChangeRateValue(row) {
+  const snapshot = getTradeSnapshotPayload(row);
+  return normalizePercentNumber(getFirstExistingValue(snapshot, [
+    'quote_payload.change_rate',
+    'quote_payload.pct_chg',
+    'quote_snapshot.change_rate',
+    'quote_snapshot.pct_chg',
+    'execution_quote.change_rate',
+    'execution_quote.pct_chg',
+    'execution_snapshot.change_rate',
+    'execution_snapshot.pct_chg',
+    'kline.change_rate',
+    'kline.pct_chg',
+  ]));
+}
+
+function getTradeChangeRateText(row) {
+  return formatPercentNumber(getTradeChangeRateValue(row));
+}
+
+function getTradeReasonDisplayItems(row) {
+  const items = [...formatTradeReasonItems(row?.trade_reason)];
+  const snapshot = getTradeSnapshotPayload(row);
+  const lastPrice = getFirstExistingValue(snapshot, [
+    'quote_payload.last_price',
+    'quote_snapshot.last_price',
+    'execution_quote.last_price',
+    'execution_snapshot.last_price',
+    'order_request.execution_price',
+  ]);
+  const changeRateText = getTradeChangeRateText(row);
+  const volumeRatio = getFirstExistingValue(snapshot, [
+    'quote_payload.volume_ratio',
+    'quote_snapshot.volume_ratio',
+    'execution_quote.volume_ratio',
+    'execution_snapshot.volume_ratio',
+    'kline.volume_ratio',
+  ]);
+  const snapshotParts = [];
+  if (lastPrice !== undefined && lastPrice !== null && lastPrice !== '') {
+    snapshotParts.push(`成交价 ${formatMetricNumber(lastPrice)}`);
+  }
+  if (changeRateText !== '--') {
+    snapshotParts.push(`股价涨跌幅 ${changeRateText}`);
+  }
+  if (volumeRatio !== undefined && volumeRatio !== null && volumeRatio !== '') {
+    snapshotParts.push(`量比 ${formatMetricNumber(volumeRatio)}`);
+  }
+  if (snapshotParts.length) {
+    items.push({
+      label: row?.direction === 'BUY' ? '买入快照：' : '卖出快照：',
+      value: snapshotParts.join('，'),
+    });
+  }
+
+  const strategySnapshotMappings = [
+    {
+      label: '建仓策略快照：',
+      paths: ['strategy_snapshots.open_position', 'strategy_snapshot.open_position', 'open_position_strategy_snapshot', 'open_position_strategy'],
+    },
+    {
+      label: '清仓策略快照：',
+      paths: ['strategy_snapshots.close_position', 'strategy_snapshot.close_position', 'close_position_strategy_snapshot', 'close_position_strategy'],
+    },
+    {
+      label: '买卖点策略快照：',
+      paths: ['strategy_snapshots.signal', 'strategy_snapshot.signal', 'signal_strategy_snapshot', 'signal_strategy', 'entry_signal_strategy', 'exit_signal_strategy'],
+    },
+    {
+      label: '交易前持仓快照摘要：',
+      paths: ['target_position.kline', 'kline', 'kline_snapshot'],
+    },
+  ];
+
+  strategySnapshotMappings.forEach((mapping) => {
+    const value = getFirstExistingValue(snapshot, mapping.paths);
+    const text = formatSnapshotInlineValue(value);
+    if (text) {
+      items.push({ label: mapping.label, value: text });
+    }
+  });
+
+  return items;
+}
+
 function formatSnapshotJson(value) {
   if (!value) return '--';
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(parseJsonObject(value) || value, null, 2);
   } catch {
     return String(value);
   }
@@ -2164,6 +2354,22 @@ async function loadAccountDetail() {
   detailPayload.value = res.payload;
 }
 
+async function refreshPositions() {
+  if (!activeAccountId.value) {
+    return;
+  }
+  positionRefreshing.value = true;
+  try {
+    await loadAccountDetail();
+    ElMessage.success('持仓列表已刷新');
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '刷新持仓失败');
+  } finally {
+    positionRefreshing.value = false;
+  }
+}
+
 async function loadAccountStrategyBindings() {
   if (!activeAccountId.value) {
     accountStrategyBindings.value = [];
@@ -2450,6 +2656,15 @@ onUnmounted(() => {
 
 .trade-mode-alert {
   margin-bottom: 18px;
+}
+
+.position-toolbar {
+  margin-bottom: 12px;
+}
+
+.position-toolbar__hint {
+  font-size: 12px;
+  color: #6f8194;
 }
 
 .trade-reason-text {
