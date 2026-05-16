@@ -22,6 +22,10 @@
 
       <div v-if="currentAccount" class="overview-grid">
         <div class="overview-card">
+          <span>创建日期</span>
+          <strong>{{ formatDateTime(currentAccount.created_time) }}</strong>
+        </div>
+        <div class="overview-card">
           <span>当前总资产</span>
           <strong>{{ formatMoney(summary.current_total_asset) }}</strong>
         </div>
@@ -36,6 +40,10 @@
         <div class="overview-card">
           <span>持仓市值</span>
           <strong>{{ formatMoney(summary.position_market_value) }}</strong>
+        </div>
+        <div class="overview-card">
+          <span>历史盈亏</span>
+          <strong :class="profitClass(summary.historical_pnl_amount)">{{ `${formatMoney(summary.historical_pnl_amount)} ${formatPercent(summary.historical_pnl_rate)}` }}</strong>
         </div>
         <div class="overview-card">
           <span>持仓盈亏</span>
@@ -128,6 +136,8 @@
             :show-sellable-quantity="true"
             :show-frozen-quantity="true"
             :show-position-ratio="true"
+            :show-holding-days="true"
+            :show-holding-date-range="true"
             :show-actions="true"
             :show-edit-action="true"
             :show-sell-action="true"
@@ -2443,6 +2453,7 @@ onUnmounted(() => {
 .overview-card strong {
   font-size: 24px;
   color: #17324d;
+  line-height: 1.4;
 }
 
 .trade-mode-card {

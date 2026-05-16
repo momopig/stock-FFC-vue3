@@ -12,6 +12,9 @@
       <el-table-column prop="account_name" label="账户名称" min-width="160" />
       <el-table-column prop="account_type" label="账户类型" width="120" />
       <el-table-column prop="broker_name" label="券商类型" width="120" />
+      <el-table-column label="创建日期" min-width="180">
+        <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+      </el-table-column>
       <el-table-column label="币种" width="130">
         <template #default="scope">{{ getCurrencyLabel(scope.row.base_currency) }}</template>
       </el-table-column>
@@ -136,6 +139,27 @@ function formatMoney(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  let normalized = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
+  if (typeof normalized === 'string') {
+    const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized);
+    if (!hasTimezone && normalized.includes('T')) {
+      normalized = `${normalized}Z`;
+    }
+  }
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTime(value) {
+  const date = normalizeDate(value);
+  if (!date) return '--';
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function profitClass(value) {

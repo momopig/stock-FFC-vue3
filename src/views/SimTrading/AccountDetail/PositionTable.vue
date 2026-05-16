@@ -33,8 +33,11 @@
     <el-table-column v-if="showPositionRatio" prop="position_ratio" label="持仓占比" width="110" sortable>
       <template #default="scope">{{ formatPercent(scope.row.position_ratio) }}</template>
     </el-table-column>
-    <el-table-column v-if="showHoldingDays" label="持仓天数" width="100" sortable :sort-method="sortByHoldingDays">
+    <el-table-column v-if="showHoldingDays" label="持仓天数" width="120" sortable :sort-method="sortByHoldingDays">
       <template #default="scope">{{ formatHoldingDays(scope.row) }}</template>
+    </el-table-column>
+    <el-table-column v-if="showHoldingDateRange" label="持仓日期区间" min-width="260">
+      <template #default="scope">{{ formatHoldingDateRange(scope.row) }}</template>
     </el-table-column>
     <el-table-column v-if="showFirstBuildTime" label="首次建仓日期" min-width="180">
       <template #default="scope">{{ formatFirstBuildTime(scope.row) }}</template>
@@ -111,6 +114,10 @@ const props = defineProps({
     default: false,
   },
   showHoldingDays: {
+    type: Boolean,
+    default: false,
+  },
+  showHoldingDateRange: {
     type: Boolean,
     default: false,
   },
@@ -250,6 +257,15 @@ function sortByHoldingDays(left, right) {
 
 function formatFirstBuildTime(row) {
   return formatDateTime(getFirstBuildDateValue(row));
+}
+
+function formatHoldingDateRange(row) {
+  const startDate = getFirstBuildDateValue(row);
+  if (!startDate) {
+    return '--';
+  }
+  const endDate = row?.close_time || row?.closed_time || row?.close_date || row?.closed_date || new Date();
+  return `${formatDateTime(startDate)} ~ ${formatDateTime(endDate)}`;
 }
 
 function openStockDetail(row) {
