@@ -124,7 +124,7 @@
                 </div>
               </div>
 
-              <el-table :data="overviewData.stock_rankings || []" border empty-text="当前区间暂无股票收益数据">
+              <el-table class="stock-ranking-table" :data="overviewData.stock_rankings || []" border empty-text="当前区间暂无股票收益数据">
                 <el-table-column prop="stock_name" label="股票名称" min-width="140">
                   <template #default="scope">{{ formatRankingStockName(scope.row) }}</template>
                 </el-table-column>
@@ -139,7 +139,10 @@
                     <span :class="profitClass(scope.row.profit_amount)">{{ formatPercent(scope.row.profit_rate) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="holding_days" label="持仓天数" width="100" sortable>
+                <el-table-column label="持仓日期区间" min-width="210">
+                  <template #default="scope">{{ formatHoldingDateRange(scope.row) }}</template>
+                </el-table-column>
+                <el-table-column prop="holding_days" label="持仓天数" width="120" sortable>
                   <template #default="scope">{{ formatHoldingDays(scope.row.holding_days) }}</template>
                 </el-table-column>
               </el-table>
@@ -181,14 +184,37 @@
                 <template #content>
                   <div class="calendar-tooltip">
                     <div class="curve-tooltip__title">{{ item.date || '--' }}</div>
-                    <div>{{ `收益额：${formatNullableMoney(item.profit_amount)}` }}</div>
-                    <div>{{ `收益率：${formatNullablePercent(item.profit_rate)}` }}</div>
-                    <div>{{ `总资产：${formatNullableMoney(item.total_asset)}` }}</div>
-                    <div>{{ `持仓市值：${formatNullableMoney(item.market_value)}` }}</div>
-                    <div>{{ `现金余额：${formatNullableMoney(item.cash_balance)}` }}</div>
-                    <div>{{ getCalendarDetailText(item) }}</div>
-                    <div v-if="getTradeEventText(item.date)">{{ `关联交易：${getTradeEventText(item.date)}` }}</div>
-                    <div v-if="getCashFlowEventText(item.date)">{{ `资金变动：${getCashFlowEventText(item.date)}` }}</div>
+                    <div class="calendar-tooltip__section-title">股票盈亏构成</div>
+                    <div v-if="getCalendarStockRankings(item).length" class="calendar-breakdown-table-wrap">
+                      <table class="calendar-breakdown-table calendar-breakdown-table--five-columns">
+                        <thead>
+                          <tr>
+                            <th>股票名称</th>
+                            <th>盈亏金额</th>
+                            <th>盈亏率</th>
+                            <th>持仓天数</th>
+                            <th>持仓日期区间</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="ranking in getCalendarStockRankings(item)" :key="`${item.date}-${ranking.stock_code}`">
+                            <td>
+                              <div class="calendar-breakdown-name">{{ formatRankingStockName(ranking) }}</div>
+                              <div class="calendar-breakdown-code">{{ ranking.stock_code }}</div>
+                            </td>
+                            <td>
+                              <span :class="profitClass(ranking.profit_amount)">{{ formatMoney(ranking.profit_amount) }}</span>
+                            </td>
+                            <td>
+                              <span :class="profitClass(ranking.profit_amount)">{{ formatPercent(ranking.profit_rate) }}</span>
+                            </td>
+                            <td>{{ formatHoldingDays(ranking.holding_days) }}</td>
+                            <td class="calendar-breakdown-range">{{ formatHoldingDateRange(ranking) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div v-else class="calendar-breakdown-empty">暂无股票盈亏构成明细</div>
                   </div>
                 </template>
                 <div class="calendar-cell" :class="getCalendarCellClass(item)">
@@ -212,10 +238,37 @@
               <template #content>
                 <div class="calendar-tooltip">
                   <div class="curve-tooltip__title">{{ `${Number(item.month)}月` }}</div>
-                  <div>{{ `月收益：${formatMoney(item.profit_amount)}元` }}</div>
-                  <div>{{ `月收益率：${formatPercent(item.profit_rate)}` }}</div>
-                  <div>{{ `期末总资产：${formatMoney(item.total_asset)}元` }}</div>
-                  <div>{{ `盈利天 ${item.positive_days || 0} / 亏损天 ${item.negative_days || 0}` }}</div>
+                  <div class="calendar-tooltip__section-title">股票盈亏构成</div>
+                  <div v-if="getCalendarStockRankings(item).length" class="calendar-breakdown-table-wrap">
+                    <table class="calendar-breakdown-table calendar-breakdown-table--five-columns">
+                      <thead>
+                        <tr>
+                          <th>股票名称</th>
+                          <th>盈亏金额</th>
+                          <th>盈亏率</th>
+                          <th>持仓天数</th>
+                          <th>持仓日期区间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="ranking in getCalendarStockRankings(item)" :key="`${item.month}-${ranking.stock_code}`">
+                          <td>
+                            <div class="calendar-breakdown-name">{{ formatRankingStockName(ranking) }}</div>
+                            <div class="calendar-breakdown-code">{{ ranking.stock_code }}</div>
+                          </td>
+                          <td>
+                            <span :class="profitClass(ranking.profit_amount)">{{ formatMoney(ranking.profit_amount) }}</span>
+                          </td>
+                          <td>
+                            <span :class="profitClass(ranking.profit_amount)">{{ formatPercent(ranking.profit_rate) }}</span>
+                          </td>
+                          <td>{{ formatHoldingDays(ranking.holding_days) }}</td>
+                          <td class="calendar-breakdown-range">{{ formatHoldingDateRange(ranking) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div v-else class="calendar-breakdown-empty">暂无股票盈亏构成明细</div>
                 </div>
               </template>
               <div class="calendar-year-card" :class="profitClass(item.profit_amount)">
@@ -414,12 +467,29 @@ watch(
     if (!value) {
       return;
     }
+    overviewCache.clear();
+    calendarCache.clear();
     overviewRangeType.value = 'month';
     overviewCustomDateRange.value = [];
     calendarType.value = 'month';
     await Promise.all([loadOverview(), loadCalendar()]);
   },
   { immediate: true }
+);
+
+watch(
+  () => JSON.stringify({
+    trades: (props.trades || []).map((item) => [item?.id, item?.traded_time, item?.fill_quantity, item?.net_amount]),
+    cashFlows: (props.cashFlows || []).map((item) => [item?.id, item?.occurred_time, item?.amount, item?.flow_type]),
+  }),
+  async () => {
+    if (!props.accountId) {
+      return;
+    }
+    overviewCache.clear();
+    calendarCache.clear();
+    await Promise.all([loadOverview({ force: true }), loadCalendar({ force: true })]);
+  }
 );
 
 async function loadOverview(options = {}) {
@@ -624,20 +694,22 @@ function getCurveMarkerStyle(point) {
   };
 }
 
-function getCalendarDetailText(item) {
-  const profit = Number(item?.profit_amount || 0);
-  if (profit > 0) {
-    return '当日为盈利日，可结合关联交易查看主要驱动。';
+function getCalendarStockRankings(item) {
+  if (!Array.isArray(item?.stock_rankings)) {
+    return [];
   }
-  if (profit < 0) {
-    return '当日为亏损日，可结合关联交易与资金变动查看回撤原因。';
-  }
-  return '当日无明显盈亏波动。';
+  return item.stock_rankings;
 }
 
 function formatHoldingDays(value) {
   const numberValue = Number(value || 0);
   return `${Math.max(0, Math.trunc(numberValue))} 天`;
+}
+
+function formatHoldingDateRange(row) {
+  const startDate = row?.first_open_date || '--';
+  const endDate = row?.close_date || '--';
+  return `${startDate} ~ ${endDate}`;
 }
 
 function formatDateInput(value) {
@@ -840,8 +912,88 @@ function formatDayNumber(value) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 320px;
   line-height: 1.6;
+}
+
+.curve-tooltip {
+  max-width: 320px;
+}
+
+.calendar-tooltip {
+  max-width: 760px;
+}
+
+.calendar-tooltip__section-title {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #60748a;
+}
+
+.calendar-breakdown-table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.calendar-breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.calendar-breakdown-table th,
+.calendar-breakdown-table td {
+  padding: 8px 10px;
+  border: 1px solid #dbe5ef;
+  vertical-align: top;
+  text-align: left;
+}
+
+.calendar-breakdown-table thead th {
+  background: #f4f8fb;
+  color: #4f647a;
+  font-weight: 700;
+}
+
+.calendar-breakdown-table--five-columns th:nth-child(1),
+.calendar-breakdown-table--five-columns td:nth-child(1) {
+  width: 24%;
+}
+
+.calendar-breakdown-table--five-columns th:nth-child(2),
+.calendar-breakdown-table--five-columns td:nth-child(2),
+.calendar-breakdown-table--five-columns th:nth-child(3),
+.calendar-breakdown-table--five-columns td:nth-child(3),
+.calendar-breakdown-table--five-columns th:nth-child(4),
+.calendar-breakdown-table--five-columns td:nth-child(4) {
+  width: 14%;
+}
+
+.calendar-breakdown-table--five-columns th:nth-child(5),
+.calendar-breakdown-table--five-columns td:nth-child(5) {
+  width: 34%;
+}
+
+.calendar-breakdown-name {
+  font-weight: 700;
+  color: #17324d;
+}
+
+.calendar-breakdown-code {
+  font-size: 11px;
+  color: #7b8794;
+}
+
+.calendar-breakdown-range {
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.calendar-breakdown-empty {
+  font-size: 12px;
+  color: #7b8794;
 }
 
 .curve-tooltip__title {
@@ -973,6 +1125,10 @@ function formatDayNumber(value) {
 .calendar-year-card small {
   font-size: 12px;
   color: #6f8194;
+}
+
+.stock-ranking-table :deep(.el-table__header-wrapper th .cell) {
+  white-space: nowrap;
 }
 
 .profit-up {

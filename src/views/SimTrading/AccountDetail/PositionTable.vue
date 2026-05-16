@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="items" border :max-height="maxHeight" :empty-text="emptyText">
+  <el-table class="position-table" :data="items" border :max-height="maxHeight" :empty-text="emptyText">
     <el-table-column :label="nameLabel" min-width="140">
       <template #default="scope">
         <el-button link type="primary" class="stock-name-link" @click="openStockDetail(scope.row)">
@@ -8,9 +8,9 @@
       </template>
     </el-table-column>
     <el-table-column prop="stock_code" label="代码" width="120" />
-    <el-table-column v-if="showTotalQuantity" prop="total_quantity" :label="totalQuantityLabel" width="100" sortable />
-    <el-table-column v-if="showSellableQuantity" prop="sellable_quantity" :label="sellableQuantityLabel" width="100" sortable />
-    <el-table-column v-if="showFrozenQuantity" prop="frozen_quantity" label="冻结数量" width="100" sortable />
+    <el-table-column v-if="showTotalQuantity" prop="total_quantity" :label="totalQuantityLabel" width="110" sortable />
+    <el-table-column v-if="showSellableQuantity" prop="sellable_quantity" :label="sellableQuantityLabel" width="120" sortable />
+    <el-table-column v-if="showFrozenQuantity" prop="frozen_quantity" label="冻结数量" width="120" sortable />
     <el-table-column prop="avg_cost_price" label="成本价" width="110" sortable>
       <template #default="scope">{{ formatMoney(scope.row.avg_cost_price) }}</template>
     </el-table-column>
@@ -266,6 +266,10 @@ function openStockDetail(row) {
 .stock-name-link {
   padding: 0;
   font-weight: 600;
+}
+
+.position-table :deep(th .cell) {
+  white-space: nowrap;
 }
 
 .profit-up {
