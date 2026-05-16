@@ -457,9 +457,9 @@
                 <el-tag :type="getOrderStatusTagType(scope.row.order_status)" effect="light">{{ getOrderStatusLabel(scope.row.order_status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="order_quantity" label="委托数量" width="100" />
-            <el-table-column prop="filled_quantity" label="已成交" width="100" />
-            <el-table-column label="委托价" width="110">
+            <el-table-column prop="order_quantity" label="委托数量" width="100" sortable />
+            <el-table-column prop="filled_quantity" label="已成交" width="100" sortable />
+            <el-table-column prop="order_price" label="委托价" width="110" sortable>
               <template #default="scope">{{ formatMoney(scope.row.order_price) }}</template>
             </el-table-column>
             <el-table-column label="委托时间" min-width="180">
@@ -534,13 +534,15 @@
           </div>
 
           <el-table :data="pagedTransferCashFlows" border>
+            <el-table-column prop="stock_name" label="股票名称" min-width="140" />
+            <el-table-column prop="stock_code" label="股票代码" width="120" />
             <el-table-column label="类型" width="140">
               <template #default="scope">{{ getFlowTypeLabel(scope.row.flow_type) }}</template>
             </el-table-column>
             <el-table-column label="方向" width="100">
               <template #default="scope">{{ getFlowDirectionLabel(scope.row.direction) }}</template>
             </el-table-column>
-            <el-table-column label="金额" width="140">
+            <el-table-column prop="amount" label="金额" width="140" sortable>
               <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
             </el-table-column>
             <el-table-column label="币种" width="130">
@@ -567,18 +569,19 @@
           <div class="query-shell">
             <div class="query-toolbar">
               <el-input
-                v-model="queryFilters.keyword"
+                v-model="queryForm.keyword"
                 clearable
                 placeholder="股票代码 / 名称"
                 class="toolbar-input"
+                @keyup.enter="applyQueryFilters"
               />
-              <el-select v-model="queryFilters.direction" clearable placeholder="方向" class="toolbar-select">
+              <el-select v-model="queryForm.direction" clearable placeholder="方向" class="toolbar-select">
                 <el-option label="买入" value="BUY" />
                 <el-option label="卖出" value="SELL" />
               </el-select>
               <el-select
                 v-if="activeQueryTab !== 'cash-flows'"
-                v-model="queryFilters.orderStatus"
+                v-model="queryForm.orderStatus"
                 clearable
                 placeholder="委托状态"
                 class="toolbar-select"
@@ -592,7 +595,7 @@
               </el-select>
               <el-select
                 v-else
-                v-model="queryFilters.flowType"
+                v-model="queryForm.flowType"
                 clearable
                 placeholder="流水类型"
                 class="toolbar-select"
@@ -606,7 +609,7 @@
                 <el-option label="交易费用" value="FEE" />
               </el-select>
               <el-date-picker
-                v-model="queryFilters.dateRange"
+                v-model="queryForm.dateRange"
                 type="daterange"
                 range-separator="至"
                 start-placeholder="开始日期"
@@ -614,6 +617,7 @@
                 value-format="YYYY-MM-DD"
                 class="toolbar-date-range"
               />
+              <el-button type="primary" @click="applyQueryFilters">搜索</el-button>
               <el-button @click="resetQueryFilters">重置</el-button>
             </div>
 
@@ -630,8 +634,8 @@
                       <el-tag :type="getOrderStatusTagType(scope.row.order_status)" effect="light">{{ getOrderStatusLabel(scope.row.order_status) }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="order_quantity" label="委托数量" width="100" />
-                  <el-table-column label="已成交金额" width="140">
+                  <el-table-column prop="order_quantity" label="委托数量" width="100" sortable />
+                  <el-table-column prop="filled_amount" label="已成交金额" width="140" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.filled_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
@@ -685,16 +689,16 @@
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{ getDirectionLabel(scope.row.direction) }}</template>
                   </el-table-column>
-                  <el-table-column prop="fill_quantity" label="成交数量" width="100" />
-                  <el-table-column label="成交价" width="120">
+                  <el-table-column prop="fill_quantity" label="成交数量" width="100" sortable />
+                  <el-table-column prop="fill_price" label="成交价" width="120" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.fill_price) }}</template>
                   </el-table-column>
-                  <el-table-column label="成交时价格涨跌幅" width="140">
+                  <el-table-column label="成交时价格涨跌幅" width="140" sortable :sort-method="sortByTradeChangeRate">
                     <template #default="scope">
                       <span :class="profitClass(getTradeChangeRateValue(scope.row))">{{ getTradeChangeRateText(scope.row) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="成交金额" width="140">
+                  <el-table-column prop="net_amount" label="成交金额" width="140" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
@@ -753,8 +757,8 @@
                       <el-tag :type="getOrderStatusTagType(scope.row.order_status)" effect="light">{{ getOrderStatusLabel(scope.row.order_status) }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="order_quantity" label="委托数量" width="100" />
-                  <el-table-column label="已成交金额" width="140">
+                  <el-table-column prop="order_quantity" label="委托数量" width="100" sortable />
+                  <el-table-column prop="filled_amount" label="已成交金额" width="140" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.filled_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
@@ -808,16 +812,16 @@
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{ getDirectionLabel(scope.row.direction) }}</template>
                   </el-table-column>
-                  <el-table-column prop="fill_quantity" label="成交数量" width="100" />
-                  <el-table-column label="成交价" width="120">
+                  <el-table-column prop="fill_quantity" label="成交数量" width="100" sortable />
+                  <el-table-column prop="fill_price" label="成交价" width="120" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.fill_price) }}</template>
                   </el-table-column>
-                  <el-table-column label="成交时价格涨跌幅" width="140">
+                  <el-table-column label="成交时价格涨跌幅" width="140" sortable :sort-method="sortByTradeChangeRate">
                     <template #default="scope">
                       <span :class="profitClass(getTradeChangeRateValue(scope.row))">{{ getTradeChangeRateText(scope.row) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="成交金额" width="140">
+                  <el-table-column prop="net_amount" label="成交金额" width="140" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.net_amount) }}</template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
@@ -866,13 +870,15 @@
 
               <el-tab-pane label="资金流水" name="cash-flows">
                 <el-table :data="pagedQueryCashFlows" border>
+                  <el-table-column prop="stock_name" label="股票名称" min-width="140" />
+                  <el-table-column prop="stock_code" label="股票代码" width="120" />
                   <el-table-column label="类型" width="140">
                     <template #default="scope">{{ getFlowTypeLabel(scope.row.flow_type) }}</template>
                   </el-table-column>
                   <el-table-column label="方向" width="100">
                     <template #default="scope">{{ getFlowDirectionLabel(scope.row.direction) }}</template>
                   </el-table-column>
-                  <el-table-column label="金额" width="140">
+                  <el-table-column prop="amount" label="金额" width="140" sortable>
                     <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
                   </el-table-column>
                   <el-table-column label="币种" width="130">
@@ -896,6 +902,10 @@
               </el-tab-pane>
             </el-tabs>
           </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="盈亏分析" name="profit-analysis">
+          <ProfitAnalysisPanel v-if="currentAccount" :account-id="activeAccountId" :trades="trades" :cash-flows="cashFlows" />
         </el-tab-pane>
       </el-tabs>
 
@@ -928,6 +938,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import PositionTable from './PositionTable.vue';
+import ProfitAnalysisPanel from './ProfitAnalysisPanel.vue';
 import StrategyPanel from './StrategyPanel.vue';
 
 import {
@@ -975,7 +986,14 @@ const debugModeSwitchLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 let autoRefreshTimer = null;
 let silentRefreshRunning = false;
-const queryFilters = reactive({
+const queryForm = reactive({
+  keyword: '',
+  direction: '',
+  orderStatus: '',
+  flowType: '',
+  dateRange: [],
+});
+const appliedQueryFilters = reactive({
   keyword: '',
   direction: '',
   orderStatus: '',
@@ -1000,7 +1018,7 @@ const ORDER_QUICK_OPTIONS = [
   { label: '1/5', value: 0.2 },
 ];
 
-const VALID_ACCOUNT_DETAIL_TABS = ['position', 'strategy', 'buy', 'sell', 'order', 'trade', 'transfer', 'query'];
+const VALID_ACCOUNT_DETAIL_TABS = ['position', 'strategy', 'buy', 'sell', 'order', 'trade', 'transfer', 'query', 'profit-analysis'];
 
 const buyForm = reactive({
   stock_code: '',
@@ -1234,6 +1252,10 @@ function getTradeChangeRateValue(row) {
 
 function getTradeChangeRateText(row) {
   return formatPercentNumber(getTradeChangeRateValue(row));
+}
+
+function sortByTradeChangeRate(left, right) {
+  return (getTradeChangeRateValue(left) || 0) - (getTradeChangeRateValue(right) || 0);
 }
 
 function getTradeReasonDisplayItems(row) {
@@ -1624,8 +1646,8 @@ function isToday(value) {
 }
 
 function matchesKeyword(item) {
-  if (!queryFilters.keyword) return true;
-  const keyword = String(queryFilters.keyword).trim().toLowerCase();
+  if (!appliedQueryFilters.keyword) return true;
+  const keyword = String(appliedQueryFilters.keyword).trim().toLowerCase();
   if (!keyword) return true;
   const stockCode = String(item.stock_code || '').toLowerCase();
   const stockName = String(item.stock_name || '').toLowerCase();
@@ -1633,11 +1655,11 @@ function matchesKeyword(item) {
 }
 
 function matchesDateRange(value) {
-  if (!Array.isArray(queryFilters.dateRange) || queryFilters.dateRange.length !== 2) return true;
+  if (!Array.isArray(appliedQueryFilters.dateRange) || appliedQueryFilters.dateRange.length !== 2) return true;
   const date = normalizeDate(value);
   if (!date) return false;
-  const start = normalizeDate(`${queryFilters.dateRange[0]}T00:00:00`);
-  const end = normalizeDate(`${queryFilters.dateRange[1]}T23:59:59`);
+  const start = normalizeDate(`${appliedQueryFilters.dateRange[0]}T00:00:00`);
+  const end = normalizeDate(`${appliedQueryFilters.dateRange[1]}T23:59:59`);
   if (!start || !end) return true;
   return date >= start && date <= end;
 }
@@ -1645,8 +1667,8 @@ function matchesDateRange(value) {
 function filterOrders(list) {
   return list.filter((item) => {
     if (!matchesKeyword(item)) return false;
-    if (queryFilters.direction && item.direction !== queryFilters.direction) return false;
-    if (queryFilters.orderStatus && item.order_status !== queryFilters.orderStatus) return false;
+    if (appliedQueryFilters.direction && item.direction !== appliedQueryFilters.direction) return false;
+    if (appliedQueryFilters.orderStatus && item.order_status !== appliedQueryFilters.orderStatus) return false;
     return matchesDateRange(item.placed_time);
   });
 }
@@ -1654,14 +1676,15 @@ function filterOrders(list) {
 function filterTrades(list) {
   return list.filter((item) => {
     if (!matchesKeyword(item)) return false;
-    if (queryFilters.direction && item.direction !== queryFilters.direction) return false;
+    if (appliedQueryFilters.direction && item.direction !== appliedQueryFilters.direction) return false;
     return matchesDateRange(item.traded_time);
   });
 }
 
 function filterCashFlows(list) {
   return list.filter((item) => {
-    if (queryFilters.flowType && item.flow_type !== queryFilters.flowType) return false;
+    if (!matchesKeyword(item)) return false;
+    if (appliedQueryFilters.flowType && item.flow_type !== appliedQueryFilters.flowType) return false;
     return matchesDateRange(item.occurred_time);
   });
 }
@@ -1679,12 +1702,22 @@ function resetAllQueryPages() {
   });
 }
 
+function applyQueryFilters() {
+  appliedQueryFilters.keyword = queryForm.keyword;
+  appliedQueryFilters.direction = queryForm.direction;
+  appliedQueryFilters.orderStatus = queryForm.orderStatus;
+  appliedQueryFilters.flowType = queryForm.flowType;
+  appliedQueryFilters.dateRange = Array.isArray(queryForm.dateRange) ? [...queryForm.dateRange] : [];
+  resetAllQueryPages();
+}
+
 function resetQueryFilters() {
-  queryFilters.keyword = '';
-  queryFilters.direction = '';
-  queryFilters.orderStatus = '';
-  queryFilters.flowType = '';
-  queryFilters.dateRange = [];
+  queryForm.keyword = '';
+  queryForm.direction = '';
+  queryForm.orderStatus = '';
+  queryForm.flowType = '';
+  queryForm.dateRange = [];
+  applyQueryFilters();
 }
 
 function profitClass(value) {
@@ -2137,7 +2170,8 @@ function quickSelectPosition(direction, row) {
 function viewTradeHistory(row) {
   activeTab.value = 'query';
   activeQueryTab.value = 'today-trades';
-  queryFilters.keyword = row?.stock_code || row?.stock_name || '';
+  queryForm.keyword = row?.stock_code || row?.stock_name || '';
+  applyQueryFilters();
 }
 
 function handleOpenOrderSelection(rows) {
@@ -2494,8 +2528,10 @@ watch(activeTab, (value) => {
 });
 
 watch(activeQueryTab, () => {
-  queryFilters.orderStatus = '';
-  queryFilters.flowType = '';
+  queryForm.orderStatus = '';
+  queryForm.flowType = '';
+  appliedQueryFilters.orderStatus = '';
+  appliedQueryFilters.flowType = '';
   resetAllQueryPages();
 });
 
@@ -2514,7 +2550,7 @@ watch(
 );
 
 watch(
-  queryFilters,
+  appliedQueryFilters,
   () => {
     resetAllQueryPages();
   },
@@ -3011,7 +3047,7 @@ onUnmounted(() => {
 }
 
 .toolbar-date-range {
-  width: 320px;
+  width: 240px;
 }
 
 .query-inner-tabs :deep(.el-tabs__header) {

@@ -47,6 +47,18 @@ export async function getSimTradingCashFlows(accountId, params = {}) {
 }
 
 
+export async function getSimTradingProfitAnalysisOverview(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(`${API_PREFIX}/accounts/${accountId}/profit-analysis/overview${query ? `?${query}` : ''}`);
+}
+
+
+export async function getSimTradingProfitAnalysisCalendar(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(`${API_PREFIX}/accounts/${accountId}/profit-analysis/calendar${query ? `?${query}` : ''}`);
+}
+
+
 export async function createSimTradingOrder(data) {
   return await request.post(`${API_PREFIX}/orders`, data);
 }
