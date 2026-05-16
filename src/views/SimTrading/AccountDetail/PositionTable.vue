@@ -8,32 +8,32 @@
       </template>
     </el-table-column>
     <el-table-column prop="stock_code" label="代码" width="120" />
-    <el-table-column v-if="showTotalQuantity" prop="total_quantity" :label="totalQuantityLabel" width="100" />
-    <el-table-column v-if="showSellableQuantity" prop="sellable_quantity" :label="sellableQuantityLabel" width="100" />
-    <el-table-column v-if="showFrozenQuantity" prop="frozen_quantity" label="冻结数量" width="100" />
-    <el-table-column label="成本价" width="110">
+    <el-table-column v-if="showTotalQuantity" prop="total_quantity" :label="totalQuantityLabel" width="100" sortable />
+    <el-table-column v-if="showSellableQuantity" prop="sellable_quantity" :label="sellableQuantityLabel" width="100" sortable />
+    <el-table-column v-if="showFrozenQuantity" prop="frozen_quantity" label="冻结数量" width="100" sortable />
+    <el-table-column prop="avg_cost_price" label="成本价" width="110" sortable>
       <template #default="scope">{{ formatMoney(scope.row.avg_cost_price) }}</template>
     </el-table-column>
-    <el-table-column label="现价" width="110">
+    <el-table-column prop="current_price" label="现价" width="110" sortable>
       <template #default="scope">{{ formatMoney(scope.row.current_price) }}</template>
     </el-table-column>
-    <el-table-column label="市值" width="130">
+    <el-table-column prop="market_value" label="市值" width="130" sortable>
       <template #default="scope">{{ formatMoney(scope.row.market_value) }}</template>
     </el-table-column>
-    <el-table-column label="浮盈亏" width="130">
+    <el-table-column prop="unrealized_pnl" label="浮盈亏" width="130" sortable>
       <template #default="scope">
         <span :class="profitClass(scope.row.unrealized_pnl)">{{ formatMoney(scope.row.unrealized_pnl) }}</span>
       </template>
     </el-table-column>
-    <el-table-column label="盈亏涨跌幅" width="120">
+    <el-table-column prop="pnl_rate" label="盈亏涨跌幅" width="120" sortable>
       <template #default="scope">
         <span :class="profitClass(scope.row.unrealized_pnl)">{{ formatPercent(scope.row.pnl_rate) }}</span>
       </template>
     </el-table-column>
-    <el-table-column v-if="showPositionRatio" label="持仓占比" width="110">
+    <el-table-column v-if="showPositionRatio" prop="position_ratio" label="持仓占比" width="110" sortable>
       <template #default="scope">{{ formatPercent(scope.row.position_ratio) }}</template>
     </el-table-column>
-    <el-table-column v-if="showHoldingDays" label="持仓天数" width="100">
+    <el-table-column v-if="showHoldingDays" label="持仓天数" width="100" sortable :sort-method="sortByHoldingDays">
       <template #default="scope">{{ formatHoldingDays(scope.row) }}</template>
     </el-table-column>
     <el-table-column v-if="showFirstBuildTime" label="首次建仓日期" min-width="180">
@@ -227,6 +227,27 @@ function formatHoldingDays(row) {
   return `${Math.floor(diffMs / 86400000)} 天`;
 }
 
+function getHoldingDaysNumber(row) {
+  const explicitValue = row?.holding_days ?? row?.position_days ?? row?.hold_days;
+  if (explicitValue !== undefined && explicitValue !== null && explicitValue !== '') {
+    const normalized = Number(explicitValue);
+    return Number.isFinite(normalized) ? Math.max(0, Math.trunc(normalized)) : 0;
+  }
+  const firstBuildDate = normalizeDate(getFirstBuildDateValue(row));
+  if (!firstBuildDate) {
+    return 0;
+  }
+  const diffMs = Date.now() - firstBuildDate.getTime();
+  if (diffMs < 0) {
+    return 0;
+  }
+  return Math.floor(diffMs / 86400000);
+}
+
+function sortByHoldingDays(left, right) {
+  return getHoldingDaysNumber(left) - getHoldingDaysNumber(right);
+}
+
 function formatFirstBuildTime(row) {
   return formatDateTime(getFirstBuildDateValue(row));
 }
@@ -245,5 +266,13 @@ function openStockDetail(row) {
 .stock-name-link {
   padding: 0;
   font-weight: 600;
+}
+
+.profit-up {
+  color: #cf3f3f;
+}
+
+.profit-down {
+  color: #1f8a5b;
 }
 </style>
