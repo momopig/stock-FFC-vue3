@@ -9,6 +9,8 @@ const routes = [
   { path: '/register', component: lazy(() => import('@/views/Register/index.vue')), meta: { layout: 'blank', requiresAuth: false } },
   { path: '/user-mgt', component: lazy(() => import('@/views/UserMgt/index.vue')), meta: { permissions: ['is_superuser'] } },
   { path: '/home', component: lazy(() => import('@/App.vue'))},
+  { path: '/futu-opend-subscriptions', component: lazy(() => import('@/views/StockPool/FutuSubscription/index.vue')), meta: { permissions: ['is_superuser'] }},
+  { path: '/stock-pool/futu-subscriptions', redirect: '/futu-opend-subscriptions' },
   // 股票池子路由
   { path: '/stock-pool/strategy', component: lazy(() => import('@/views/StockPool/StrategyPool/index.vue'))},
   { path: '/stock-pool/self-selected', component: lazy(() => import('@/views/StockPool/SelfSelectedPool/index.vue'))},

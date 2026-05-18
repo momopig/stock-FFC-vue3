@@ -45,6 +45,7 @@ export const menuList = [
   //   icon: 'HomeFilled',
   //   path: '/home',
   // },
+
   {
     name: '股票池',
     foldName: '股票池',
@@ -160,6 +161,13 @@ export const menuList = [
     icon: 'User', // 用户
     path: '/user-mgt',
     dataGuide: 'user-mgt', // 引导标记
+    permissions: ['is_superuser'],
+  },
+    {
+    name: '富途openD订阅管理',
+    foldName: '富途openD订阅管理',
+    icon: 'DataAnalysis',
+    path: '/futu-opend-subscriptions',
     permissions: ['is_superuser'],
   },
 ];
