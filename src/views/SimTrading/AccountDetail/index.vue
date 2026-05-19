@@ -130,6 +130,11 @@
 
       <el-tabs v-model="activeTab">
         <el-tab-pane label="持仓" name="position">
+          <div class="tab-toolbar">
+            <el-space>
+              <el-button :loading="positionRefreshLoading" @click="refreshPositionsOnly()">刷新持仓与行情</el-button>
+            </el-space>
+          </div>
           <PositionTable
             :items="positions"
             :show-total-quantity="true"
@@ -155,6 +160,11 @@
         </el-tab-pane>
 
         <el-tab-pane label="买入" name="buy">
+          <div class="tab-toolbar">
+            <el-space>
+              <el-button :loading="positionRefreshLoading" @click="refreshPositionsOnly()">刷新持仓与行情</el-button>
+            </el-space>
+          </div>
           <div class="order-tab-grid">
             <div class="form-panel">
               <el-form :model="buyForm" label-width="100px">
@@ -293,6 +303,11 @@
         </el-tab-pane>
 
         <el-tab-pane label="卖出" name="sell">
+          <div class="tab-toolbar">
+            <el-space>
+              <el-button :loading="positionRefreshLoading" @click="refreshPositionsOnly()">刷新持仓与行情</el-button>
+            </el-space>
+          </div>
           <div class="order-tab-grid">
             <div class="form-panel">
               <el-form :model="sellForm" label-width="100px">
@@ -444,7 +459,7 @@
               <el-button type="danger" plain :disabled="!selectedOpenOrderIds.length" @click="batchCancel">批量撤单</el-button>
             </el-space>
           </div>
-          <el-table :data="openOrders" border @selection-change="handleOpenOrderSelection">
+          <el-table :data="visibleOpenOrders" border @selection-change="handleOpenOrderSelection">
             <el-table-column type="selection" width="50" />
             <el-table-column prop="stock_name" label="股票名称" min-width="140" />
             <el-table-column prop="stock_code" label="代码" width="120" />
@@ -974,6 +989,7 @@ const positionEditVisible = ref(false);
 const positionEditSubmitting = ref(false);
 const editingPosition = ref(null);
 const debugModeSwitchLoading = ref(false);
+const positionRefreshLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 let autoRefreshTimer = null;
 let silentRefreshRunning = false;
@@ -1051,6 +1067,7 @@ const currentTradeModeFormHint = computed(() => (
     ? '当前为调试模式：允许 T+0，非交易时段若价格满足也可能立即成交。'
     : '当前为正常模式：A 股按 T+1 执行，非交易时段只挂单不成交，今日新买入 A 股不可卖出。'
 ));
+const visibleOpenOrders = computed(() => openOrders.value.filter((item) => isOpenOrderStatus(item?.order_status)));
 
 const summary = computed(() => detailPayload.value?.summary || {});
 const positions = computed(() => detailPayload.value?.positions || []);
@@ -1186,6 +1203,10 @@ function getCurrencyLabel(currency) {
     USD: '美元（USD）',
   };
   return map[currency] || currency || '--';
+}
+
+function isOpenOrderStatus(status) {
+  return ['PENDING_MATCH', 'PART_FILLED'].includes(String(status || '').trim().toUpperCase());
 }
 
 function getExchangeLabel(exchange) {
@@ -2209,6 +2230,19 @@ async function loadAccountDetail() {
   detailPayload.value = res.payload;
 }
 
+async function refreshPositionsOnly() {
+  if (!activeAccountId.value || positionRefreshLoading.value) return;
+  positionRefreshLoading.value = true;
+  try {
+    await loadAccountDetail();
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '刷新持仓与行情失败');
+  } finally {
+    positionRefreshLoading.value = false;
+  }
+}
+
 async function loadAccountStrategyBindings() {
   if (!activeAccountId.value) {
     accountStrategyBindings.value = [];
@@ -2230,7 +2264,8 @@ async function loadOrders(onlyOpen = false) {
   });
   if (res?.success) {
     if (onlyOpen) {
-      openOrders.value = res.payload?.items || [];
+      openOrders.value = (res.payload?.items || []).filter((item) => isOpenOrderStatus(item?.order_status));
+      selectedOpenOrderIds.value = selectedOpenOrderIds.value.filter((id) => openOrders.value.some((item) => item.id === id));
     } else {
       allOrders.value = res.payload?.items || [];
     }
