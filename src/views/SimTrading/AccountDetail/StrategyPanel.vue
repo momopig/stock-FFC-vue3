@@ -627,7 +627,14 @@ function formatDateTime(value) {
   if (!value) {
     return '-';
   }
-  const date = new Date(value);
+  let normalized = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
+  if (typeof normalized === 'string') {
+    const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized);
+    if (!hasTimezone && normalized.includes('T')) {
+      normalized = `${normalized}Z`;
+    }
+  }
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
