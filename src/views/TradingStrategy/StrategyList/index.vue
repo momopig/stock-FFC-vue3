@@ -127,10 +127,11 @@
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="3" :disabled="dialog.isBuiltin" />
         </el-form-item>
-        <el-form-item v-if="currentSignalStrategyBindingPath" label="绑定信号策略" required>
+        <template v-for="binding in currentSignalStrategyBindings" :key="binding.path">
+        <el-form-item :label="binding.label" :required="binding.required">
           <div class="full-width signal-binding-panel">
             <el-select
-              :model-value="getBoundSignalStrategyIds()"
+              :model-value="getBoundSignalStrategyIds(binding.path)"
               multiple
               filterable
               clearable
@@ -138,26 +139,27 @@
               collapse-tags-tooltip
               class="full-width"
               :loading="signalStrategyLoading"
-              :placeholder="currentSignalStrategyUsageScope === 'buy' ? '选择买入信号策略实例' : '选择卖出信号策略实例'"
-              @change="handleBoundSignalStrategiesChange"
+              :placeholder="binding.placeholder"
+              @change="handleBoundSignalStrategiesChange(binding.path, $event)"
             >
               <el-option
-                v-for="item in currentSignalStrategyOptions"
+                v-for="item in getSignalStrategyOptionsByScope(binding)"
                 :key="item.id"
                 :label="`${item.instance_name} (${item.template_name})`"
                 :value="item.id"
               />
             </el-select>
             <div class="field-help-text signal-binding-help">
-              {{ currentSignalStrategyUsageScope === 'buy' ? '建仓策略' : '清仓策略' }}将直接引用这里选中的信号策略实例。
+              {{ binding.helpText }}
               保存时后端会校验实例是否存在、是否启用，以及用途是否匹配。
             </div>
-            <div v-if="isTailBreakCloseStrategy" class="field-help-text signal-binding-help emphasis-help">
-              尾盘跌破N日均线清仓不再重复配置 N / 尾盘开始时间 / 最小持仓天数，统一复用这里绑定的“尾盘跌破N日均线未修复”卖点策略实例参数。
+            <div v-if="binding.emphasisHelp" class="field-help-text signal-binding-help emphasis-help">
+              {{ binding.emphasisHelp }}
             </div>
           </div>
         </el-form-item>
-        <el-form-item v-if="showStructuredOpenPositionConfig || (dialog.isBuiltin && currentBuiltinFields.length)" label="参数配置">
+        </template>
+        <el-form-item v-if="showStructuredConfig || (dialog.isBuiltin && currentBuiltinFields.length)" label="参数配置">
           <div class="builtin-config-panel full-width">
             <div class="field-help-text builtin-config-help">
               内置策略的代码逻辑保持内置，但参数支持在线调整。当前已按后端提供的字段描述渲染 GUI 表单；如果后续新增字段，只需在后端注册表补充表单描述即可自动透出。
@@ -174,8 +176,8 @@
             <div v-if="isAccountRiskSlotStrategy" class="field-help-text builtin-config-help">
               股票最大持仓个数会自动保持“熊市 ≤ 震荡市 ≤ 牛市”的关系，避免提交时被后端校验拒绝。
             </div>
-            <div v-if="showStructuredOpenPositionConfig" class="builtin-config-sections">
-              <section v-for="section in openPositionBuiltinSections" :key="section.key" class="builtin-config-section">
+            <div v-if="showStructuredConfig" class="builtin-config-sections">
+              <section v-for="section in structuredConfigSections" :key="section.key" class="builtin-config-section">
                 <div class="builtin-config-section__header">
                   <div>
                     <h4>{{ section.title }}</h4>
@@ -400,6 +402,19 @@ const CONFIGURABLE_OPEN_POSITION_FIELDS = [
   { path: 'schedule.end_date', label: '允许结束日期', component: 'date' },
 ];
 
+const CONFIGURABLE_INTRADAY_T_FIELDS = [
+  { path: 'intraday.mode', label: '做T模式', component: 'select', options: [{ label: '正T', value: 'POSITIVE_T' }] },
+  { path: 'intraday.t_position_ratio', label: 'T仓最大仓位比例(%)', component: 'number', min: 1, max: 100, step: 1, precision: 2 },
+  { path: 'intraday.max_t_rounds', label: '单日最多做T轮次', component: 'integer', min: 1, max: 10, step: 1 },
+  { path: 'intraday.min_price_spread_ratio', label: '最低安全价差(%)', component: 'number', min: 0.1, max: 20, step: 0.1, precision: 2 },
+  { path: 'intraday.stop_loss_ratio', label: 'T仓止损比例(%)', component: 'number', min: 0.1, max: 20, step: 0.1, precision: 2 },
+  { path: 'intraday.force_flat_time', label: '尾盘强制了结时间', component: 'string', placeholder: '如 14:55' },
+  { path: 'intraday.allow_overnight_t_position', label: '允许T仓过夜', component: 'boolean' },
+  { path: 'intraday.base_holding_days', label: '底仓最小持仓天数', component: 'integer', min: 1, max: 30, step: 1 },
+  { path: 'schedule.time_windows', label: '允许交易时段', component: 'string-array', placeholder: '如 10:00-11:00,13:30-14:30' },
+  { path: 'schedule.min_interval_seconds', label: '最小执行间隔(秒)', component: 'integer', min: 0, max: 86400, step: 1 },
+];
+
 const loading = ref(false);
 const submitting = ref(false);
 const signalStrategyLoading = ref(false);
@@ -407,7 +422,7 @@ const groupOptionsLoading = ref(false);
 const strategies = reactive({ total: 0, items: [] });
 const filters = reactive({ strategy_category: '', enabled: undefined, keyword: '' });
 const pagination = reactive({ page: 1, pageSize: 10 });
-const signalStrategyOptions = reactive({ buy: [], sell: [] });
+const signalStrategyOptions = reactive({ entry: [], exit: [], riskBlock: [], trendGuard: [] });
 const builtinGroupOptions = ref([]);
 
 const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
@@ -449,66 +464,151 @@ const createButtonText = computed(() => {
 const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
 const isOpenPositionBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_OPEN_POSITION_BASE');
+const isIntradayTBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_INTRADAY_T_BASE');
 const isTailBreakCloseStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'TAIL_BREAK_MA_SELL');
 const currentEditableStrategyCategory = computed(() => {
   return form.strategy_category || '';
 });
 const isConfigurableOpenPositionStrategy = computed(() => !dialog.isBuiltin && currentEditableStrategyCategory.value === 'OPEN_POSITION');
-const currentSignalStrategyBindingPath = computed(() => {
+const isConfigurableIntradayTStrategy = computed(() => !dialog.isBuiltin && currentEditableStrategyCategory.value === 'INTRADAY_T');
+const currentSignalStrategyBindings = computed(() => {
   if (currentEditableStrategyCategory.value === 'OPEN_POSITION') {
-    return 'signal.entry_signal_strategy_ids';
+    return [
+      {
+        path: 'signal.entry_signal_strategy_ids',
+        label: '绑定买入信号策略',
+        usageScope: 'buy',
+        optionKey: 'entry',
+        required: true,
+        placeholder: '选择买入信号策略实例',
+        helpText: '建仓策略将直接引用这里选中的买入信号策略实例。',
+      },
+    ];
   }
   if (currentEditableStrategyCategory.value === 'CLOSE_POSITION') {
-    return 'signal.exit_signal_strategy_ids';
+    return [
+      {
+        path: 'signal.exit_signal_strategy_ids',
+        label: '绑定卖出信号策略',
+        usageScope: 'sell',
+        optionKey: 'exit',
+        required: true,
+        placeholder: '选择卖出信号策略实例',
+        helpText: '清仓策略将直接引用这里选中的卖出信号策略实例。',
+        emphasisHelp: isTailBreakCloseStrategy.value
+          ? '尾盘跌破N日均线清仓不再重复配置 N / 尾盘开始时间 / 最小持仓天数，统一复用这里绑定的“尾盘跌破N日均线未修复”卖点策略实例参数。'
+          : '',
+      },
+    ];
   }
-  return '';
+  if (currentEditableStrategyCategory.value === 'INTRADAY_T') {
+    return [
+      {
+        path: 'signal.entry_signal_strategy_ids',
+        label: '低吸买点策略',
+        usageScope: 'buy',
+        optionKey: 'entry',
+        required: true,
+        placeholder: '选择低吸买点信号策略实例',
+        helpText: '正T卖出后，系统会优先参考这里的低吸买点策略决定何时买回补齐 T 仓。',
+      },
+      {
+        path: 'signal.exit_signal_strategy_ids',
+        label: '高抛卖点策略',
+        usageScope: 'sell',
+        optionKey: 'exit',
+        required: true,
+        placeholder: '选择高抛卖点信号策略实例',
+        helpText: '系统会参考这里的高抛卖点策略决定何时先卖出一部分底仓，形成正T卖出腿。',
+      },
+      {
+        path: 'signal.risk_block_signal_strategy_ids',
+        label: '买入风控约束策略',
+        usageScope: 'buy',
+        optionKey: 'riskBlock',
+        required: false,
+        placeholder: '选择买入风控约束策略实例',
+        helpText: '可选。这里的策略返回 true 时，将直接禁止本轮低吸买回；返回 false 时，才允许继续评估买点。',
+      },
+      {
+        path: 'signal.trend_guard_signal_strategy_ids',
+        label: '卖出趋势保护策略',
+        usageScope: 'sell',
+        optionKey: 'trendGuard',
+        required: false,
+        placeholder: '选择卖出趋势保护策略实例',
+        helpText: '可选。这里的策略返回 true 时，将直接禁止本轮高抛卖出；返回 false 时，才允许继续评估卖点。',
+      },
+    ];
+  }
+  return [];
 });
-const currentSignalStrategyUsageScope = computed(() => {
-  if (currentEditableStrategyCategory.value === 'OPEN_POSITION') {
-    return 'buy';
-  }
-  if (currentEditableStrategyCategory.value === 'CLOSE_POSITION') {
-    return 'sell';
-  }
-  return '';
-});
-const currentSignalStrategyOptions = computed(() => signalStrategyOptions[currentSignalStrategyUsageScope.value] || []);
-const hideRuleConfigEditor = computed(() => isTailBreakCloseStrategy.value);
-const openPositionConfigFields = computed(() => {
+const hideRuleConfigEditor = computed(() => isTailBreakCloseStrategy.value || currentEditableStrategyCategory.value === 'INTRADAY_T');
+const structuredConfigFields = computed(() => {
   if (isOpenPositionBuiltinStrategy.value) {
+    return currentBuiltinFields.value || [];
+  }
+  if (isIntradayTBuiltinStrategy.value) {
     return currentBuiltinFields.value || [];
   }
   if (isConfigurableOpenPositionStrategy.value) {
     return CONFIGURABLE_OPEN_POSITION_FIELDS;
   }
+  if (isConfigurableIntradayTStrategy.value) {
+    return CONFIGURABLE_INTRADAY_T_FIELDS;
+  }
   return [];
 });
-const showStructuredOpenPositionConfig = computed(() => openPositionConfigFields.value.length > 0);
-const openPositionBuiltinSections = computed(() => {
-  if (!showStructuredOpenPositionConfig.value) {
+const showStructuredConfig = computed(() => structuredConfigFields.value.length > 0);
+const structuredConfigSections = computed(() => {
+  if (!showStructuredConfig.value) {
     return [];
   }
-  const fields = openPositionConfigFields.value || [];
-  const sectionDefs = [
-    {
-      key: 'universe',
-      title: '分组范围',
-      description: '决定这条建仓策略从哪些分组和候选股票里挑选标的。',
-      paths: ['universe.group_ids', 'universe.stock_codes'],
-    },
-    {
-      key: 'order',
-      title: '仓位执行',
-      description: '控制单次建仓资金占比、最大持仓数量和委托类型。',
-      paths: ['order.position_ratio', 'order.max_symbol_count', 'order.order_type'],
-    },
-    {
-      key: 'schedule',
-      title: '时间约束',
-      description: '限制建仓允许执行的日期区间、时段和最小执行间隔。',
-      paths: ['schedule.min_interval_seconds', 'schedule.time_windows', 'schedule.start_date', 'schedule.end_date'],
-    },
-  ];
+  const fields = structuredConfigFields.value || [];
+  const sectionDefs = currentEditableStrategyCategory.value === 'INTRADAY_T'
+    ? [
+        {
+          key: 'intraday',
+          title: '做T主参数',
+          description: '控制正T的仓位比例、轮次、价差、止损和尾盘了结规则。',
+          paths: [
+            'intraday.mode',
+            'intraday.t_position_ratio',
+            'intraday.max_t_rounds',
+            'intraday.min_price_spread_ratio',
+            'intraday.stop_loss_ratio',
+            'intraday.force_flat_time',
+            'intraday.allow_overnight_t_position',
+            'intraday.base_holding_days',
+          ],
+        },
+        {
+          key: 'schedule',
+          title: '时间约束',
+          description: '限制做T允许执行的时段以及最小执行间隔。',
+          paths: ['schedule.time_windows', 'schedule.min_interval_seconds'],
+        },
+      ]
+    : [
+        {
+          key: 'universe',
+          title: '分组范围',
+          description: '决定这条建仓策略从哪些分组和候选股票里挑选标的。',
+          paths: ['universe.group_ids', 'universe.stock_codes'],
+        },
+        {
+          key: 'order',
+          title: '仓位执行',
+          description: '控制单次建仓资金占比、最大持仓数量和委托类型。',
+          paths: ['order.position_ratio', 'order.max_symbol_count', 'order.order_type'],
+        },
+        {
+          key: 'schedule',
+          title: '时间约束',
+          description: '限制建仓允许执行的日期区间、时段和最小执行间隔。',
+          paths: ['schedule.min_interval_seconds', 'schedule.time_windows', 'schedule.start_date', 'schedule.end_date'],
+        },
+      ];
   const usedPaths = new Set(sectionDefs.flatMap((item) => item.paths));
   const sections = sectionDefs
     .map((section) => ({
@@ -624,7 +724,52 @@ function createInitialForm(strategyCategory = 'OPEN_POSITION') {
     remark: '',
     enabled: true,
     config_form_schema: null,
-    rule_config_json_text: '{\n  "universe": {\n    "group_ids": [],\n    "stock_codes": []\n  },\n  "signal": {},\n  "order": {\n    "position_ratio": 0.2,\n    "max_symbol_count": 5,\n    "order_type": "MARKET"\n  },\n  "schedule": {\n    "min_interval_seconds": 5,\n    "time_windows": [],\n    "start_date": null,\n    "end_date": null\n  }\n}',
+    rule_config_json_text: JSON.stringify(buildInitialRuleConfig(strategyCategory), null, 2),
+  };
+}
+
+function buildInitialRuleConfig(strategyCategory) {
+  if (strategyCategory === 'INTRADAY_T') {
+    return {
+      intraday: {
+        mode: 'POSITIVE_T',
+        t_position_ratio: 20,
+        max_t_rounds: 1,
+        min_price_spread_ratio: 2,
+        stop_loss_ratio: 1.5,
+        force_flat_time: '14:55',
+        allow_overnight_t_position: false,
+        base_holding_days: 1,
+      },
+      signal: {
+        entry_signal_strategy_ids: [],
+        exit_signal_strategy_ids: [],
+        risk_block_signal_strategy_ids: [],
+        trend_guard_signal_strategy_ids: [],
+      },
+      schedule: {
+        min_interval_seconds: 10,
+        time_windows: [],
+      },
+    };
+  }
+  return {
+    universe: {
+      group_ids: [],
+      stock_codes: [],
+    },
+    signal: {},
+    order: {
+      position_ratio: 0.2,
+      max_symbol_count: 5,
+      order_type: 'MARKET',
+    },
+    schedule: {
+      min_interval_seconds: 5,
+      time_windows: [],
+      start_date: null,
+      end_date: null,
+    },
   };
 }
 
@@ -696,25 +841,30 @@ function buildStrategyPayload() {
 }
 
 function validateRequiredSignalStrategyBinding() {
-  const bindingPath = currentSignalStrategyBindingPath.value;
-  if (!bindingPath) {
-    return;
-  }
-  const boundIds = getBoundSignalStrategyIds();
-  if (!Array.isArray(boundIds) || !boundIds.length) {
-    throw new Error(currentSignalStrategyUsageScope.value === 'buy' ? '请至少绑定一个买入信号策略实例' : '请至少绑定一个卖出信号策略实例');
-  }
+  currentSignalStrategyBindings.value.forEach((binding) => {
+    if (!binding.required) {
+      return;
+    }
+    const boundIds = getBoundSignalStrategyIds(binding.path);
+    if (!Array.isArray(boundIds) || !boundIds.length) {
+      throw new Error(`请至少绑定一个${binding.label}`);
+    }
+  });
 }
 
 async function loadSignalStrategyOptions() {
   signalStrategyLoading.value = true;
   try {
-    const [buyRes, sellRes] = await Promise.all([
-      getSignalStrategyOptions({ usage_scope: 'buy', only_enabled: true }),
-      getSignalStrategyOptions({ usage_scope: 'sell', only_enabled: true }),
+    const [entryRes, exitRes, riskBlockRes, trendGuardRes] = await Promise.all([
+      getSignalStrategyOptions({ usage_scope: 'buy', business_category: 'ENTRY_SIGNAL', only_enabled: true }),
+      getSignalStrategyOptions({ usage_scope: 'sell', business_category: 'EXIT_SIGNAL', only_enabled: true }),
+      getSignalStrategyOptions({ usage_scope: 'buy', business_category: 'BUY_RISK_BLOCK', only_enabled: true }),
+      getSignalStrategyOptions({ usage_scope: 'sell', business_category: 'SELL_TREND_GUARD', only_enabled: true }),
     ]);
-    signalStrategyOptions.buy = buyRes?.payload?.items || [];
-    signalStrategyOptions.sell = sellRes?.payload?.items || [];
+    signalStrategyOptions.entry = entryRes?.payload?.items || [];
+    signalStrategyOptions.exit = exitRes?.payload?.items || [];
+    signalStrategyOptions.riskBlock = riskBlockRes?.payload?.items || [];
+    signalStrategyOptions.trendGuard = trendGuardRes?.payload?.items || [];
   } catch (error) {
     console.error(error);
     ElMessage.error('获取信号策略实例选项失败');
@@ -830,8 +980,11 @@ function writeCurrentRuleConfig(nextConfig) {
   form.rule_config_json_text = JSON.stringify(nextConfig || {}, null, 2);
 }
 
-function getBoundSignalStrategyIds() {
-  const bindingPath = currentSignalStrategyBindingPath.value;
+function getSignalStrategyOptionsByScope(binding) {
+  return signalStrategyOptions[binding?.optionKey] || [];
+}
+
+function getBoundSignalStrategyIds(bindingPath) {
   if (!bindingPath) {
     return [];
   }
@@ -839,8 +992,7 @@ function getBoundSignalStrategyIds() {
   return Array.isArray(value) ? value : [];
 }
 
-function handleBoundSignalStrategiesChange(value) {
-  const bindingPath = currentSignalStrategyBindingPath.value;
+function handleBoundSignalStrategiesChange(bindingPath, value) {
   if (!bindingPath) {
     return;
   }

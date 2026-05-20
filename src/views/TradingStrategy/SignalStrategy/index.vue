@@ -262,8 +262,8 @@ const instanceFormRef = ref(null);
 const templates = ref([]);
 const instances = reactive({ total: 0, items: [] });
 
-const templateFilters = reactive({ usage_scope: '', is_enabled: undefined });
-const instanceFilters = reactive({ instance_name: '', template_code: '', usage_scope: '', is_enabled: undefined });
+const templateFilters = reactive({ usage_scope: '', business_category: '', is_enabled: undefined });
+const instanceFilters = reactive({ instance_name: '', template_code: '', usage_scope: '', business_category: '', is_enabled: undefined });
 const instancePagination = reactive({ page: 1, page_size: 10 });
 
 const instanceDialog = reactive({ visible: false, mode: 'create', instanceId: null });
@@ -277,8 +277,15 @@ const usageScopeOptions = [
 ];
 
 const routeUsageScopePreset = computed(() => String(route.meta?.signalUsageScopePreset || ''));
+const routeBusinessCategoryPreset = computed(() => String(route.meta?.signalBusinessCategoryPreset || ''));
 const pageTitle = computed(() => String(route.meta?.signalMenuTitle || '信号策略管理'));
 const pageDescription = computed(() => {
+  if (routeBusinessCategoryPreset.value === 'BUY_RISK_BLOCK') {
+    return '统一查看做T买入风控约束模板，并维护“返回 true 即禁止低吸买回”的约束策略实例。';
+  }
+  if (routeBusinessCategoryPreset.value === 'SELL_TREND_GUARD') {
+    return '统一查看做T卖出趋势保护模板，并维护“返回 true 即禁止高抛卖出”的保护策略实例。';
+  }
   if (routeUsageScopePreset.value === 'buy') {
     return '统一查看买点相关信号模板，并维护可供建仓策略直接引用的买点策略实例。';
   }
@@ -291,6 +298,12 @@ const pageDescription = computed(() => {
   return '统一查看内置信号模板，并维护可供业务直接引用的信号策略实例。';
 });
 const createButtonText = computed(() => {
+  if (routeBusinessCategoryPreset.value === 'BUY_RISK_BLOCK') {
+    return '新建买入风控约束策略实例';
+  }
+  if (routeBusinessCategoryPreset.value === 'SELL_TREND_GUARD') {
+    return '新建卖出趋势保护策略实例';
+  }
   if (routeUsageScopePreset.value === 'buy') {
     return '新建买点策略实例';
   }
@@ -324,10 +337,12 @@ watch(
 
 async function applyRoutePreset() {
   templateFilters.usage_scope = routeUsageScopePreset.value || '';
+  templateFilters.business_category = routeBusinessCategoryPreset.value || '';
   templateFilters.is_enabled = undefined;
   instanceFilters.instance_name = '';
   instanceFilters.template_code = '';
   instanceFilters.usage_scope = routeUsageScopePreset.value || '';
+  instanceFilters.business_category = routeBusinessCategoryPreset.value || '';
   instanceFilters.is_enabled = undefined;
   instancePagination.page = 1;
   await loadTemplates();
@@ -368,6 +383,7 @@ async function loadInstances() {
 
 function resetTemplateFilters() {
   templateFilters.usage_scope = routeUsageScopePreset.value || '';
+  templateFilters.business_category = routeBusinessCategoryPreset.value || '';
   templateFilters.is_enabled = undefined;
   loadTemplates();
 }
@@ -376,6 +392,7 @@ function resetInstanceFilters() {
   instanceFilters.instance_name = '';
   instanceFilters.template_code = '';
   instanceFilters.usage_scope = routeUsageScopePreset.value || '';
+  instanceFilters.business_category = routeBusinessCategoryPreset.value || '';
   instanceFilters.is_enabled = undefined;
   instancePagination.page = 1;
   loadInstances();

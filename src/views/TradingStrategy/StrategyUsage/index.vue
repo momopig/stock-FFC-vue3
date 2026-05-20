@@ -140,6 +140,8 @@ const boundSignalStrategies = computed(() => {
   const signalConfig = strategy.rule_config_json?.signal || {};
   const buyIds = Array.isArray(signalConfig.entry_signal_strategy_ids) ? signalConfig.entry_signal_strategy_ids : [];
   const sellIds = Array.isArray(signalConfig.exit_signal_strategy_ids) ? signalConfig.exit_signal_strategy_ids : [];
+  const riskBlockIds = Array.isArray(signalConfig.risk_block_signal_strategy_ids) ? signalConfig.risk_block_signal_strategy_ids : [];
+  const trendGuardIds = Array.isArray(signalConfig.trend_guard_signal_strategy_ids) ? signalConfig.trend_guard_signal_strategy_ids : [];
   const optionMaps = {
     buy: new Map((signalStrategyOptions.buy || []).map((item) => [Number(item.id), item])),
     sell: new Map((signalStrategyOptions.sell || []).map((item) => [Number(item.id), item])),
@@ -147,6 +149,8 @@ const boundSignalStrategies = computed(() => {
   return [
     ...buyIds.map((id) => ({ usageScope: 'buy', id: Number(id) })),
     ...sellIds.map((id) => ({ usageScope: 'sell', id: Number(id) })),
+    ...riskBlockIds.map((id) => ({ usageScope: 'buy', id: Number(id), usageScopeLabel: '关联买入风控约束策略' })),
+    ...trendGuardIds.map((id) => ({ usageScope: 'sell', id: Number(id), usageScopeLabel: '关联卖出趋势保护策略' })),
   ]
     .filter((item) => item.id)
     .map((item) => {
@@ -154,7 +158,7 @@ const boundSignalStrategies = computed(() => {
       return {
         id: item.id,
         usageScope: item.usageScope,
-        usageScopeLabel: item.usageScope === 'buy' ? '关联买点策略' : '关联卖点策略',
+        usageScopeLabel: item.usageScopeLabel || (item.usageScope === 'buy' ? '关联买点策略' : '关联卖点策略'),
         instance_name: option?.instance_name || `策略实例 #${item.id}`,
         template_name: option?.template_name || '未知模板',
         params_preview: option?.params_preview || '',

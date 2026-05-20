@@ -135,6 +135,27 @@ export const menuList = [
     ],
   },
   {
+    name: '做T策略买卖约束管理',
+    foldName: '做T约束',
+    icon: 'DataAnalysis',
+    path: '/trading-strategy/intraday-constraints',
+    permissions: ['is_superuser'],
+    children: [
+      {
+        name: '买入风控约束策略',
+        foldName: '买入约束',
+        path: '/trading-strategy/intraday-constraints/buy-risk-block',
+        permissions: ['is_superuser'],
+      },
+      {
+        name: '卖出趋势保护策略',
+        foldName: '卖出保护',
+        path: '/trading-strategy/intraday-constraints/sell-trend-guard',
+        permissions: ['is_superuser'],
+      },
+    ],
+  },
+  {
     name: '模拟交易',
     foldName: '模拟交易',
     icon: 'Coin',
