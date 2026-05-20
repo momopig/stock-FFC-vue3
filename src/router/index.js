@@ -8,6 +8,7 @@ const routes = [
   { path: '/login', component: lazy(() => import('@/views/Login/index.vue')), meta: { layout: 'blank', requiresAuth: false } },
   { path: '/register', component: lazy(() => import('@/views/Register/index.vue')), meta: { layout: 'blank', requiresAuth: false } },
   { path: '/user-mgt', component: lazy(() => import('@/views/UserMgt/index.vue')), meta: { permissions: ['is_superuser'] } },
+  { path: '/system/log-management', component: lazy(() => import('@/views/System/LogManagement/index.vue')), meta: { permissions: ['is_superuser'] } },
   { path: '/home', component: lazy(() => import('@/App.vue'))},
   { path: '/futu-opend-subscriptions', component: lazy(() => import('@/views/StockPool/FutuSubscription/index.vue')), meta: { permissions: ['is_superuser'] }},
   { path: '/stock-pool/futu-subscriptions', redirect: '/futu-opend-subscriptions' },

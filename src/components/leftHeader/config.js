@@ -184,6 +184,13 @@ export const menuList = [
     dataGuide: 'user-mgt', // 引导标记
     permissions: ['is_superuser'],
   },
+  {
+    name: '日志管理',
+    foldName: '日志管理',
+    icon: 'Files',
+    path: '/system/log-management',
+    permissions: ['is_superuser'],
+  },
     {
     name: '富途openD订阅管理',
     foldName: '富途openD订阅管理',
