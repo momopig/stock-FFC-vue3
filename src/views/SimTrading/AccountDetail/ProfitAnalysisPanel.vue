@@ -126,7 +126,11 @@
 
               <el-table class="stock-ranking-table" :data="overviewData.stock_rankings || []" border empty-text="当前区间暂无股票收益数据">
                 <el-table-column prop="stock_name" label="股票名称" min-width="140">
-                  <template #default="scope">{{ formatRankingStockName(scope.row) }}</template>
+                  <template #default="scope">
+                    <button type="button" class="ranking-link-button" @click="handleRankingStockClick(scope.row)">
+                      {{ formatRankingStockName(scope.row) }}
+                    </button>
+                  </template>
                 </el-table-column>
                 <el-table-column prop="stock_code" label="代码" width="120" />
                 <el-table-column prop="profit_amount" label="股票盈亏" width="140" sortable>
@@ -293,6 +297,9 @@ import {
   getSimTradingProfitAnalysisCalendar,
   getSimTradingProfitAnalysisOverview,
 } from '@/api/modules/simTrading';
+
+
+const emit = defineEmits(['view-history-trades']);
 
 
 const props = defineProps({
@@ -642,6 +649,13 @@ function formatTradeStockName(stockName, stockCode) {
 
 function formatRankingStockName(row) {
   return formatTradeStockName(row?.stock_name, row?.stock_code);
+}
+
+function handleRankingStockClick(row) {
+  emit('view-history-trades', {
+    stock_code: row?.stock_code || '',
+    stock_name: row?.stock_name || '',
+  });
 }
 
 function looksLikeStockCode(value) {
@@ -1129,6 +1143,21 @@ function formatDayNumber(value) {
 
 .stock-ranking-table :deep(.el-table__header-wrapper th .cell) {
   white-space: nowrap;
+}
+
+.ranking-link-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #0f6b8f;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ranking-link-button:hover {
+  color: #0a4f69;
+  text-decoration: underline;
 }
 
 .profit-up {

@@ -912,7 +912,13 @@
         </el-tab-pane>
 
         <el-tab-pane label="盈亏分析" name="profit-analysis">
-          <ProfitAnalysisPanel v-if="currentAccount" :account-id="activeAccountId" :trades="trades" :cash-flows="cashFlows" />
+          <ProfitAnalysisPanel
+            v-if="currentAccount"
+            :account-id="activeAccountId"
+            :trades="trades"
+            :cash-flows="cashFlows"
+            @view-history-trades="handleProfitRankingTradeHistory"
+          />
         </el-tab-pane>
       </el-tabs>
 
@@ -1135,6 +1141,42 @@ function formatTradeReason(value) {
   return text || '--';
 }
 
+function normalizeTradeReasonLabel(label) {
+  const raw = String(label || '').trim();
+  const compactMap = {
+    '触发条件：': '触发',
+    '执行动作：': '动作',
+    '关键参数：': '参数',
+    '买点策略对照：': '买点',
+    '卖点策略对照：': '卖点',
+    '买入约束对照：': '约束',
+    '趋势保护对照：': '保护',
+    '买点策略参数：': '买点',
+    '卖点策略参数：': '卖点',
+    '买入约束参数：': '约束',
+    '趋势保护参数：': '保护',
+    '撮合说明：': '撮合',
+  };
+  return compactMap[raw] || raw.replace(/[：:]$/, '');
+}
+
+function compressTradeReasonValue(value) {
+  return String(value || '--')
+    .replace(/尾盘时间对照/g, '时间')
+    .replace(/持仓天数对照/g, '持仓')
+    .replace(/价格对照/g, '价格')
+    .replace(/均线对照/g, '均线')
+    .replace(/涨跌幅对照/g, '涨跌')
+    .replace(/涨幅对照/g, '涨幅')
+    .replace(/上涨幅度对照/g, '上涨')
+    .replace(/反弹涨幅对照/g, '反弹')
+    .replace(/量比对照/g, '量比')
+    .replace(/阈值区间/g, '区间')
+    .replace(/结果=/g, '')
+    .replace(/历史记录缺少/g, '缺少')
+    .replace(/无法精确回填/g, '无法回填');
+}
+
 function formatTradeReasonItems(value) {
   const text = String(value || '').trim();
   if (!text) {
@@ -1149,9 +1191,10 @@ function formatTradeReasonItems(value) {
       if (!matched) {
         return { label: '', value: item };
       }
+      const normalizedValue = compressTradeReasonValue((matched[2] || '--').replace(/\s*[|｜]\s*/g, '\n'));
       return {
-        label: matched[1],
-        value: matched[2] || '--',
+        label: normalizeTradeReasonLabel(matched[1]),
+        value: normalizedValue,
       };
     });
 }
@@ -2011,8 +2054,15 @@ function quickSelectPosition(direction, row) {
 
 function viewTradeHistory(row) {
   activeTab.value = 'query';
-  activeQueryTab.value = 'today-trades';
+  activeQueryTab.value = 'history-trades';
   queryForm.keyword = row?.stock_code || row?.stock_name || '';
+  applyQueryFilters();
+}
+
+function handleProfitRankingTradeHistory(payload) {
+  activeTab.value = 'query';
+  activeQueryTab.value = 'history-trades';
+  queryForm.keyword = payload?.stock_name || payload?.stock_code || '';
   applyQueryFilters();
 }
 
@@ -2553,15 +2603,28 @@ onUnmounted(() => {
 }
 
 .trade-reason-label {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  margin-bottom: 2px;
   font-weight: 600;
-  color: #304256;
+  color: #17324d;
+  background: #e8f1f7;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
 }
 
 .trade-reason-value {
   display: block;
   white-space: normal;
   word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.trade-reason-value {
+  white-space: pre-wrap;
 }
 
 .snapshot-pre {
