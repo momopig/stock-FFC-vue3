@@ -2,8 +2,8 @@
   <div class="sim-page">
     <div class="sim-toolbar">
       <div>
-        <h2>模拟交易账号管理</h2>
-        <p>用于创建、维护和进入单个模拟账户工作台。</p>
+        <h2>交易账户管理</h2>
+        <p>统一管理模拟账户与 QMT 实盘账户，并复用同一套 FFC 交易工作台。</p>
       </div>
       <el-button type="primary" @click="openCreateDialog">新建账户</el-button>
     </div>
@@ -13,22 +13,34 @@
       <el-table-column prop="account_type" label="账户类型" width="120" />
       <el-table-column prop="broker_name" label="券商类型" width="120" />
       <el-table-column label="创建日期" min-width="180">
-        <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+        <template #default="scope">{{
+          formatDateTime(scope.row.created_time)
+        }}</template>
       </el-table-column>
       <el-table-column label="币种" width="130">
-        <template #default="scope">{{ getCurrencyLabel(scope.row.base_currency) }}</template>
+        <template #default="scope">{{
+          getCurrencyLabel(scope.row.base_currency)
+        }}</template>
       </el-table-column>
       <el-table-column label="可用资金" width="140">
-        <template #default="scope">{{ formatMoney(scope.row.available_cash) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.available_cash)
+        }}</template>
       </el-table-column>
       <el-table-column label="冻结资金" width="140">
-        <template #default="scope">{{ formatMoney(scope.row.frozen_cash) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.frozen_cash)
+        }}</template>
       </el-table-column>
       <el-table-column label="当前总资产" width="150">
-        <template #default="scope">{{ formatMoney(scope.row.summary?.current_total_asset) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.summary?.current_total_asset)
+        }}</template>
       </el-table-column>
       <el-table-column label="持仓市值" width="150">
-        <template #default="scope">{{ formatMoney(scope.row.summary?.position_market_value) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.summary?.position_market_value)
+        }}</template>
       </el-table-column>
       <el-table-column label="持仓盈亏" width="150">
         <template #default="scope">
@@ -39,23 +51,41 @@
       </el-table-column>
       <el-table-column label="状态" width="120">
         <template #default="scope">
-          <el-tag :type="statusTagType(scope.row.status)" effect="light">{{ getStatusLabel(scope.row.status) }}</el-tag>
+          <el-tag :type="statusTagType(scope.row.status)" effect="light">{{
+            getStatusLabel(scope.row.status)
+          }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" fixed="right" width="300">
         <template #default="scope">
           <el-space>
-            <el-button link type="primary" @click="openDetail(scope.row)">查看详情</el-button>
+            <el-button link type="primary" @click="openDetail(scope.row)"
+              >查看详情</el-button
+            >
             <el-button link @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button link @click="quickAction(scope.row, 'deposit')">入金</el-button>
-            <el-button link @click="quickAction(scope.row, 'withdraw')">出金</el-button>
-            <el-button link type="danger" @click="resetAccount(scope.row)">重置</el-button>
+            <el-button link @click="quickAction(scope.row, 'deposit')"
+              >转入</el-button
+            >
+            <el-button link @click="quickAction(scope.row, 'withdraw')"
+              >转出</el-button
+            >
+            <el-button
+              v-if="scope.row.account_type === 'SIMULATED'"
+              link
+              type="danger"
+              @click="resetAccount(scope.row)"
+              >重置</el-button
+            >
           </el-space>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="isEditMode ? '编辑账户' : '新建账户'" width="520px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEditMode ? '编辑账户' : '新建账户'"
+      width="680px"
+    >
       <el-form :model="formData" label-width="110px">
         <el-form-item label="账户名称">
           <el-input v-model="formData.account_name" maxlength="128" />
@@ -63,6 +93,7 @@
         <el-form-item label="账户类型">
           <el-select v-model="formData.account_type" :disabled="isEditMode">
             <el-option label="模拟账户" value="SIMULATED" />
+            <el-option label="QMT 实盘账户" value="QMT" />
           </el-select>
         </el-form-item>
         <el-form-item label="券商类型">
@@ -75,8 +106,73 @@
             <el-option label="美元（USD）" value="USD" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="!isEditMode" label="初始资金">
-          <el-input-number v-model="formData.initial_total_asset" :precision="2" :min="0" :step="1000" class="full-width" />
+        <template v-if="formData.account_type === 'QMT'">
+          <el-divider content-position="left">QMT 连接配置</el-divider>
+          <el-form-item label="QMT 客户端目录">
+            <el-input
+              v-model="formData.connection_config_json.client_path"
+              placeholder="例如：D:\\国金QMT\\userdata_mini"
+            />
+          </el-form-item>
+          <el-form-item label="资金账号">
+            <el-input
+              v-model="formData.connection_config_json.account_id"
+              placeholder="填写国金 QMT 资金账号"
+            />
+          </el-form-item>
+          <el-form-item label="账号类型">
+            <el-select v-model="formData.connection_config_json.account_type">
+              <el-option label="普通证券账户(STOCK)" value="STOCK" />
+              <el-option label="信用账户(CREDIT)" value="CREDIT" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="QMT 会话ID">
+            <el-input-number
+              v-model="formData.connection_config_json.session_id"
+              :min="1"
+              :step="1"
+              class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="委托备注前缀">
+            <el-input
+              v-model="formData.connection_config_json.order_remark_prefix"
+              maxlength="32"
+            />
+          </el-form-item>
+          <el-form-item label="策略名前缀">
+            <el-input
+              v-model="formData.connection_config_json.strategy_name_prefix"
+              maxlength="32"
+            />
+          </el-form-item>
+        </template>
+        <el-form-item
+          v-if="!isEditMode && formData.account_type === 'SIMULATED'"
+          label="初始资金"
+        >
+          <el-input-number
+            v-model="formData.initial_total_asset"
+            :precision="2"
+            :min="0"
+            :step="1000"
+            class="full-width"
+          />
+        </el-form-item>
+        <el-form-item
+          v-else-if="!isEditMode && formData.account_type === 'QMT'"
+          label="初始资产占位"
+        >
+          <el-input-number
+            v-model="formData.initial_total_asset"
+            :precision="2"
+            :min="0"
+            :step="1000"
+            class="full-width"
+          />
+          <div class="form-help-text">
+            QMT 创建后会自动尝试读取券商实时资产并覆盖该占位值。
+          </div>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="formData.status">
@@ -91,7 +187,9 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -110,7 +208,6 @@ import {
 } from '@/api/modules/simTrading';
 import { useTabsStore } from '@/composables/useTabsStore';
 
-
 const router = useRouter();
 const { addTab } = useTabsStore();
 
@@ -128,6 +225,14 @@ const initFormData = () => ({
   base_currency: 'CNY',
   initial_total_asset: 100000,
   status: 'ACTIVE',
+  connection_config_json: {
+    client_path: '',
+    account_id: '',
+    account_type: 'STOCK',
+    session_id: 900001,
+    order_remark_prefix: 'FFC',
+    strategy_name_prefix: 'FFC',
+  },
   remark: '',
 });
 
@@ -143,8 +248,10 @@ function formatMoney(value) {
 
 function normalizeDate(value) {
   if (!value) return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  let normalized = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? null : value;
+  let normalized =
+    typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
   if (typeof normalized === 'string') {
     const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized);
     if (!hasTimezone && normalized.includes('T')) {
@@ -187,6 +294,17 @@ function getStatusLabel(status) {
   return map[status] || status || '--';
 }
 
+function normalizeConnectionConfig(config = {}) {
+  return {
+    client_path: config?.client_path || config?.mini_qmt_path || '',
+    account_id: config?.account_id || config?.fund_account || '',
+    account_type: config?.account_type || 'STOCK',
+    session_id: Number(config?.session_id || 900001),
+    order_remark_prefix: config?.order_remark_prefix || 'FFC',
+    strategy_name_prefix: config?.strategy_name_prefix || 'FFC',
+  };
+}
+
 function statusTagType(status) {
   const map = {
     ACTIVE: 'success',
@@ -217,6 +335,9 @@ function openEditDialog(row) {
     base_currency: row.base_currency,
     initial_total_asset: Number(row.initial_total_asset || 0),
     status: row.status,
+    connection_config_json: normalizeConnectionConfig(
+      row.connection_config_json || {}
+    ),
     remark: row.remark || '',
   });
   dialogVisible.value = true;
@@ -224,13 +345,17 @@ function openEditDialog(row) {
 
 function openDetail(row) {
   const path = `/sim-trading/account-detail?accountId=${row.id}`;
-  addTab('/sim-trading/account-detail', '模拟交易详情');
+  const workspaceTitle =
+    row.account_type === 'QMT' ? 'QMT 实盘交易工作台' : '交易账户工作台';
+  addTab('/sim-trading/account-detail', workspaceTitle);
   router.push(path);
 }
 
 function quickAction(row, action) {
   const path = `/sim-trading/account-detail?accountId=${row.id}&tab=transfer&action=${action}`;
-  addTab('/sim-trading/account-detail', '模拟交易详情');
+  const workspaceTitle =
+    row.account_type === 'QMT' ? 'QMT 实盘交易工作台' : '交易账户工作台';
+  addTab('/sim-trading/account-detail', workspaceTitle);
   router.push(path);
 }
 
@@ -302,10 +427,43 @@ async function submitForm() {
       ? {
           account_name: formData.account_name,
           account_type: formData.account_type,
+          broker_name: formData.broker_name,
+          base_currency: formData.base_currency,
           status: formData.status,
+          connection_config_json:
+            formData.account_type === 'QMT'
+              ? { ...formData.connection_config_json }
+              : null,
           remark: formData.remark,
         }
-      : { ...formData };
+      : {
+          ...formData,
+          connection_config_json:
+            formData.account_type === 'QMT'
+              ? { ...formData.connection_config_json }
+              : null,
+          broker_name:
+            formData.account_type === 'QMT'
+              ? formData.broker_name || 'GJZQ_QMT'
+              : formData.broker_name,
+          initial_total_asset:
+            formData.account_type === 'QMT'
+              ? Number(formData.initial_total_asset || 0)
+              : Number(formData.initial_total_asset || 0),
+        };
+
+    if (formData.account_type === 'QMT') {
+      if (!formData.connection_config_json.client_path) {
+        ElMessage.warning('请填写 QMT 客户端目录');
+        submitting.value = false;
+        return;
+      }
+      if (!formData.connection_config_json.account_id) {
+        ElMessage.warning('请填写 QMT 资金账号');
+        submitting.value = false;
+        return;
+      }
+    }
 
     const res = isEditMode.value
       ? await updateSimTradingAccount(editingAccountId.value, payload)
@@ -366,6 +524,13 @@ onMounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+.form-help-text {
+  margin-top: 6px;
+  color: #7a8da2;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .profit-up {

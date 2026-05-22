@@ -10,13 +10,13 @@ const loadTabsFromStorage = () => {
     if (savedTabs) {
       const parsedTabs = JSON.parse(savedTabs);
       // 确保首页标签页始终存在且不可关闭
-      const hasHome = parsedTabs.find(tab => tab.key === '/home');
+      const hasHome = parsedTabs.find((tab) => tab.key === '/home');
       if (!hasHome) {
         parsedTabs.unshift({ key: '/home', title: '首页', closable: false });
       }
       return {
         tabs: parsedTabs,
-        activeTabKey: savedActiveTabKey || '/home'
+        activeTabKey: savedActiveTabKey || '/home',
       };
     }
   } catch (error) {
@@ -26,7 +26,7 @@ const loadTabsFromStorage = () => {
   // 默认状态
   return {
     tabs: [{ key: '/home', title: '首页', closable: false }],
-    activeTabKey: '/home'
+    activeTabKey: '/home',
   };
 };
 
@@ -59,23 +59,37 @@ export function useTabsStore() {
 
   // 添加标签页
   const addTab = (path, title) => {
-    const existingTab = tabs.value.find(tab => tab.key === path);
+    const existingTab = tabs.value.find((tab) => tab.key === path);
     if (existingTab) {
+      if (title) {
+        existingTab.title = title;
+      }
       activeTabKey.value = path;
       return;
     }
 
     // 计算插入位置：在当前激活标签的右侧
-    const currentIndex = tabs.value.findIndex(tab => tab.key === activeTabKey.value);
-    const insertIndex = currentIndex >= 0 ? currentIndex + 1 : tabs.value.length;
+    const currentIndex = tabs.value.findIndex(
+      (tab) => tab.key === activeTabKey.value
+    );
+    const insertIndex =
+      currentIndex >= 0 ? currentIndex + 1 : tabs.value.length;
 
     tabs.value.splice(insertIndex, 0, {
       key: path,
       title: title || path.replace('/', ''),
-      closable: true
+      closable: true,
     });
 
     activeTabKey.value = path;
+  };
+
+  const updateTabTitle = (key, title) => {
+    const existingTab = tabs.value.find((tab) => tab.key === key);
+    if (!existingTab || !title) {
+      return;
+    }
+    existingTab.title = title;
   };
 
   // 切换标签页
@@ -86,7 +100,7 @@ export function useTabsStore() {
 
   // 关闭标签页
   const closeTab = (key) => {
-    const index = tabs.value.findIndex(tab => tab.key === key);
+    const index = tabs.value.findIndex((tab) => tab.key === key);
     if (index === -1) return;
 
     tabs.value.splice(index, 1);
@@ -111,8 +125,9 @@ export function useTabsStore() {
     tabs: computed(() => tabs.value),
     activeTabKey: computed(() => activeTabKey.value),
     addTab,
+    updateTabTitle,
     switchTab,
     closeTab,
-    reorderTabs
+    reorderTabs,
   };
 }
