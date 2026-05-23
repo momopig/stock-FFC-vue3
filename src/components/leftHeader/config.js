@@ -191,7 +191,14 @@ export const menuList = [
     path: '/system/log-management',
     permissions: ['is_superuser'],
   },
-    {
+  {
+    name: 'Dump版本管理',
+    foldName: 'Dump版本',
+    icon: 'Files',
+    path: '/system/dump-snapshots',
+    permissions: ['is_superuser'],
+  },
+  {
     name: '富途openD订阅管理',
     foldName: '富途openD订阅管理',
     icon: 'DataAnalysis',
