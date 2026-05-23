@@ -71,7 +71,20 @@ export async function downloadDumpSnapshotBlob(relativePath) {
       responseType: 'blob',
     }
   );
-  return res?.payload || res;
+
+  const blob = res?.data;
+  const disposition = res?.headers?.['content-disposition'] || '';
+  const fileNameMatch = disposition.match(
+    /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i
+  );
+  const resolvedFileName = decodeURIComponent(
+    fileNameMatch?.[1] || fileNameMatch?.[2] || ''
+  );
+
+  return {
+    blob,
+    fileName: resolvedFileName || null,
+  };
 }
 
 export async function deleteDumpSnapshot(relativePath) {

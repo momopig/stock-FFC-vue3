@@ -742,8 +742,10 @@ async function saveMetadata() {
 
 async function downloadSnapshot(row) {
   try {
-    const blob = await downloadDumpSnapshotBlob(row.relative_path);
-    triggerBlobDownload(blob, row.file_name);
+    const { blob, fileName } = await downloadDumpSnapshotBlob(
+      row.relative_path
+    );
+    triggerBlobDownload(blob, fileName || row.file_name);
   } catch (error) {
     ElMessage.error(error?.message || '下载 dump 文件失败');
   }
@@ -759,14 +761,19 @@ function downloadTaskFile(row) {
 }
 
 function triggerBlobDownload(blob, fileName) {
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error('下载文件内容为空，未能生成有效的 dump 文件');
+  }
   const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = blobUrl;
-  link.download = fileName;
+  link.download = fileName || 'dump-snapshot.sql';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  window.URL.revokeObjectURL(blobUrl);
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(blobUrl);
+  }, 1000);
 }
 
 function openRestoreDialog(row) {

@@ -29,6 +29,13 @@ request.interceptors.request.use(
 // 添加响应拦截器
 request.interceptors.response.use(
   (response) => {
+    if (
+      response?.config?.responseType === 'blob' ||
+      response?.config?.responseType === 'arraybuffer'
+    ) {
+      return response;
+    }
+
     const res = response.data;
     const errorMsg = res.error_msg || res.errorMsg;
     if (res.error_code === 401 || res.error_code === 403) {
@@ -49,8 +56,8 @@ request.interceptors.response.use(
     if (!res?.payload && res?.success === undefined) {
       return {
         success: true,
-        payload: res
-      }
+        payload: res,
+      };
     }
     // 对响应数据做点什么
     return res;
@@ -58,12 +65,15 @@ request.interceptors.response.use(
   (error) => {
     const responseData = error?.response?.data || {};
     const detail = responseData?.detail;
-    const payloadMessage = responseData?.message || responseData?.error_msg || responseData?.errorMsg;
+    const payloadMessage =
+      responseData?.message ||
+      responseData?.error_msg ||
+      responseData?.errorMsg;
     const normalizedMessage =
-      (typeof detail === 'string' && detail)
-      || payloadMessage
-      || error?.message
-      || '请求失败';
+      (typeof detail === 'string' && detail) ||
+      payloadMessage ||
+      error?.message ||
+      '请求失败';
 
     error.message = normalizedMessage;
     return Promise.reject(error);
