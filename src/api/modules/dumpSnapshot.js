@@ -60,6 +60,22 @@ export async function restoreDumpSnapshot(data) {
   return await request.post(`${API_PREFIX}/restore`, data);
 }
 
+export async function activateDumpSnapshotDatabase(
+  relativePath,
+  confirmationText
+) {
+  return await request.post(`${API_PREFIX}/activate`, {
+    relative_path: relativePath,
+    confirmation_text: confirmationText || null,
+  });
+}
+
+export async function activateOriginalDatabase(confirmationText) {
+  return await request.post(`${API_PREFIX}/activate-original`, {
+    confirmation_text: confirmationText || null,
+  });
+}
+
 async function normalizeDownloadBlob(blob) {
   if (!(blob instanceof Blob)) {
     throw new Error('下载响应不是有效的文件流');

@@ -1,8 +1,21 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
 import { getLocal } from '@/utils/storage';
-import { getToken } from '@/utils/auth';
+import { getToken, removeToken } from '@/utils/auth';
+import { UserStore } from '@/state/user';
 axios.defaults.withCredentials = true;
+
+const clearFrontendLoginState = () => {
+  try {
+    UserStore().clearUserData();
+  } catch (error) {
+    // Pinia may not be ready during very early bootstrap; token/storage cleanup below is still required.
+  }
+  removeToken();
+  localStorage.clear();
+  sessionStorage.clear();
+};
+
 const request = axios.create({
   headers: {
     'Content-Type': 'application/json',
@@ -39,6 +52,7 @@ request.interceptors.response.use(
     const res = response.data;
     const errorMsg = res.error_msg || res.errorMsg;
     if (res.error_code === 401 || res.error_code === 403) {
+      clearFrontendLoginState();
       ElMessage({
         message: '登录失效，请重新登录',
         type: 'error',
@@ -64,6 +78,7 @@ request.interceptors.response.use(
   },
   (error) => {
     const responseData = error?.response?.data || {};
+    const statusCode = Number(error?.response?.status || 0);
     const detail = responseData?.detail;
     const payloadMessage =
       responseData?.message ||
@@ -74,6 +89,10 @@ request.interceptors.response.use(
       payloadMessage ||
       error?.message ||
       '请求失败';
+
+    if (statusCode === 401 || statusCode === 403) {
+      clearFrontendLoginState();
+    }
 
     error.message = normalizedMessage;
     return Promise.reject(error);

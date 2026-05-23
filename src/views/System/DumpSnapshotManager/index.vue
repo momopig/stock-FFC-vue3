@@ -85,6 +85,57 @@
           {{ overview.environment_check_message || '正在检测当前环境能力' }}
         </div>
       </el-alert>
+
+      <el-alert
+        class="switch-alert"
+        :type="overview.active_snapshot_relative_path ? 'success' : 'info'"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
+          当前生效数据库：{{ overview.current_database_name || '--' }}
+        </template>
+        <div class="current-db-banner">
+          <span class="current-db-label">当前目标库</span>
+          <el-tag
+            class="current-db-tag"
+            :type="overview.active_snapshot_relative_path ? 'success' : 'info'"
+            effect="dark"
+            size="large"
+          >
+            {{ currentTargetDatabaseLabel }}
+          </el-tag>
+          <span class="current-db-mode">{{ currentDatabaseModeLabel }}</span>
+        </div>
+        <div class="health-summary">
+          <span>原始数据库：{{ overview.original_database_name || '--' }}</span>
+          <span>
+            当前版本：{{
+              overview.active_snapshot_display_name || '原始本地版本'
+            }}
+          </span>
+          <span>切换配置文件：{{ overview.switch_env_file || '--' }}</span>
+        </div>
+        <div class="health-message">
+          {{ currentDatabaseHint }}
+        </div>
+        <div class="health-message subtle-message">
+          {{
+            overview.switch_message ||
+            '切换数据库会更新本地 DATABASE_URL，切换后请重启本地后端。'
+          }}
+        </div>
+        <div class="switch-actions">
+          <el-button
+            size="small"
+            :disabled="
+              !overview.local_switch_available || isUsingOriginalDatabase
+            "
+            @click="switchToOriginalDatabase"
+            >切回原始库</el-button
+          >
+        </div>
+      </el-alert>
     </section>
 
     <section class="metric-grid">
@@ -136,9 +187,16 @@
           <el-table-column label="版本" min-width="230">
             <template #default="scope">
               <div class="file-cell">
-                <strong>{{
-                  scope.row.display_name || scope.row.file_name
-                }}</strong>
+                <strong>
+                  {{ scope.row.display_name || scope.row.file_name }}
+                  <el-tag
+                    v-if="scope.row.is_active_database"
+                    size="small"
+                    type="success"
+                    class="version-tag"
+                    >当前生效</el-tag
+                  >
+                </strong>
                 <span>{{ scope.row.file_name }}</span>
               </div>
             </template>
@@ -153,9 +211,9 @@
               scope.row.source_db_name || '--'
             }}</template>
           </el-table-column>
-          <el-table-column label="目标库建议" min-width="130">
+          <el-table-column label="已导入数据库" min-width="150">
             <template #default="scope">{{
-              scope.row.target_db_name || '--'
+              scope.row.switch_target_db_name || '--'
             }}</template>
           </el-table-column>
           <el-table-column
@@ -172,7 +230,7 @@
           <el-table-column label="备注" min-width="220" show-overflow-tooltip>
             <template #default="scope">{{ scope.row.note || '--' }}</template>
           </el-table-column>
-          <el-table-column label="操作" min-width="280" fixed="right">
+          <el-table-column label="操作" min-width="360" fixed="right">
             <template #default="scope">
               <div class="action-group">
                 <el-button
@@ -191,7 +249,18 @@
                   link
                   type="success"
                   @click.stop="openRestoreDialog(scope.row)"
-                  >导入</el-button
+                  >导入到新库</el-button
+                >
+                <el-button
+                  link
+                  type="warning"
+                  :disabled="
+                    !overview.local_switch_available ||
+                    !scope.row.switch_target_db_name ||
+                    scope.row.is_active_database
+                  "
+                  @click.stop="switchSnapshotDatabase(scope.row)"
+                  >切换</el-button
                 >
                 <el-button
                   link
@@ -321,6 +390,37 @@
             >
           </div>
         </div>
+        <div v-else-if="isUsingOriginalDatabase" class="detail-stack">
+          <div class="detail-card accent-blue-soft">
+            <span class="detail-label">当前版本</span>
+            <strong>原始本地版本</strong>
+            <small>当前未激活任何 dump 版本</small>
+          </div>
+          <div class="detail-card accent-amber-soft">
+            <span class="detail-label">展示名称</span>
+            <strong>--</strong>
+            <small>原始库没有单独的 dump 展示名称</small>
+          </div>
+          <div class="detail-card accent-green-soft">
+            <span class="detail-label">数据库名</span>
+            <strong>{{ currentTargetDatabaseLabel }}</strong>
+            <small
+              >原始数据库：{{ overview.original_database_name || '--' }}</small
+            >
+          </div>
+          <div class="detail-card accent-slate-soft">
+            <span class="detail-label">切换配置</span>
+            <strong>{{ overview.switch_env_file || '--' }}</strong>
+            <small>{{ currentDatabaseModeLabel }}</small>
+          </div>
+          <div class="command-card">
+            <span class="detail-label">状态说明</span>
+            <code
+              >当前后端已切回原始库，不对应任何 dump 文件，也不会继承 dump
+              的展示名称。</code
+            >
+          </div>
+        </div>
         <el-empty v-else description="请选择一个 dump 版本" />
       </aside>
     </section>
@@ -362,31 +462,47 @@
 
     <el-dialog
       v-model="restoreDialog.visible"
-      title="导入到当前环境目标数据库"
+      title="导入到新的本地数据库"
       width="520px"
     >
       <el-form label-position="top">
         <el-form-item label="目标数据库名">
           <el-input
             v-model="restoreDialog.form.target_db_name"
-            placeholder="例如 stockdb_prod_sync / stockdb_stage_restore"
+            placeholder="例如 stockdb_prod_sync / stockdb_stage_restore / stockdb_v20260523"
           />
         </el-form-item>
         <el-alert
-          type="warning"
+          type="info"
           :closable="false"
           show-icon
-          title="安全限制：当前页面不允许直接覆盖应用正在连接的数据库，请指定一个新的目标库名。"
+          title="推荐做法：先把版本导入到一个新的本地数据库，再通过版本列表中的“切换”按钮让它生效。"
         />
         <el-form-item>
-          <el-checkbox v-model="restoreDialog.form.skip_migrations"
-            >跳过 Alembic 迁移</el-checkbox
-          >
+          <el-checkbox v-model="restoreDialog.form.skip_migrations">
+            <span class="restore-option-label">
+              跳过 Alembic 迁移
+              <el-tooltip
+                content="默认会在 dump 恢复完成后，对目标库执行 alembic upgrade head，补齐当前代码所需的最新表结构。仅在你明确要保留 dump 原始结构时才建议勾选。"
+                placement="top"
+              >
+                <span class="restore-option-help">?</span>
+              </el-tooltip>
+            </span>
+          </el-checkbox>
         </el-form-item>
         <el-form-item>
-          <el-checkbox v-model="restoreDialog.form.skip_post_sync_sql"
-            >跳过 Post Sync SQL</el-checkbox
-          >
+          <el-checkbox v-model="restoreDialog.form.skip_post_sync_sql">
+            <span class="restore-option-label">
+              跳过 Post Sync SQL
+              <el-tooltip
+                content="默认会在恢复和迁移后，额外执行 POST_SYNC_SQL_FILE 指向的补充 SQL（如果当前环境已配置）。仅在你明确不希望执行这类恢复后补丁时才建议勾选。"
+                placement="top"
+              >
+                <span class="restore-option-help">?</span>
+              </el-tooltip>
+            </span>
+          </el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -516,8 +632,12 @@
 import { saveAs } from 'file-saver';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { removeToken } from '@/utils/auth';
+import { UserStore } from '@/state/user';
 
 import {
+  activateDumpSnapshotDatabase,
+  activateOriginalDatabase,
   createDumpSnapshotExportTask,
   deleteDumpSnapshot,
   downloadDumpSnapshotBlob,
@@ -530,6 +650,7 @@ import {
 } from '@/api/modules/dumpSnapshot';
 
 const POLL_INTERVAL_MS = 5000;
+const userStore = UserStore();
 
 const pageLoading = ref(false);
 const taskLoading = ref(false);
@@ -541,6 +662,16 @@ const filters = reactive({ keyword: '' });
 const overview = reactive({
   root_path: '',
   default_export_name: '',
+  current_database_name: '',
+  original_database_name: '',
+  active_snapshot_relative_path: '',
+  active_snapshot_display_name: '',
+  active_snapshot_target_db_name: '',
+  local_switch_available: false,
+  runtime_switch_requires_confirmation: false,
+  runtime_switch_confirmation_text: '',
+  switch_env_file: '',
+  switch_message: '',
   snapshot_count: 0,
   total_size_label: '0 B',
   metadata_coverage_count: 0,
@@ -608,6 +739,27 @@ const activeTaskCount = computed(
       ['pending', 'running'].includes(item.status)
     ).length
 );
+const currentTargetDatabaseLabel = computed(
+  () => overview.current_database_name || '--'
+);
+const isUsingOriginalDatabase = computed(() => {
+  if (overview.active_snapshot_relative_path) {
+    return false;
+  }
+  if (!overview.current_database_name || !overview.original_database_name) {
+    return false;
+  }
+  return overview.current_database_name === overview.original_database_name;
+});
+const currentDatabaseModeLabel = computed(() =>
+  isUsingOriginalDatabase.value ? '原始本地库' : 'Dump 切换态'
+);
+const currentDatabaseHint = computed(() => {
+  if (!isUsingOriginalDatabase.value) {
+    return `当前正在使用 dump 版本 ${overview.active_snapshot_display_name || overview.active_snapshot_relative_path}，目标库为 ${currentTargetDatabaseLabel.value}。`;
+  }
+  return `当前正在使用原始库 ${currentTargetDatabaseLabel.value}。原始库不会出现在版本列表的“当前生效”标记中。`;
+});
 
 function normalizeDate(value) {
   if (!value) return null;
@@ -629,6 +781,19 @@ function formatDateTime(value) {
 function pickDefaultSelection() {
   if (!items.value.length) {
     selectedRelativePath.value = '';
+    return;
+  }
+  if (isUsingOriginalDatabase.value) {
+    selectedRelativePath.value = '';
+    return;
+  }
+  if (
+    overview.active_snapshot_relative_path &&
+    items.value.some(
+      (item) => item.relative_path === overview.active_snapshot_relative_path
+    )
+  ) {
+    selectedRelativePath.value = overview.active_snapshot_relative_path;
     return;
   }
   if (
@@ -771,10 +936,112 @@ function triggerBlobDownload(blob, fileName) {
 function openRestoreDialog(row) {
   selectedRelativePath.value = row.relative_path;
   restoreDialog.form.relative_path = row.relative_path;
-  restoreDialog.form.target_db_name = row.target_db_name || 'stockdb_prod_sync';
+  restoreDialog.form.target_db_name =
+    row.last_restore_target || row.target_db_name || 'stockdb_prod_sync';
   restoreDialog.form.skip_migrations = false;
   restoreDialog.form.skip_post_sync_sql = false;
   restoreDialog.visible = true;
+}
+
+async function switchSnapshotDatabase(row) {
+  if (!row.switch_target_db_name) {
+    ElMessage.warning('该版本尚未导入到本地数据库，请先执行一次“导入到新库”');
+    return;
+  }
+  if (!overview.local_switch_available) {
+    ElMessage.warning(overview.switch_message || '当前环境不允许切换数据库');
+    return;
+  }
+
+  try {
+    const confirmationText = await resolveRuntimeSwitchConfirmationText(
+      `生产环境切换到数据库 ${row.switch_target_db_name}`
+    );
+    await ElMessageBox.confirm(
+      `确认切换到数据库 ${row.switch_target_db_name} 吗？切换后后端会立即热切换到目标库，并强制当前登录态失效。`,
+      '切换当前生效数据库',
+      { type: 'warning' }
+    );
+    actionLoading.value = true;
+    const res = await activateDumpSnapshotDatabase(
+      row.relative_path,
+      confirmationText
+    );
+    await enforceReloginAfterDatabaseSwitch(
+      res?.payload?.message || '数据库切换配置已更新'
+    );
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error?.message || '切换数据库失败');
+    }
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function switchToOriginalDatabase() {
+  if (!overview.local_switch_available) {
+    ElMessage.warning(overview.switch_message || '当前环境不允许切换数据库');
+    return;
+  }
+  try {
+    const confirmationText = await resolveRuntimeSwitchConfirmationText(
+      `生产环境切回原始数据库 ${overview.original_database_name || '--'}`
+    );
+    await ElMessageBox.confirm(
+      `确认切回原始数据库 ${overview.original_database_name || '--'} 吗？切换后后端会立即热切换到原始库，并强制当前登录态失效。`,
+      '切回原始数据库',
+      { type: 'warning' }
+    );
+    actionLoading.value = true;
+    const res = await activateOriginalDatabase(confirmationText);
+    await enforceReloginAfterDatabaseSwitch(
+      res?.payload?.message || '已切回原始数据库'
+    );
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error?.message || '切回原始数据库失败');
+    }
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function enforceReloginAfterDatabaseSwitch(message) {
+  userStore.clearUserData();
+  removeToken();
+  localStorage.clear();
+  sessionStorage.clear();
+
+  await ElMessageBox.alert(
+    `${message}\n\n当前登录态已强制失效。请直接使用目标数据库中的账号重新登录。`,
+    '数据库已切换',
+    {
+      type: 'warning',
+      confirmButtonText: '去登录页',
+    }
+  );
+
+  window.location.href = '/login';
+}
+
+async function resolveRuntimeSwitchConfirmationText(actionLabel) {
+  if (!overview.runtime_switch_requires_confirmation) {
+    return null;
+  }
+
+  const expectedText = overview.runtime_switch_confirmation_text || '';
+  const { value } = await ElMessageBox.prompt(
+    `${actionLabel}前，必须由最高权限管理员输入确认短语：${expectedText}`,
+    '输入确认短语',
+    {
+      type: 'warning',
+      inputPlaceholder: '请输入确认短语',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+    }
+  );
+  return value;
 }
 
 function openExportDialog() {
@@ -1014,6 +1281,27 @@ onBeforeUnmount(() => {
   font-family: Georgia, 'Times New Roman', serif;
 }
 
+.restore-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.restore-option-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(21, 93, 122, 0.3);
+  color: var(--accent-blue);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  background: rgba(21, 93, 122, 0.08);
+}
+
 .hero-copy p,
 .hero-meta,
 .panel-heading p,
@@ -1079,10 +1367,48 @@ onBeforeUnmount(() => {
   color: var(--text-main);
 }
 
+.current-db-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 118, 110, 0.12),
+    rgba(14, 116, 144, 0.08)
+  );
+  border: 1px solid rgba(14, 116, 144, 0.12);
+}
+
+.current-db-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.current-db-tag {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.current-db-mode {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.68);
+}
+
 .health-message {
   margin-top: 10px;
   line-height: 1.7;
   color: var(--text-subtle);
+}
+
+.subtle-message {
+  margin-top: 4px;
+  color: rgba(15, 23, 42, 0.6);
 }
 
 .metric-grid {
