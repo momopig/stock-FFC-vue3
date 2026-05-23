@@ -27,8 +27,9 @@
         />
         <el-button
           type="primary"
+          :disabled="!overview.export_ready"
           :loading="actionLoading"
-          @click="exportDialog.visible = true"
+          @click="openExportDialog"
           >导出最新版本</el-button
         >
         <el-button
@@ -405,16 +406,18 @@
       width="620px"
     >
       <el-form label-position="top">
-        <el-form-item label="展示名称">
+        <el-form-item label="展示名称（可选）">
           <el-input
             v-model="exportDialog.form.display_name"
-            placeholder="例如：生产环境最新快照"
+            @input="syncExportNames('display')"
+            placeholder="留空则自动生成，并与导出文件名保持一致，例如：stockdb-prod-20260523_14_30_15.sql"
           />
         </el-form-item>
         <el-form-item label="导出文件名（可选）">
           <el-input
             v-model="exportDialog.form.file_name"
-            placeholder="例如：stockdb-prod-20260523.sql，不填则自动生成"
+            @input="syncExportNames('file')"
+            placeholder="留空则自动生成，例如：stockdb-dev-20260523_14_30_15.sql 或 stockdb-prod-20260523_14_30_15.sql"
           />
         </el-form-item>
         <el-form-item label="建议目标库名（可选）">
@@ -536,6 +539,7 @@ const taskItems = ref([]);
 const filters = reactive({ keyword: '' });
 const overview = reactive({
   root_path: '',
+  default_export_name: '',
   snapshot_count: 0,
   total_size_label: '0 B',
   metadata_coverage_count: 0,
@@ -774,6 +778,22 @@ function openRestoreDialog(row) {
   restoreDialog.visible = true;
 }
 
+function openExportDialog() {
+  resetExportDialog();
+  const defaultName = overview.default_export_name || '';
+  exportDialog.form.display_name = defaultName;
+  exportDialog.form.file_name = defaultName;
+  exportDialog.visible = true;
+}
+
+function syncExportNames(source) {
+  if (source === 'display') {
+    exportDialog.form.file_name = exportDialog.form.display_name || '';
+    return;
+  }
+  exportDialog.form.display_name = exportDialog.form.file_name || '';
+}
+
 async function executeRestore() {
   actionLoading.value = true;
   try {
@@ -792,6 +812,13 @@ async function executeRestore() {
 }
 
 async function createExportTask() {
+  if (!overview.export_ready) {
+    ElMessage.warning(
+      overview.environment_check_message ||
+        '当前环境不具备导出条件，请先补齐 pg_dump 或可用的 Docker 工具环境'
+    );
+    return;
+  }
   actionLoading.value = true;
   try {
     await createDumpSnapshotExportTask({
