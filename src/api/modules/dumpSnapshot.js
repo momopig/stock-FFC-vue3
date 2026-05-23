@@ -60,6 +60,44 @@ export async function restoreDumpSnapshot(data) {
   return await request.post(`${API_PREFIX}/restore`, data);
 }
 
+async function normalizeDownloadBlob(blob) {
+  if (!(blob instanceof Blob)) {
+    throw new Error('下载响应不是有效的文件流');
+  }
+
+  const contentType = (blob.type || '').toLowerCase();
+  if (
+    contentType.includes('application/json') ||
+    contentType.includes('text/plain') ||
+    contentType.includes('text/html') ||
+    contentType.includes('application/xml') ||
+    contentType.includes('text/xml')
+  ) {
+    const rawText = (await blob.text()).trim();
+    if (rawText) {
+      try {
+        const parsed = JSON.parse(rawText);
+        const message =
+          parsed?.detail ||
+          parsed?.message ||
+          parsed?.error_msg ||
+          parsed?.errorMsg;
+        if (message) {
+          throw new Error(message);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message !== rawText) {
+          throw error;
+        }
+        const compactText = rawText.replace(/\s+/g, ' ').slice(0, 200);
+        throw new Error(`下载接口未返回文件流，实际返回：${compactText}`);
+      }
+    }
+  }
+
+  return blob;
+}
+
 export async function downloadDumpSnapshotBlob(relativePath) {
   const query = qs.stringify(
     { relative_path: relativePath },
@@ -72,7 +110,7 @@ export async function downloadDumpSnapshotBlob(relativePath) {
     }
   );
 
-  const blob = res?.data;
+  const blob = await normalizeDownloadBlob(res?.data);
   const disposition = res?.headers?.['content-disposition'] || '';
   const fileNameMatch = disposition.match(
     /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i

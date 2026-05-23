@@ -513,6 +513,7 @@
 </template>
 
 <script setup>
+import { saveAs } from 'file-saver';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -764,16 +765,7 @@ function triggerBlobDownload(blob, fileName) {
   if (!(blob instanceof Blob) || blob.size === 0) {
     throw new Error('下载文件内容为空，未能生成有效的 dump 文件');
   }
-  const blobUrl = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = fileName || 'dump-snapshot.sql';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.setTimeout(() => {
-    window.URL.revokeObjectURL(blobUrl);
-  }, 1000);
+  saveAs(blob, fileName || 'dump-snapshot.sql');
 }
 
 function openRestoreDialog(row) {
