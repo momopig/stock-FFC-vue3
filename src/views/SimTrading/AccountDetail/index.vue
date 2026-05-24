@@ -1153,6 +1153,30 @@
                       formatMoney(scope.row.filled_amount)
                     }}</template>
                   </el-table-column>
+                  <el-table-column label="关联成交" min-width="180">
+                    <template #default="scope">
+                      <div class="trade-reason-text">
+                        <template
+                          v-if="getRelatedTradesByOrderId(scope.row.id).length"
+                        >
+                          <div class="trade-reason-item">
+                            <span class="trade-reason-label">成交笔数：</span>
+                            <span class="trade-reason-value">{{
+                              `${getRelatedTradesByOrderId(scope.row.id).length} 笔`
+                            }}</span>
+                          </div>
+                          <el-button
+                            link
+                            type="primary"
+                            @click="jumpToRelatedTrades(scope.row)"
+                          >
+                            查看关联成交
+                          </el-button>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
                       <div
@@ -1251,6 +1275,39 @@
                     <template #default="scope">{{
                       formatMoney(scope.row.net_amount)
                     }}</template>
+                  </el-table-column>
+                  <el-table-column label="关联委托" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text">
+                        <template v-if="getTradeContextItems(scope.row).length">
+                          <div
+                            v-for="(item, index) in getTradeContextItems(
+                              scope.row
+                            )"
+                            :key="`${scope.row.trade_no || scope.row.id || 'trade-context'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span
+                              v-if="item.label"
+                              class="trade-reason-label"
+                              >{{ item.label }}</span
+                            >
+                            <span class="trade-reason-value">{{
+                              item.value
+                            }}</span>
+                          </div>
+                          <el-button
+                            v-if="scope.row.order_no"
+                            link
+                            type="primary"
+                            @click="jumpToRelatedOrder(scope.row)"
+                          >
+                            查看关联委托
+                          </el-button>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
@@ -1357,6 +1414,30 @@
                       formatMoney(scope.row.filled_amount)
                     }}</template>
                   </el-table-column>
+                  <el-table-column label="关联成交" min-width="180">
+                    <template #default="scope">
+                      <div class="trade-reason-text">
+                        <template
+                          v-if="getRelatedTradesByOrderId(scope.row.id).length"
+                        >
+                          <div class="trade-reason-item">
+                            <span class="trade-reason-label">成交笔数：</span>
+                            <span class="trade-reason-value">{{
+                              `${getRelatedTradesByOrderId(scope.row.id).length} 笔`
+                            }}</span>
+                          </div>
+                          <el-button
+                            link
+                            type="primary"
+                            @click="jumpToRelatedTrades(scope.row)"
+                          >
+                            查看关联成交
+                          </el-button>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
                       <div
@@ -1459,6 +1540,39 @@
                     <template #default="scope">{{
                       formatMoney(scope.row.net_amount)
                     }}</template>
+                  </el-table-column>
+                  <el-table-column label="关联委托" min-width="280">
+                    <template #default="scope">
+                      <div class="trade-reason-text">
+                        <template v-if="getTradeContextItems(scope.row).length">
+                          <div
+                            v-for="(item, index) in getTradeContextItems(
+                              scope.row
+                            )"
+                            :key="`${scope.row.trade_no || scope.row.id || 'trade-context'}-${index}`"
+                            class="trade-reason-item"
+                          >
+                            <span
+                              v-if="item.label"
+                              class="trade-reason-label"
+                              >{{ item.label }}</span
+                            >
+                            <span class="trade-reason-value">{{
+                              item.value
+                            }}</span>
+                          </div>
+                          <el-button
+                            v-if="scope.row.order_no"
+                            link
+                            type="primary"
+                            @click="jumpToRelatedOrder(scope.row)"
+                          >
+                            查看关联委托
+                          </el-button>
+                        </template>
+                        <span v-else>--</span>
+                      </div>
+                    </template>
                   </el-table-column>
                   <el-table-column label="交易原因" min-width="280">
                     <template #default="scope">
@@ -2283,6 +2397,53 @@ function getDirectionLabel(direction) {
   return map[direction] || direction || '--';
 }
 
+function getSourceTypeLabel(sourceType) {
+  const map = {
+    MANUAL: '手动',
+    STRATEGY: '策略',
+    CONDITION: '条件单',
+  };
+  return map[sourceType] || sourceType || '--';
+}
+
+function getTradeContextItems(row) {
+  const items = [];
+  if (row?.order_no) {
+    items.push({ label: '委托号：', value: row.order_no });
+  }
+  if (row?.order_source_type) {
+    items.push({
+      label: '来源：',
+      value: getSourceTypeLabel(row.order_source_type),
+    });
+  }
+  if (row?.order_status) {
+    items.push({
+      label: '状态：',
+      value: getOrderStatusLabel(row.order_status),
+    });
+  }
+  if (row?.execution_mode) {
+    items.push({ label: '模式：', value: row.execution_mode });
+  }
+  if (row?.trading_rule) {
+    items.push({ label: '规则：', value: row.trading_rule });
+  }
+  if (row?.order_placed_time) {
+    items.push({
+      label: '下单：',
+      value: formatDateTime(row.order_placed_time),
+    });
+  }
+  if (row?.order_finished_time) {
+    items.push({
+      label: '完成：',
+      value: formatDateTime(row.order_finished_time),
+    });
+  }
+  return items;
+}
+
 function getOrderTypeLabel(orderType) {
   const map = {
     LIMIT: '限价',
@@ -2432,7 +2593,14 @@ function matchesKeyword(item) {
   if (!keyword) return true;
   const stockCode = String(item.stock_code || '').toLowerCase();
   const stockName = String(item.stock_name || '').toLowerCase();
-  return stockCode.includes(keyword) || stockName.includes(keyword);
+  const orderNo = String(item.order_no || '').toLowerCase();
+  const tradeNo = String(item.trade_no || '').toLowerCase();
+  return (
+    stockCode.includes(keyword) ||
+    stockName.includes(keyword) ||
+    orderNo.includes(keyword) ||
+    tradeNo.includes(keyword)
+  );
 }
 
 function matchesDateRange(value) {
@@ -3183,6 +3351,41 @@ function handleProfitRankingTradeHistory(payload) {
   activeQueryTab.value = 'history-trades';
   queryForm.keyword = payload?.stock_name || payload?.stock_code || '';
   applyQueryFilters();
+}
+
+function getRelatedTradesByOrderId(orderId) {
+  const normalizedOrderId = Number(orderId || 0);
+  if (!(normalizedOrderId > 0)) {
+    return [];
+  }
+  return trades.value.filter(
+    (item) => Number(item?.order_id || 0) === normalizedOrderId
+  );
+}
+
+function jumpToQueryWithKeyword(tabName, keyword) {
+  activeTab.value = 'query';
+  activeQueryTab.value = tabName;
+  queryForm.keyword = keyword || '';
+  queryForm.direction = '';
+  queryForm.orderStatus = '';
+  queryForm.flowType = '';
+  queryForm.dateRange = [];
+  applyQueryFilters();
+}
+
+function jumpToRelatedTrades(row) {
+  jumpToQueryWithKeyword(
+    isToday(row?.placed_time) ? 'today-trades' : 'history-trades',
+    row?.order_no || row?.stock_code || row?.stock_name || ''
+  );
+}
+
+function jumpToRelatedOrder(row) {
+  jumpToQueryWithKeyword(
+    isToday(row?.order_placed_time) ? 'today-orders' : 'history-orders',
+    row?.order_no || row?.stock_code || row?.stock_name || ''
+  );
 }
 
 function handleOpenOrderSelection(rows) {
