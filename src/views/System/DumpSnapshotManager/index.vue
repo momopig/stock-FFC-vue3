@@ -96,24 +96,16 @@
           当前生效数据库：{{ overview.current_database_name || '--' }}
         </template>
         <div class="current-db-banner">
-          <span class="current-db-label">当前目标库</span>
-          <el-tag
-            class="current-db-tag"
-            :type="overview.active_snapshot_relative_path ? 'success' : 'info'"
-            effect="dark"
-            size="large"
+          当前目标库：{{ currentTargetDatabaseLabel }}
+          <span class="current-db-mode"
+            >（{{ currentDatabaseModeLabel }}）</span
           >
-            {{ currentTargetDatabaseLabel }}
-          </el-tag>
-          <span class="current-db-mode">{{ currentDatabaseModeLabel }}</span>
         </div>
         <div class="health-summary">
           <span>原始数据库：{{ overview.original_database_name || '--' }}</span>
-          <span>
-            当前版本：{{
-              overview.active_snapshot_display_name || '原始本地版本'
-            }}
-          </span>
+          <span>当前数据库来源：{{ currentDatabaseSourceLabel }}</span>
+          <span>当前激活快照：{{ currentActiveSnapshotLabel }}</span>
+          <span>最近导出快照：{{ latestSnapshotLabel }}</span>
           <span>切换配置文件：{{ overview.switch_env_file || '--' }}</span>
         </div>
         <div class="health-message">
@@ -341,18 +333,25 @@
       <aside class="detail-panel">
         <div class="panel-heading compact">
           <div>
-            <h3>版本详情</h3>
-            <p>查看来源、标签、下载路径和最近导入记录。</p>
+            <h3>{{ detailPanelTitle }}</h3>
+            <p>{{ detailPanelDescription }}</p>
           </div>
         </div>
 
         <div v-if="selectedItem" class="detail-stack">
           <div class="detail-card accent-blue-soft">
-            <span class="detail-label">展示名称</span>
+            <span class="detail-label">快照名称</span>
             <strong>{{
               selectedItem.display_name || selectedItem.file_name
             }}</strong>
-            <small>{{ selectedItem.relative_path }}</small>
+            <small>
+              {{ selectedItem.relative_path }}
+              {{
+                selectedItem.is_active_database
+                  ? ' / 当前激活快照'
+                  : ' / 已选快照'
+              }}
+            </small>
           </div>
           <div class="detail-card accent-amber-soft">
             <span class="detail-label">标签</span>
@@ -392,13 +391,13 @@
         </div>
         <div v-else-if="isUsingOriginalDatabase" class="detail-stack">
           <div class="detail-card accent-blue-soft">
-            <span class="detail-label">当前版本</span>
-            <strong>原始本地版本</strong>
+            <span class="detail-label">当前数据库来源</span>
+            <strong>{{ currentDatabaseSourceLabel }}</strong>
             <small>当前未激活任何 dump 版本</small>
           </div>
           <div class="detail-card accent-amber-soft">
-            <span class="detail-label">展示名称</span>
-            <strong>--</strong>
+            <span class="detail-label">当前激活快照</span>
+            <strong>{{ currentActiveSnapshotLabel }}</strong>
             <small>原始库没有单独的 dump 展示名称</small>
           </div>
           <div class="detail-card accent-green-soft">
@@ -409,15 +408,15 @@
             >
           </div>
           <div class="detail-card accent-slate-soft">
-            <span class="detail-label">切换配置</span>
-            <strong>{{ overview.switch_env_file || '--' }}</strong>
-            <small>{{ currentDatabaseModeLabel }}</small>
+            <span class="detail-label">最近导出快照</span>
+            <strong>{{ latestSnapshotLabel }}</strong>
+            <small>{{ latestSnapshotTimeLabel }}</small>
           </div>
           <div class="command-card">
             <span class="detail-label">状态说明</span>
             <code
-              >当前后端已切回原始库，不对应任何 dump 文件，也不会继承 dump
-              的展示名称。</code
+              >当前后端正在使用原始库。最近导出的 dump
+              只是某个时间点的静态快照，不代表当前正在运行的数据库。</code
             >
           </div>
         </div>
@@ -664,6 +663,8 @@ const overview = reactive({
   default_export_name: '',
   current_database_name: '',
   original_database_name: '',
+  current_database_source_type: '',
+  current_database_source_label: '',
   active_snapshot_relative_path: '',
   active_snapshot_display_name: '',
   active_snapshot_target_db_name: '',
@@ -677,6 +678,7 @@ const overview = reactive({
   metadata_coverage_count: 0,
   missing_metadata_count: 0,
   latest_snapshot_name: '',
+  latest_snapshot_display_name: '',
   latest_snapshot_time: null,
   local_pg_dump_available: false,
   local_psql_available: false,
@@ -742,7 +744,21 @@ const activeTaskCount = computed(
 const currentTargetDatabaseLabel = computed(
   () => overview.current_database_name || '--'
 );
+const latestSnapshotLabel = computed(
+  () =>
+    overview.latest_snapshot_display_name ||
+    overview.latest_snapshot_name ||
+    '--'
+);
+const latestSnapshotTimeLabel = computed(() =>
+  overview.latest_snapshot_time
+    ? formatDateTime(overview.latest_snapshot_time)
+    : '暂无最近导出记录'
+);
 const isUsingOriginalDatabase = computed(() => {
+  if (overview.current_database_source_type) {
+    return overview.current_database_source_type === 'original';
+  }
   if (overview.active_snapshot_relative_path) {
     return false;
   }
@@ -751,6 +767,14 @@ const isUsingOriginalDatabase = computed(() => {
   }
   return overview.current_database_name === overview.original_database_name;
 });
+const currentDatabaseSourceLabel = computed(
+  () =>
+    overview.current_database_source_label ||
+    (isUsingOriginalDatabase.value ? '原始库' : 'Dump 切换库')
+);
+const currentActiveSnapshotLabel = computed(
+  () => overview.active_snapshot_display_name || '未激活任何 dump 快照'
+);
 const currentDatabaseModeLabel = computed(() =>
   isUsingOriginalDatabase.value ? '原始本地库' : 'Dump 切换态'
 );
@@ -759,6 +783,24 @@ const currentDatabaseHint = computed(() => {
     return `当前正在使用 dump 版本 ${overview.active_snapshot_display_name || overview.active_snapshot_relative_path}，目标库为 ${currentTargetDatabaseLabel.value}。`;
   }
   return `当前正在使用原始库 ${currentTargetDatabaseLabel.value}。原始库不会出现在版本列表的“当前生效”标记中。`;
+});
+const detailPanelTitle = computed(() => {
+  if (selectedItem.value) {
+    return '已选快照详情';
+  }
+  if (isUsingOriginalDatabase.value) {
+    return '当前数据库详情';
+  }
+  return '快照详情';
+});
+const detailPanelDescription = computed(() => {
+  if (selectedItem.value) {
+    return '查看当前选中 dump 的来源、标签、下载路径和最近导入记录。';
+  }
+  if (isUsingOriginalDatabase.value) {
+    return '当前环境正在使用原始库，下面展示的是当前运行数据库与最近快照的关系。';
+  }
+  return '请选择一个 dump 版本。';
 });
 
 function normalizeDate(value) {
@@ -1368,36 +1410,18 @@ onBeforeUnmount(() => {
 }
 
 .current-db-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
+  display: block;
   margin-top: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: linear-gradient(
-    135deg,
-    rgba(15, 118, 110, 0.12),
-    rgba(14, 116, 144, 0.08)
-  );
-  border: 1px solid rgba(14, 116, 144, 0.12);
-}
-
-.current-db-label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
-}
-
-.current-db-tag {
   font-size: 14px;
   font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.6;
 }
 
 .current-db-mode {
   font-size: 12px;
   color: rgba(15, 23, 42, 0.68);
+  font-weight: 500;
 }
 
 .health-message {
