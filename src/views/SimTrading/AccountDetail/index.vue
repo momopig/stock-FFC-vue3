@@ -1065,6 +1065,14 @@
                 class="toolbar-input"
                 @keyup.enter="applyQueryFilters"
               />
+              <el-input
+                v-if="activeQueryTab !== 'cash-flows'"
+                v-model="queryForm.orderKeyword"
+                clearable
+                placeholder="委托号 / 成交号"
+                class="toolbar-input"
+                @keyup.enter="applyQueryFilters"
+              />
               <el-select
                 v-model="queryForm.direction"
                 clearable
@@ -1823,6 +1831,7 @@ let autoRefreshTimer = null;
 let silentRefreshRunning = false;
 const queryForm = reactive({
   keyword: '',
+  orderKeyword: '',
   direction: '',
   orderStatus: '',
   flowType: '',
@@ -1830,6 +1839,7 @@ const queryForm = reactive({
 });
 const queryFilters = reactive({
   keyword: '',
+  orderKeyword: '',
   direction: '',
   orderStatus: '',
   flowType: '',
@@ -2593,14 +2603,16 @@ function matchesKeyword(item) {
   if (!keyword) return true;
   const stockCode = String(item.stock_code || '').toLowerCase();
   const stockName = String(item.stock_name || '').toLowerCase();
+  return stockCode.includes(keyword) || stockName.includes(keyword);
+}
+
+function matchesOrderKeyword(item) {
+  if (!queryFilters.orderKeyword) return true;
+  const keyword = String(queryFilters.orderKeyword).trim().toLowerCase();
+  if (!keyword) return true;
   const orderNo = String(item.order_no || '').toLowerCase();
   const tradeNo = String(item.trade_no || '').toLowerCase();
-  return (
-    stockCode.includes(keyword) ||
-    stockName.includes(keyword) ||
-    orderNo.includes(keyword) ||
-    tradeNo.includes(keyword)
-  );
+  return orderNo.includes(keyword) || tradeNo.includes(keyword);
 }
 
 function matchesDateRange(value) {
@@ -2620,6 +2632,7 @@ function matchesDateRange(value) {
 function filterOrders(list) {
   return list.filter((item) => {
     if (!matchesKeyword(item)) return false;
+    if (!matchesOrderKeyword(item)) return false;
     if (queryFilters.direction && item.direction !== queryFilters.direction)
       return false;
     if (
@@ -2634,6 +2647,7 @@ function filterOrders(list) {
 function filterTrades(list) {
   return list.filter((item) => {
     if (!matchesKeyword(item)) return false;
+    if (!matchesOrderKeyword(item)) return false;
     if (queryFilters.direction && item.direction !== queryFilters.direction)
       return false;
     return matchesDateRange(item.traded_time);
@@ -2664,6 +2678,7 @@ function resetAllQueryPages() {
 
 function applyQueryFilters() {
   queryFilters.keyword = queryForm.keyword;
+  queryFilters.orderKeyword = queryForm.orderKeyword;
   queryFilters.direction = queryForm.direction;
   queryFilters.orderStatus = queryForm.orderStatus;
   queryFilters.flowType = queryForm.flowType;
@@ -2675,11 +2690,13 @@ function applyQueryFilters() {
 
 function resetQueryFilters() {
   queryForm.keyword = '';
+  queryForm.orderKeyword = '';
   queryForm.direction = '';
   queryForm.orderStatus = '';
   queryForm.flowType = '';
   queryForm.dateRange = [];
   queryFilters.keyword = '';
+  queryFilters.orderKeyword = '';
   queryFilters.direction = '';
   queryFilters.orderStatus = '';
   queryFilters.flowType = '';
@@ -3343,6 +3360,7 @@ function viewTradeHistory(row) {
   activeTab.value = 'query';
   activeQueryTab.value = 'history-trades';
   queryForm.keyword = row?.stock_code || row?.stock_name || '';
+  queryForm.orderKeyword = '';
   applyQueryFilters();
 }
 
@@ -3350,6 +3368,7 @@ function handleProfitRankingTradeHistory(payload) {
   activeTab.value = 'query';
   activeQueryTab.value = 'history-trades';
   queryForm.keyword = payload?.stock_name || payload?.stock_code || '';
+  queryForm.orderKeyword = '';
   applyQueryFilters();
 }
 
@@ -3363,10 +3382,11 @@ function getRelatedTradesByOrderId(orderId) {
   );
 }
 
-function jumpToQueryWithKeyword(tabName, keyword) {
+function jumpToQuery(tabName, filters = {}) {
   activeTab.value = 'query';
   activeQueryTab.value = tabName;
-  queryForm.keyword = keyword || '';
+  queryForm.keyword = filters.keyword || '';
+  queryForm.orderKeyword = filters.orderKeyword || '';
   queryForm.direction = '';
   queryForm.orderStatus = '';
   queryForm.flowType = '';
@@ -3375,16 +3395,19 @@ function jumpToQueryWithKeyword(tabName, keyword) {
 }
 
 function jumpToRelatedTrades(row) {
-  jumpToQueryWithKeyword(
-    isToday(row?.placed_time) ? 'today-trades' : 'history-trades',
-    row?.order_no || row?.stock_code || row?.stock_name || ''
-  );
+  jumpToQuery(isToday(row?.placed_time) ? 'today-trades' : 'history-trades', {
+    keyword: row?.stock_code || row?.stock_name || '',
+    orderKeyword: row?.order_no || '',
+  });
 }
 
 function jumpToRelatedOrder(row) {
-  jumpToQueryWithKeyword(
+  jumpToQuery(
     isToday(row?.order_placed_time) ? 'today-orders' : 'history-orders',
-    row?.order_no || row?.stock_code || row?.stock_name || ''
+    {
+      keyword: row?.stock_code || row?.stock_name || '',
+      orderKeyword: row?.order_no || row?.trade_no || '',
+    }
   );
 }
 
