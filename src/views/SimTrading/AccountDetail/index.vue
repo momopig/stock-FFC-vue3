@@ -1783,6 +1783,7 @@ import {
   cancelSimTradingOrder,
   createSimTradingConditionOrder,
   createSimTradingOrder,
+  getSimTradingAccountActivity,
   depositSimTradingAccount,
   getSimTradingAccountDetail,
   getSimTradingAccounts,
@@ -1827,6 +1828,7 @@ const editingPosition = ref(null);
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
+const ACTIVITY_PAGE_SIZE = 200;
 let autoRefreshTimer = null;
 let silentRefreshRunning = false;
 const queryForm = reactive({
@@ -3676,7 +3678,22 @@ async function loadAccountStrategyBindings() {
   }
 }
 
-async function loadOrders(onlyOpen = false) {
+function applyActivitySnapshot(payload) {
+  const orderItems = payload?.orders?.items || [];
+  openOrders.value = orderItems.filter((item) =>
+    isOpenOrderStatus(item?.order_status)
+  );
+  selectedOpenOrderIds.value = selectedOpenOrderIds.value.filter((id) =>
+    openOrders.value.some((item) => item.id === id)
+  );
+  allOrders.value = orderItems;
+  trades.value = payload?.trades?.items || [];
+  conditionOrders.value = supportsConditionOrder.value
+    ? payload?.condition_orders?.items || []
+    : [];
+}
+
+async function loadLegacyOrders(onlyOpen = false) {
   if (!activeAccountId.value) return;
   const res = await getSimTradingOrders({
     account_id: Number(activeAccountId.value),
@@ -3698,19 +3715,19 @@ async function loadOrders(onlyOpen = false) {
   }
 }
 
-async function loadTrades() {
+async function loadLegacyTrades() {
   if (!activeAccountId.value) return;
   const res = await getSimTradingTrades({
     account_id: Number(activeAccountId.value),
     page: 1,
-    page_size: 200,
+    page_size: ACTIVITY_PAGE_SIZE,
   });
   if (res?.success) {
     trades.value = res.payload?.items || [];
   }
 }
 
-async function loadConditionOrders() {
+async function loadLegacyConditionOrders() {
   if (!activeAccountId.value || !supportsConditionOrder.value) {
     conditionOrders.value = [];
     return;
@@ -3719,12 +3736,69 @@ async function loadConditionOrders() {
     Number(activeAccountId.value),
     {
       page: 1,
-      page_size: 200,
+      page_size: ACTIVITY_PAGE_SIZE,
     }
   );
   if (res?.success) {
     conditionOrders.value = res.payload?.items || [];
   }
+}
+
+async function loadAccountActivitySnapshot() {
+  if (!activeAccountId.value) return;
+  const res = await getSimTradingAccountActivity(
+    Number(activeAccountId.value),
+    {
+      page: 1,
+      page_size: ACTIVITY_PAGE_SIZE,
+    }
+  );
+  if (!res?.success) {
+    throw new Error(res?.message || '获取账户活动快照失败');
+  }
+  applyActivitySnapshot(res.payload || {});
+}
+
+async function loadActivityPanels() {
+  if (!activeAccountId.value) return;
+  if (isQmtAccount.value) {
+    try {
+      await loadAccountActivitySnapshot();
+      return;
+    } catch (error) {
+      console.warn('loadAccountActivitySnapshot fallback', error);
+    }
+  }
+  await Promise.all([
+    loadLegacyOrders(true),
+    loadLegacyOrders(false),
+    loadLegacyConditionOrders(),
+    loadLegacyTrades(),
+  ]);
+}
+
+async function loadOrders(onlyOpen = false) {
+  if (isQmtAccount.value) {
+    await loadActivityPanels();
+    return;
+  }
+  await loadLegacyOrders(onlyOpen);
+}
+
+async function loadTrades() {
+  if (isQmtAccount.value) {
+    await loadActivityPanels();
+    return;
+  }
+  await loadLegacyTrades();
+}
+
+async function loadConditionOrders() {
+  if (isQmtAccount.value) {
+    await loadActivityPanels();
+    return;
+  }
+  await loadLegacyConditionOrders();
 }
 
 async function loadCashFlows() {
@@ -3758,10 +3832,7 @@ async function refreshWorkspace(options = {}) {
     await Promise.all([
       loadAccountDetail(),
       loadAccountStrategyBindings(),
-      loadOrders(true),
-      loadOrders(false),
-      loadConditionOrders(),
-      loadTrades(),
+      loadActivityPanels(),
       loadCashFlows(),
     ]);
   } catch (error) {
@@ -3879,10 +3950,7 @@ watch(activeAccountId, async () => {
     await Promise.all([
       loadAccountDetail(),
       loadAccountStrategyBindings(),
-      loadOrders(true),
-      loadOrders(false),
-      loadConditionOrders(),
-      loadTrades(),
+      loadActivityPanels(),
       loadCashFlows(),
     ]);
   }

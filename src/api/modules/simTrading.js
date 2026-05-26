@@ -38,10 +38,23 @@ export async function resetSimTradingAccount(accountId) {
   return await request.post(`${API_PREFIX}/accounts/${accountId}/reset`);
 }
 
+export async function deleteSimTradingAccount(accountId, data) {
+  return await request.delete(`${API_PREFIX}/accounts/${accountId}`, {
+    data,
+  });
+}
+
 export async function getSimTradingCashFlows(accountId, params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/cash-flows${query ? `?${query}` : ''}`
+  );
+}
+
+export async function getSimTradingAccountActivity(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/activity${query ? `?${query}` : ''}`
   );
 }
 

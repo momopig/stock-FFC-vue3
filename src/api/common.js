@@ -5,6 +5,17 @@ import { getToken, removeToken } from '@/utils/auth';
 import { UserStore } from '@/state/user';
 axios.defaults.withCredentials = true;
 
+const generateRequestId = () => {
+  try {
+    if (globalThis?.crypto?.randomUUID) {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch (error) {
+    // Ignore and fallback to timestamp-based id.
+  }
+  return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 const clearFrontendLoginState = () => {
   try {
     UserStore().clearUserData();
@@ -30,6 +41,10 @@ request.interceptors.request.use(
     if (token) {
       config.headers = config.headers || {};
       config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    config.headers = config.headers || {};
+    if (!config.headers['X-Request-ID']) {
+      config.headers['X-Request-ID'] = generateRequestId();
     }
     return config;
   },

@@ -11,7 +11,9 @@
     <el-table :data="accounts" v-loading="loading" border class="sim-table">
       <el-table-column prop="account_name" label="账户名称" min-width="160" />
       <el-table-column prop="account_type" label="账户类型" width="120" />
-      <el-table-column prop="broker_name" label="券商类型" width="120" />
+      <el-table-column label="券商类型" width="140">
+        <template #default="scope">{{ getBrokerLabel(scope.row) }}</template>
+      </el-table-column>
       <el-table-column label="创建日期" min-width="180">
         <template #default="scope">{{
           formatDateTime(scope.row.created_time)
@@ -76,6 +78,9 @@
               @click="resetAccount(scope.row)"
               >重置</el-button
             >
+            <el-button link type="danger" @click="deleteAccount(scope.row)"
+              >删除</el-button
+            >
           </el-space>
         </template>
       </el-table-column>
@@ -97,7 +102,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="券商类型">
-          <el-input v-model="formData.broker_name" :disabled="isEditMode" />
+          <el-input v-model="formData.broker_name" disabled />
         </el-form-item>
         <el-form-item label="基础币种">
           <el-select v-model="formData.base_currency" :disabled="isEditMode">
@@ -111,8 +116,41 @@
           <el-form-item label="QMT 客户端目录">
             <el-input
               v-model="formData.connection_config_json.client_path"
-              placeholder="例如：D:\\国金QMT\\userdata_mini"
+              placeholder="例如：D:\国金证券QMT交易端\bin.x64"
+            >
+              <template #append>
+                <el-button
+                  :loading="qmtAutoReading"
+                  @click="triggerQmtConfigPicker"
+                  >选择并自动读取</el-button
+                >
+              </template>
+            </el-input>
+            <input
+              ref="qmtConfigPickerRef"
+              class="hidden-picker"
+              type="file"
+              webkitdirectory
+              directory
+              multiple
+              @change="handleQmtConfigPick"
             />
+            <div class="form-help-text">
+              选择 QMT 目录后会尝试自动读取“资金账号 /
+              会话ID”。受浏览器安全限制，通常无法回填本机绝对路径。当前建议填写：D:\国金证券QMT交易端\bin.x64。
+            </div>
+          </el-form-item>
+          <el-form-item label="接入方式">
+            <el-input :model-value="'REMOTE_AGENT（固定）'" disabled />
+          </el-form-item>
+          <el-form-item label="Agent 地址">
+            <el-input
+              v-model="formData.connection_config_json.agent_base_url"
+              disabled
+            />
+            <div class="form-help-text">
+              QMT 账户统一通过本机 qmt-agent 转发，不再切换为 LOCAL 模式。
+            </div>
           </el-form-item>
           <el-form-item label="资金账号">
             <el-input
@@ -145,6 +183,18 @@
               v-model="formData.connection_config_json.strategy_name_prefix"
               maxlength="32"
             />
+          </el-form-item>
+          <el-form-item label="Agent Auth Token">
+            <el-input
+              v-model="formData.connection_config_json.agent_auth_token"
+              placeholder="请输入 QMT Agent Token，与 Agent 启动时一致"
+              maxlength="128"
+              show-password
+            />
+            <div class="form-help-text">
+              必须与 QMT Agent 启动时 QMT_AGENT_AUTH_TOKEN
+              保持一致，否则无法连接。
+            </div>
           </el-form-item>
         </template>
         <el-form-item
@@ -196,12 +246,13 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 
 import {
   createSimTradingAccount,
+  deleteSimTradingAccount,
   getSimTradingAccounts,
   resetSimTradingAccount,
   updateSimTradingAccount,
@@ -217,16 +268,25 @@ const dialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingAccountId = ref(null);
 const accounts = ref([]);
+const qmtConfigPickerRef = ref(null);
+const qmtAutoReading = ref(false);
+
+const QMT_BROKER_NAME = 'GJZQ_QMT';
+const SIM_BROKER_NAME = 'LOCAL_SIM';
+const QMT_DEFAULT_CLIENT_PATH = 'D:\\国金证券QMT交易端\\bin.x64';
+const QMT_DEFAULT_AGENT_BASE_URL = 'http://127.0.0.1:9101';
 
 const initFormData = () => ({
   account_name: '',
   account_type: 'SIMULATED',
-  broker_name: 'LOCAL_SIM',
+  broker_name: SIM_BROKER_NAME,
   base_currency: 'CNY',
   initial_total_asset: 100000,
   status: 'ACTIVE',
   connection_config_json: {
-    client_path: '',
+    gateway_mode: 'REMOTE_AGENT',
+    agent_base_url: QMT_DEFAULT_AGENT_BASE_URL,
+    client_path: QMT_DEFAULT_CLIENT_PATH,
     account_id: '',
     account_type: 'STOCK',
     session_id: 900001,
@@ -237,6 +297,110 @@ const initFormData = () => ({
 });
 
 const formData = reactive(initFormData());
+
+function triggerQmtConfigPicker() {
+  qmtConfigPickerRef.value?.click?.();
+}
+
+function normalizeClientPath(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\//g, '\\');
+}
+
+function isAbsoluteClientPath(value) {
+  const normalized = normalizeClientPath(value);
+  return /^[A-Za-z]:\\/.test(normalized) || /^\\\\/.test(normalized);
+}
+
+function tryExtractAccountId(text) {
+  const patterns = [
+    /(?:account[_-]?id|fund[_-]?account|资金账号|证券账号|stock[_-]?account)\s*[:=：]\s*["']?([A-Za-z0-9_-]{5,32})/i,
+    /["']account_id["']\s*[:=]\s*["']?([A-Za-z0-9_-]{5,32})/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return String(match[1]).trim();
+  }
+  return '';
+}
+
+function tryExtractSessionId(text) {
+  const patterns = [
+    /(?:session[_-]?id|会话ID|会话id|session)\s*[:=：]\s*["']?(\d{3,10})/i,
+    /["']session_id["']\s*[:=]\s*(\d{3,10})/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return Number(match[1]);
+  }
+  return null;
+}
+
+function shouldTryReadFile(file) {
+  const fileName = String(file?.name || '').toLowerCase();
+  const relativePath = String(file?.webkitRelativePath || '').toLowerCase();
+  const allowedExt = ['.json', '.ini', '.cfg', '.conf', '.txt', '.xml', '.log'];
+  const allowedByExt = allowedExt.some((ext) => fileName.endsWith(ext));
+  const allowedByName = /(account|session|config|setting|xt|qmt)/i.test(
+    fileName + relativePath
+  );
+  return (
+    (allowedByExt || allowedByName) && Number(file?.size || 0) <= 1024 * 1024
+  );
+}
+
+async function handleQmtConfigPick(event) {
+  const files = Array.from(event?.target?.files || []);
+  if (!files.length) return;
+
+  qmtAutoReading.value = true;
+  try {
+    let detectedAccountId = '';
+    let detectedSessionId = null;
+    const candidates = files.filter(shouldTryReadFile);
+
+    for (const file of candidates) {
+      if (detectedAccountId && detectedSessionId) break;
+      let text = '';
+      try {
+        text = await file.text();
+      } catch {
+        text = '';
+      }
+      if (!text) continue;
+
+      if (!detectedAccountId) {
+        detectedAccountId = tryExtractAccountId(text);
+      }
+      if (!detectedSessionId) {
+        detectedSessionId = tryExtractSessionId(text);
+      }
+    }
+
+    if (detectedAccountId) {
+      formData.connection_config_json.account_id = detectedAccountId;
+    }
+    if (detectedSessionId) {
+      formData.connection_config_json.session_id = detectedSessionId;
+    }
+
+    if (detectedAccountId || detectedSessionId) {
+      ElMessage.success(
+        '已自动读取资金账号/会话ID。QMT 客户端目录仍需手动填写本机绝对路径。'
+      );
+    } else {
+      ElMessage.warning(
+        '未识别到账号/会话ID，且浏览器无法返回本机绝对路径，请手动填写 QMT 客户端目录。'
+      );
+    }
+  } finally {
+    qmtAutoReading.value = false;
+    if (event?.target) {
+      event.target.value = '';
+    }
+  }
+}
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -285,6 +449,23 @@ function getCurrencyLabel(currency) {
   return map[currency] || currency || '--';
 }
 
+function normalizeBrokerName(accountType, brokerName) {
+  if (accountType === 'QMT') {
+    return QMT_BROKER_NAME;
+  }
+  const normalized = String(brokerName || '').trim();
+  return normalized || SIM_BROKER_NAME;
+}
+
+function getBrokerLabel(row) {
+  const normalized = normalizeBrokerName(row?.account_type, row?.broker_name);
+  const map = {
+    LOCAL_SIM: '本地模拟',
+    GJZQ_QMT: '国金 QMT',
+  };
+  return map[normalized] || normalized || '--';
+}
+
 function getStatusLabel(status) {
   const map = {
     ACTIVE: '激活',
@@ -296,12 +477,17 @@ function getStatusLabel(status) {
 
 function normalizeConnectionConfig(config = {}) {
   return {
-    client_path: config?.client_path || config?.mini_qmt_path || '',
+    gateway_mode: 'REMOTE_AGENT',
+    agent_base_url: config?.agent_base_url || QMT_DEFAULT_AGENT_BASE_URL,
+    client_path: normalizeClientPath(
+      config?.client_path || config?.mini_qmt_path || QMT_DEFAULT_CLIENT_PATH
+    ),
     account_id: config?.account_id || config?.fund_account || '',
     account_type: config?.account_type || 'STOCK',
     session_id: Number(config?.session_id || 900001),
     order_remark_prefix: config?.order_remark_prefix || 'FFC',
     strategy_name_prefix: config?.strategy_name_prefix || 'FFC',
+    agent_auth_token: config?.agent_auth_token || '', // 新增，保证回显
   };
 }
 
@@ -319,6 +505,17 @@ function resetForm() {
   editingAccountId.value = null;
 }
 
+watch(
+  () => formData.account_type,
+  (accountType) => {
+    formData.broker_name = normalizeBrokerName(
+      accountType,
+      formData.broker_name
+    );
+  },
+  { immediate: true }
+);
+
 function openCreateDialog() {
   isEditMode.value = false;
   resetForm();
@@ -331,7 +528,7 @@ function openEditDialog(row) {
   Object.assign(formData, {
     account_name: row.account_name,
     account_type: row.account_type,
-    broker_name: row.broker_name,
+    broker_name: normalizeBrokerName(row.account_type, row.broker_name),
     base_currency: row.base_currency,
     initial_total_asset: Number(row.initial_total_asset || 0),
     status: row.status,
@@ -416,36 +613,95 @@ async function resetAccount(row) {
   }
 }
 
+async function deleteAccount(row) {
+  const confirmText = String(row.account_name || '').trim();
+  if (!confirmText) {
+    ElMessage.warning('账户名称为空，无法执行删除');
+    return;
+  }
+
+  try {
+    await ElMessageBox.prompt(
+      `删除后将移除“${row.account_name}”及关联的持仓、委托、成交、资金流水和策略配置，且不可恢复。\n请输入账户名称 ${confirmText} 以确认删除：`,
+      '确认删除交易账户',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        inputPlaceholder: confirmText,
+        inputValidator: (value) => {
+          if (String(value || '').trim() !== confirmText) {
+            return `请输入账户名称 ${confirmText} 后再执行删除`;
+          }
+          return true;
+        },
+      }
+    );
+  } catch {
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const res = await deleteSimTradingAccount(row.id, {
+      confirm_account_name: confirmText,
+    });
+    if (res?.success) {
+      ElMessage.success('账户已删除');
+      await loadAccounts();
+    } else {
+      ElMessage.error(res?.message || '删除失败');
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '删除失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
 async function submitForm() {
+  if (submitting.value) {
+    return;
+  }
+
   if (!formData.account_name) {
     ElMessage.warning('请输入账户名称');
     return;
   }
   submitting.value = true;
   try {
+    const qmtConnectionConfig =
+      formData.account_type === 'QMT'
+        ? {
+            ...formData.connection_config_json,
+            gateway_mode: 'REMOTE_AGENT',
+            agent_base_url:
+              formData.connection_config_json.agent_base_url ||
+              QMT_DEFAULT_AGENT_BASE_URL,
+          }
+        : null;
+
     const payload = isEditMode.value
       ? {
           account_name: formData.account_name,
           account_type: formData.account_type,
-          broker_name: formData.broker_name,
+          broker_name: normalizeBrokerName(
+            formData.account_type,
+            formData.broker_name
+          ),
           base_currency: formData.base_currency,
           status: formData.status,
-          connection_config_json:
-            formData.account_type === 'QMT'
-              ? { ...formData.connection_config_json }
-              : null,
+          connection_config_json: qmtConnectionConfig,
           remark: formData.remark,
         }
       : {
           ...formData,
-          connection_config_json:
-            formData.account_type === 'QMT'
-              ? { ...formData.connection_config_json }
-              : null,
-          broker_name:
-            formData.account_type === 'QMT'
-              ? formData.broker_name || 'GJZQ_QMT'
-              : formData.broker_name,
+          connection_config_json: qmtConnectionConfig,
+          broker_name: normalizeBrokerName(
+            formData.account_type,
+            formData.broker_name
+          ),
           initial_total_asset:
             formData.account_type === 'QMT'
               ? Number(formData.initial_total_asset || 0)
@@ -453,8 +709,19 @@ async function submitForm() {
         };
 
     if (formData.account_type === 'QMT') {
+      formData.connection_config_json.client_path = normalizeClientPath(
+        formData.connection_config_json.client_path
+      );
+
       if (!formData.connection_config_json.client_path) {
         ElMessage.warning('请填写 QMT 客户端目录');
+        submitting.value = false;
+        return;
+      }
+      if (!isAbsoluteClientPath(formData.connection_config_json.client_path)) {
+        ElMessage.warning(
+          'QMT 客户端目录必须填写本机绝对路径，例如 D:\国金证券QMT交易端\bin.x64'
+        );
         submitting.value = false;
         return;
       }
@@ -524,6 +791,10 @@ onMounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+.hidden-picker {
+  display: none;
 }
 
 .form-help-text {
