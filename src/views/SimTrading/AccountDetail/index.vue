@@ -181,6 +181,13 @@
               >
             </el-space>
           </div>
+          <el-alert
+            v-if="positionCapabilityNotice"
+            :title="positionCapabilityNotice"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
           <PositionTable
             :items="positions"
             :show-total-quantity="true"
@@ -189,6 +196,7 @@
             :show-position-ratio="true"
             :show-holding-days="true"
             :show-holding-date-range="true"
+            :disable-created-time-holding-fallback="isQmtAccount"
             :show-actions="true"
             :show-edit-action="isSimulatedAccount"
             :show-sell-action="true"
@@ -203,13 +211,13 @@
 
         <el-tab-pane label="自动化策略" name="strategy">
           <StrategyPanel
-            v-if="isSimulatedAccount && currentAccount"
+            v-if="currentAccount && supportsStrategyAutomation"
             :account-id="activeAccountId"
             :account-total-asset="summary.current_total_asset"
           />
           <el-alert
             v-else
-            title="QMT 实盘账户当前已接入人工买卖、条件单、撤单、查询、转账与盈亏分析；自动化策略执行适配保留为下一阶段。"
+            :title="strategyAutomationAlertTitle"
             type="info"
             :closable="false"
             show-icon
@@ -844,7 +852,8 @@
               <el-button
                 type="danger"
                 plain
-                :disabled="!selectedOpenOrderIds.length"
+                :loading="batchCancelLoading"
+                :disabled="!selectedOpenOrderIds.length || batchCancelLoading"
                 @click="batchCancel"
                 >批量撤单</el-button
               >
@@ -949,7 +958,14 @@
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="scope">
-                <el-button link type="danger" @click="cancelOne(scope.row)"
+                <el-button
+                  link
+                  type="danger"
+                  :loading="isCancelingOrder(scope.row.id)"
+                  :disabled="
+                    batchCancelLoading || isCancelingOrder(scope.row.id)
+                  "
+                  @click="cancelOne(scope.row)"
                   >撤单</el-button
                 >
               </template>
@@ -957,7 +973,7 @@
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane label="转账" name="transfer">
+        <el-tab-pane v-if="showTransferTab" label="转账" name="transfer">
           <div class="transfer-grid">
             <div class="form-panel">
               <h3>入金</h3>
@@ -1057,6 +1073,13 @@
 
         <el-tab-pane label="查询" name="query">
           <div class="query-shell">
+            <el-alert
+              v-if="queryCapabilityNotice"
+              :title="queryCapabilityNotice"
+              type="warning"
+              :closable="false"
+              show-icon
+            />
             <div class="query-toolbar">
               <el-input
                 v-model="queryForm.keyword"
@@ -1708,8 +1731,15 @@
         </el-tab-pane>
 
         <el-tab-pane label="盈亏分析" name="profit-analysis">
+          <el-alert
+            v-if="profitAnalysisCapabilityNotice && !supportsProfitAnalysis"
+            :title="profitAnalysisCapabilityNotice"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
           <ProfitAnalysisPanel
-            v-if="currentAccount"
+            v-else-if="currentAccount"
             :account-id="activeAccountId"
             :trades="trades"
             :cash-flows="cashFlows"
@@ -1817,6 +1847,8 @@ const trades = ref([]);
 const cashFlows = ref([]);
 const activeQueryTab = ref('today-orders');
 const selectedOpenOrderIds = ref([]);
+const cancelingOrderIds = ref([]);
+const batchCancelLoading = ref(false);
 const stockSearchLoading = ref(false);
 const stockSearchOptions = ref([]);
 const selectedBuyStock = ref(null);
@@ -1936,15 +1968,67 @@ const isSimulatedAccount = computed(
 const isQmtAccount = computed(
   () => String(detailAccount.value?.account_type || '').toUpperCase() === 'QMT'
 );
+const showTransferTab = computed(() => !isQmtAccount.value);
+const accountCapabilities = computed(
+  () => detailPayload.value?.capabilities || {}
+);
+const capabilityNotices = computed(
+  () => accountCapabilities.value?.notices || {}
+);
+const positionCapabilityNotice = computed(
+  () => capabilityNotices.value?.position || ''
+);
+const queryCapabilityNotice = computed(
+  () => capabilityNotices.value?.query || ''
+);
+const profitAnalysisCapabilityNotice = computed(
+  () => capabilityNotices.value?.profit_analysis || ''
+);
+const defaultManualOrderType = computed(() =>
+  isQmtAccount.value ? 'LIMIT' : 'MARKET'
+);
+const supportsProfitAnalysis = computed(() => {
+  if (isSimulatedAccount.value) {
+    return true;
+  }
+  if (!isQmtAccount.value) {
+    return true;
+  }
+  return accountCapabilities.value?.supports_profit_analysis === true;
+});
 const supportsConditionOrder = computed(() => isQmtAccount.value);
+const supportsStrategyAutomation = computed(() => {
+  if (isSimulatedAccount.value) {
+    return true;
+  }
+  return accountCapabilities.value?.can_strategy_automation !== false;
+});
+const strategyAutomationAlertTitle = computed(() => {
+  if (supportsStrategyAutomation.value) {
+    return '当前账户未返回可用的自动化策略面板数据，请先刷新账号详情后重试。';
+  }
+  return isQmtAccount.value
+    ? '当前 QMT 账户通道暂未声明自动化策略能力，策略面板已禁用；请先检查 Agent 能力或账户连接状态。'
+    : '当前账户暂未开启自动化策略能力。';
+});
 const detailPageTitle = computed(() =>
   isQmtAccount.value ? 'QMT 实盘交易工作台' : '交易账户工作台'
 );
 const detailPageDescription = computed(() =>
   isQmtAccount.value
-    ? '围绕单个 QMT 实盘账户完成持仓查看、买卖委托、条件单、撤单、转账和查询分析。'
+    ? '围绕单个 QMT 实盘账户完成持仓查看、买卖委托、条件单、撤单、查询、盈亏分析与自动化策略执行。'
     : '围绕单账户完成持仓查看、买卖委托、撤单、转账和成交查询。'
 );
+
+function isAccountDetailTabAvailable(tab) {
+  if (!VALID_ACCOUNT_DETAIL_TABS.includes(tab)) {
+    return false;
+  }
+  if (tab === 'transfer') {
+    return showTransferTab.value;
+  }
+  return true;
+}
 
 watch(
   detailPageTitle,
@@ -1973,9 +2057,11 @@ const currentTradeModeDescription = computed(() =>
     : '当前账号为正常模式：A 股按 T+1 交易，非交易时段委托仅挂单，待开盘后参与撮合。'
 );
 const currentTradeModeFormHint = computed(() =>
-  isDebugModeEnabled.value
-    ? '当前为调试模式：允许 T+0，非交易时段若价格满足也可能立即成交。'
-    : '当前为正常模式：A 股按 T+1 执行，非交易时段只挂单不成交，今日新买入 A 股不可卖出。'
+  isQmtAccount.value
+    ? '当前为 QMT 实盘账户：默认使用限价委托并自动带入最新价，提交前请再次确认委托价格、数量与交易方向。'
+    : isDebugModeEnabled.value
+      ? '当前为调试模式：允许 T+0，非交易时段若价格满足也可能立即成交。'
+      : '当前为正常模式：A 股按 T+1 执行，非交易时段只挂单不成交，今日新买入 A 股不可卖出。'
 );
 const visibleOpenOrders = computed(() =>
   openOrders.value.filter((item) => isOpenOrderStatus(item?.order_status))
@@ -1988,16 +2074,24 @@ const sellQuickPositions = computed(() =>
   positions.value.filter((item) => Number(item.sellable_quantity || 0) > 0)
 );
 const todayOrders = computed(() =>
-  allOrders.value.filter((item) => isToday(item.placed_time))
+  isQmtAccount.value
+    ? allOrders.value
+    : allOrders.value.filter((item) => isToday(item.placed_time))
 );
 const historyOrders = computed(() =>
-  allOrders.value.filter((item) => !isToday(item.placed_time))
+  isQmtAccount.value
+    ? []
+    : allOrders.value.filter((item) => !isToday(item.placed_time))
 );
 const todayTrades = computed(() =>
-  trades.value.filter((item) => isToday(item.traded_time))
+  isQmtAccount.value
+    ? trades.value
+    : trades.value.filter((item) => isToday(item.traded_time))
 );
 const historyTrades = computed(() =>
-  trades.value.filter((item) => !isToday(item.traded_time))
+  isQmtAccount.value
+    ? []
+    : trades.value.filter((item) => !isToday(item.traded_time))
 );
 const filteredTodayOrders = computed(() => filterOrders(todayOrders.value));
 const filteredHistoryOrders = computed(() => filterOrders(historyOrders.value));
@@ -2742,6 +2836,23 @@ function getSelectedStockPrice(form) {
   return formPrice > 0 ? formPrice : 0;
 }
 
+function syncManualOrderFormMode(form, options = {}) {
+  const { forceOrderType = false, forcePrice = false } = options;
+  if (forceOrderType || !form.order_type) {
+    form.order_type = defaultManualOrderType.value;
+  }
+  if (form.order_type === 'LIMIT') {
+    const currentPrice = getSelectedStockPrice(form);
+    if (currentPrice > 0 && (forcePrice || !(Number(form.order_price) > 0))) {
+      form.order_price = currentPrice;
+    }
+    return;
+  }
+  if (forcePrice) {
+    form.order_price = null;
+  }
+}
+
 function getEffectiveExecutionPrice(direction, form) {
   const currentPrice = getSelectedStockPrice(form);
   const orderPrice = decimalValue(form.order_price);
@@ -3170,10 +3281,14 @@ function applyStockSelection(stock, targetForm, options = {}) {
   targetForm.stock_code = `${stock.code}.${stock.exchange_code}`;
   targetForm.stock_name = stock.name || '';
   targetForm.exchange_code = stock.exchange_code || '';
+  if (isQmtAccount.value && targetForm.order_type === 'MARKET') {
+    targetForm.order_type = defaultManualOrderType.value;
+  }
   if (
     syncPrice ||
     !Number(targetForm.order_price) ||
-    targetForm.order_type === 'MARKET'
+    targetForm.order_type === 'MARKET' ||
+    (isQmtAccount.value && targetForm.order_type === 'LIMIT')
   ) {
     targetForm.order_price = stock.initialPrice || 0;
   }
@@ -3332,8 +3447,9 @@ function presetOrder(direction, row) {
   target.stock_code = row.stock_code;
   target.stock_name = row.stock_name;
   target.exchange_code = row.exchange_code;
-  target.order_type = 'MARKET';
-  target.order_price = null;
+  target.order_type = defaultManualOrderType.value;
+  target.order_price =
+    target.order_type === 'LIMIT' ? Number(row.current_price || 0) : null;
   target.order_quantity =
     direction === 'SELL'
       ? getNormalizedPresetQuantity(row.exchange_code, row.sellable_quantity)
@@ -3417,19 +3533,37 @@ function handleOpenOrderSelection(rows) {
   selectedOpenOrderIds.value = rows.map((item) => item.id);
 }
 
+function isCancelingOrder(orderId) {
+  return cancelingOrderIds.value.includes(orderId);
+}
+
 async function cancelOne(row) {
+  if (!row?.id || isCancelingOrder(row.id) || batchCancelLoading.value) {
+    return;
+  }
   await doCancel([row.id]);
 }
 
 async function batchCancel() {
-  await doCancel(selectedOpenOrderIds.value);
+  if (batchCancelLoading.value) {
+    return;
+  }
+  await doCancel(selectedOpenOrderIds.value, { batch: true });
 }
 
-async function doCancel(orderIds) {
-  if (!orderIds.length) return;
-  actionLoading.value = true;
+async function doCancel(orderIds, options = {}) {
+  const normalizedIds = Array.from(
+    new Set((orderIds || []).map((item) => Number(item)).filter(Boolean))
+  );
+  if (!normalizedIds.length) return;
+  cancelingOrderIds.value = Array.from(
+    new Set([...cancelingOrderIds.value, ...normalizedIds])
+  );
+  if (options.batch) {
+    batchCancelLoading.value = true;
+  }
   try {
-    for (const orderId of orderIds) {
+    for (const orderId of normalizedIds) {
       const res = await cancelSimTradingOrder(orderId);
       if (!res?.success) {
         throw new Error(res?.message || `订单 ${orderId} 撤单失败`);
@@ -3441,7 +3575,12 @@ async function doCancel(orderIds) {
     console.error(error);
     ElMessage.error(error?.message || '撤单失败');
   } finally {
-    actionLoading.value = false;
+    cancelingOrderIds.value = cancelingOrderIds.value.filter(
+      (item) => !normalizedIds.includes(item)
+    );
+    if (options.batch) {
+      batchCancelLoading.value = false;
+    }
   }
 }
 
@@ -3892,6 +4031,12 @@ watch(activeTab, (value) => {
   });
 });
 
+watch(showTransferTab, (value) => {
+  if (!value && activeTab.value === 'transfer') {
+    activeTab.value = 'position';
+  }
+});
+
 watch(activeQueryTab, () => {
   queryForm.orderStatus = '';
   queryForm.flowType = '';
@@ -3908,10 +4053,45 @@ watch(
 );
 
 watch(
+  () => buyForm.order_type,
+  (value) => {
+    syncManualOrderFormMode(buyForm, {
+      forceOrderType: false,
+      forcePrice: value === 'LIMIT',
+    });
+  }
+);
+
+watch(
   () => [sellForm.order_quantity, sellForm.exchange_code],
   () => {
     autoRepairOrderQuantity(sellForm, '卖出');
   }
+);
+
+watch(
+  () => sellForm.order_type,
+  (value) => {
+    syncManualOrderFormMode(sellForm, {
+      forceOrderType: false,
+      forcePrice: value === 'LIMIT',
+    });
+  }
+);
+
+watch(
+  defaultManualOrderType,
+  () => {
+    syncManualOrderFormMode(buyForm, {
+      forceOrderType: true,
+      forcePrice: isQmtAccount.value,
+    });
+    syncManualOrderFormMode(sellForm, {
+      forceOrderType: true,
+      forcePrice: isQmtAccount.value,
+    });
+  },
+  { immediate: true }
 );
 
 watch(
@@ -3926,7 +4106,7 @@ watch(
   () => route.query,
   (query) => {
     const routeTab = query.tab ? String(query.tab) : '';
-    if (routeTab && VALID_ACCOUNT_DETAIL_TABS.includes(routeTab)) {
+    if (routeTab && isAccountDetailTabAvailable(routeTab)) {
       activeTab.value = routeTab;
       if (routeTab !== 'transfer' && query.action) {
         const nextQuery = { ...query };
@@ -3938,8 +4118,20 @@ watch(
       }
       return;
     }
-    if (query.action === 'deposit' || query.action === 'withdraw') {
+    if (
+      (query.action === 'deposit' || query.action === 'withdraw') &&
+      showTransferTab.value
+    ) {
       activeTab.value = 'transfer';
+      return;
+    }
+    if (routeTab === 'transfer' && !showTransferTab.value) {
+      const nextQuery = { ...query, tab: 'position' };
+      delete nextQuery.action;
+      router.replace({
+        path: '/sim-trading/account-detail',
+        query: nextQuery,
+      });
     }
   },
   { immediate: true }
