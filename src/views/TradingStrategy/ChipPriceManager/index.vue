@@ -433,10 +433,6 @@ function clearEditorStock() {
 }
 
 async function loadChipPrices() {
-  if (!queryForm.stock_code || !queryForm.trade_date) {
-    chipPrices.value = [];
-    return;
-  }
   loading.value = true;
   try {
     const res = await getSignalStrategyChipPrices(
@@ -573,8 +569,8 @@ async function handleDelete(row) {
 function createInitialQueryForm() {
   return {
     stock_code: '',
-    trade_date: formatDateInput(new Date()),
-    time_levels: ['1min', '5min', '30min', '1h'],
+    trade_date: '',
+    time_levels: [],
     include_invalid: true,
   };
 }
