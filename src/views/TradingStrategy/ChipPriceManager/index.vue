@@ -103,16 +103,23 @@
       <el-table :data="chipPrices" border v-loading="loading">
         <el-table-column prop="id" label="ID" width="90" sortable />
         <el-table-column prop="stock_code" label="股票代码" min-width="140" />
+        <el-table-column label="股票名称" min-width="140" show-overflow-tooltip>
+          <template #default="scope">
+            {{ getStockDisplayName(scope.row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="trade_date" label="交易日期" min-width="120" />
         <el-table-column prop="time_level" label="时间级别" width="100" />
         <el-table-column
           prop="concentrated_price"
-          label="集中价"
+          label="最强筹码集中价"
           min-width="120"
           sortable
         >
           <template #default="scope">
-            {{ formatNumber(scope.row.concentrated_price) }}
+            <span class="chip-price-strong">{{
+              formatNumber(scope.row.concentrated_price)
+            }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -223,11 +230,11 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="集中价" required>
+        <el-form-item label="最强筹码集中价" required>
           <el-input-number
             v-model="editorForm.concentrated_price"
             :min="0"
-            :precision="3"
+            :precision="2"
             :step="0.01"
             class="dialog-full-width"
           />
@@ -245,6 +252,7 @@
           <el-input
             v-model="editorForm.data_source"
             placeholder="manual / futu-history-kline"
+            :disabled="editorDialog.mode === 'edit'"
           />
         </el-form-item>
         <el-form-item label="有效状态">
@@ -290,6 +298,7 @@ const saving = ref(false);
 const stockSearchLoading = ref(false);
 const chipPrices = ref([]);
 const stockSearchOptions = ref([]);
+const stockNameMap = ref({});
 const selectedQueryStockOption = ref(null);
 const selectedEditorStockOption = ref(null);
 
@@ -444,6 +453,7 @@ async function loadChipPrices() {
       })
     );
     chipPrices.value = res?.payload?.items || [];
+    await hydrateStockNames(chipPrices.value);
   } catch (error) {
     ElMessage.error(error.message || '加载筹码集中价失败');
   } finally {
@@ -473,6 +483,7 @@ async function recomputeChipPrices() {
       force_refresh: true,
     });
     chipPrices.value = res?.payload?.items || [];
+    await hydrateStockNames(chipPrices.value);
     ElMessage.success('历史筹码集中价重算完成');
   } catch (error) {
     ElMessage.error(error.message || '手动重算失败');
@@ -508,6 +519,64 @@ function openEditDialog(row) {
     is_valid: row.is_valid,
   });
   selectedEditorStockOption.value = buildStockOptionFromCode(row.stock_code);
+}
+
+function getStockCodeParts(stockCode) {
+  const [codePart = '', exchangePart = ''] = String(stockCode || '').split('.');
+  return {
+    codePart,
+    exchangePart: EXCHANGE_MAP[exchangePart] || exchangePart,
+  };
+}
+
+function getStockDisplayName(row) {
+  return row?.stock_name || stockNameMap.value[row?.stock_code] || '--';
+}
+
+async function hydrateStockNames(rows) {
+  const missingCodes = Array.from(
+    new Set(
+      (rows || [])
+        .map((row) => String(row?.stock_code || '').trim())
+        .filter(
+          (stockCode) =>
+            stockCode &&
+            !stockNameMap.value[stockCode] &&
+            !(rows || []).find(
+              (row) => row?.stock_code === stockCode && row?.stock_name
+            )
+        )
+    )
+  );
+  if (!missingCodes.length) {
+    return;
+  }
+  await Promise.all(
+    missingCodes.map(async (stockCode) => {
+      const { codePart, exchangePart } = getStockCodeParts(stockCode);
+      if (!codePart || !exchangePart) {
+        return;
+      }
+      try {
+        const result = await getStock(codePart, false);
+        const matched = (result?.payload?.items || [])
+          .map((stock) => normalizeStockFromApi(stock))
+          .find(
+            (stock) =>
+              String(stock.code || '').trim() === codePart &&
+              String(stock.exchange_code || '').trim() === exchangePart
+          );
+        if (matched?.name) {
+          stockNameMap.value = {
+            ...stockNameMap.value,
+            [stockCode]: matched.name,
+          };
+        }
+      } catch {
+        // 忽略股票名称补全失败，不影响主列表展示。
+      }
+    })
+  );
 }
 
 async function submitChipPrice() {
@@ -691,6 +760,11 @@ function formatNumber(value) {
 
 .dialog-full-width {
   width: 100%;
+}
+
+.chip-price-strong {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {

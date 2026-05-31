@@ -203,6 +203,31 @@
                         {{ item.label }}: {{ item.value }}
                       </div>
                     </div>
+                    <div
+                      v-if="section.factorGroups?.length"
+                      class="param-preview-factor-list"
+                    >
+                      <div
+                        v-for="factorGroup in section.factorGroups"
+                        :key="`${section.title}-${factorGroup.code}`"
+                        class="param-preview-factor"
+                      >
+                        <div class="param-preview-factor__title">
+                          {{ factorGroup.title }}
+                        </div>
+                        <div class="param-preview-list">
+                          <div
+                            v-for="item in factorGroup.items"
+                            :key="`${factorGroup.code}-${item.label}`"
+                          >
+                            {{ item.label }}: {{ item.value }}
+                          </div>
+                          <div v-if="!factorGroup.items.length">
+                            当前因子无额外参数
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -330,147 +355,30 @@
               {{ currentTemplate.description }}
             </div>
             <template v-if="isIntradayLowSuctionTemplate(currentTemplate)">
-              <div
-                v-for="section in intradayLowSuctionFormSections"
-                :key="section.key"
-                class="template-group-section"
+              <el-collapse
+                v-model="intradayLowSuctionFormCollapseNames"
+                class="template-group-collapse"
               >
-                <div class="template-group-header">
-                  <h4>{{ section.title }}</h4>
-                  <p v-if="section.description">{{ section.description }}</p>
-                </div>
-                <div v-if="section.fields.length" class="dynamic-field-grid">
-                  <div
-                    v-for="field in section.fields"
-                    :key="field.path"
-                    class="dynamic-field-item"
-                  >
-                    <label class="dynamic-field-label">{{ field.label }}</label>
-                    <el-input-number
-                      v-if="
-                        field.component === 'number' ||
-                        field.component === 'integer'
-                      "
-                      :model-value="instanceForm.params_value[field.path]"
-                      class="full-width"
-                      controls-position="right"
-                      :step="field.step || 1"
-                      :min="field.min"
-                      :max="field.max"
-                      :precision="
-                        field.component === 'number' ? field.precision : 0
-                      "
-                      @update:model-value="setParamValue(field.path, $event)"
-                    />
-                    <el-switch
-                      v-else-if="field.component === 'boolean'"
-                      :model-value="
-                        Boolean(instanceForm.params_value[field.path])
-                      "
-                      inline-prompt
-                      active-text="是"
-                      inactive-text="否"
-                      @update:model-value="setParamValue(field.path, $event)"
-                    />
-                    <el-select
-                      v-else-if="field.path === 'enabled_factor_codes'"
-                      :model-value="instanceForm.params_value[field.path] || []"
-                      multiple
-                      collapse-tags
-                      collapse-tags-tooltip
-                      class="full-width"
-                      @update:model-value="setParamValue(field.path, $event)"
-                    >
-                      <el-option
-                        v-for="option in intradayLowSuctionFactorOptions"
-                        :key="option.value"
-                        :label="option.label"
-                        :value="option.value"
-                      />
-                    </el-select>
-                    <el-select
-                      v-else-if="field.path === 'support_time_levels'"
-                      :model-value="instanceForm.params_value[field.path] || []"
-                      multiple
-                      collapse-tags
-                      collapse-tags-tooltip
-                      class="full-width"
-                      @update:model-value="setParamValue(field.path, $event)"
-                    >
-                      <el-option
-                        v-for="option in chipTimeLevelOptions"
-                        :key="option.value"
-                        :label="option.label"
-                        :value="option.value"
-                      />
-                    </el-select>
-                    <el-select
-                      v-else-if="field.component === 'select'"
-                      :model-value="instanceForm.params_value[field.path]"
-                      class="full-width"
-                      @update:model-value="setParamValue(field.path, $event)"
-                    >
-                      <el-option
-                        v-for="option in field.options || []"
-                        :key="option.value"
-                        :label="option.label"
-                        :value="option.value"
-                      />
-                    </el-select>
-                    <el-input
-                      v-else
-                      :model-value="
-                        normalizeInputValue(
-                          instanceForm.params_value[field.path],
-                          field.component
-                        )
-                      "
-                      class="full-width"
-                      :type="
-                        field.component === 'textarea' ||
-                        field.component === 'string-array'
-                          ? 'textarea'
-                          : 'text'
-                      "
-                      :rows="
-                        field.component === 'textarea' ||
-                        field.component === 'string-array'
-                          ? 3
-                          : undefined
-                      "
-                      :placeholder="
-                        field.placeholder || field.description || ''
-                      "
-                      @input="
-                        setParamValue(field.path, $event, field.component)
-                      "
-                    />
-                    <div v-if="field.description" class="field-help-text">
-                      {{ field.description }}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  v-if="section.factorGroups.length"
-                  class="factor-config-group-list"
+                <el-collapse-item
+                  v-for="section in intradayLowSuctionFormSections"
+                  :key="section.key"
+                  :name="buildSectionCollapseName(section)"
                 >
-                  <div
-                    v-for="factorGroup in section.factorGroups"
-                    :key="factorGroup.code"
-                    class="factor-config-card"
-                  >
-                    <div class="factor-config-card__title">
-                      {{ factorGroup.label }}
+                  <template #title>
+                    <div class="template-group-header">
+                      <h4>{{ section.title }}</h4>
+                      <p v-if="section.description">
+                        {{ section.description }}
+                      </p>
                     </div>
-                    <div class="factor-config-card__desc">
-                      {{ factorGroup.description }}
-                    </div>
+                  </template>
+                  <div class="template-group-section">
                     <div
-                      v-if="factorGroup.fields.length"
+                      v-if="section.fields.length"
                       class="dynamic-field-grid"
                     >
                       <div
-                        v-for="field in factorGroup.fields"
+                        v-for="field in section.fields"
                         :key="field.path"
                         class="dynamic-field-item"
                       >
@@ -507,6 +415,46 @@
                             setParamValue(field.path, $event)
                           "
                         />
+                        <el-select
+                          v-else-if="field.path === 'enabled_factor_codes'"
+                          :model-value="
+                            instanceForm.params_value[field.path] || []
+                          "
+                          multiple
+                          collapse-tags
+                          collapse-tags-tooltip
+                          class="full-width"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
+                        >
+                          <el-option
+                            v-for="option in intradayLowSuctionFactorOptions"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
+                        <el-select
+                          v-else-if="field.path === 'support_time_levels'"
+                          :model-value="
+                            instanceForm.params_value[field.path] || []
+                          "
+                          multiple
+                          collapse-tags
+                          collapse-tags-tooltip
+                          class="full-width"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
+                        >
+                          <el-option
+                            v-for="option in supportLevelOptions"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
                         <el-select
                           v-else-if="field.component === 'select'"
                           :model-value="instanceForm.params_value[field.path]"
@@ -555,12 +503,139 @@
                         </div>
                       </div>
                     </div>
-                    <div v-else class="factor-config-card__empty">
-                      当前因子无额外参数
-                    </div>
+                    <el-collapse
+                      v-if="section.factorGroups.length"
+                      v-model="intradayLowSuctionFactorCollapseNames"
+                      class="factor-config-collapse"
+                    >
+                      <el-collapse-item
+                        v-for="factorGroup in section.factorGroups"
+                        :key="factorGroup.code"
+                        :name="buildFactorCollapseName(factorGroup)"
+                      >
+                        <template #title>
+                          <div class="factor-config-card__header">
+                            <div class="factor-config-card__title">
+                              {{ factorGroup.title }}
+                            </div>
+                            <div class="factor-config-card__desc">
+                              {{ factorGroup.description }}
+                            </div>
+                          </div>
+                        </template>
+                        <div class="factor-config-card">
+                          <div
+                            v-if="factorGroup.fields.length"
+                            class="dynamic-field-grid"
+                          >
+                            <div
+                              v-for="field in factorGroup.fields"
+                              :key="field.path"
+                              class="dynamic-field-item"
+                            >
+                              <label class="dynamic-field-label">{{
+                                field.label
+                              }}</label>
+                              <el-input-number
+                                v-if="
+                                  field.component === 'number' ||
+                                  field.component === 'integer'
+                                "
+                                :model-value="
+                                  instanceForm.params_value[field.path]
+                                "
+                                class="full-width"
+                                controls-position="right"
+                                :step="field.step || 1"
+                                :min="field.min"
+                                :max="field.max"
+                                :precision="
+                                  field.component === 'number'
+                                    ? field.precision
+                                    : 0
+                                "
+                                @update:model-value="
+                                  setParamValue(field.path, $event)
+                                "
+                              />
+                              <el-switch
+                                v-else-if="field.component === 'boolean'"
+                                :model-value="
+                                  Boolean(instanceForm.params_value[field.path])
+                                "
+                                inline-prompt
+                                active-text="是"
+                                inactive-text="否"
+                                @update:model-value="
+                                  setParamValue(field.path, $event)
+                                "
+                              />
+                              <el-select
+                                v-else-if="field.component === 'select'"
+                                :model-value="
+                                  instanceForm.params_value[field.path]
+                                "
+                                class="full-width"
+                                @update:model-value="
+                                  setParamValue(field.path, $event)
+                                "
+                              >
+                                <el-option
+                                  v-for="option in field.options || []"
+                                  :key="option.value"
+                                  :label="option.label"
+                                  :value="option.value"
+                                />
+                              </el-select>
+                              <el-input
+                                v-else
+                                :model-value="
+                                  normalizeInputValue(
+                                    instanceForm.params_value[field.path],
+                                    field.component
+                                  )
+                                "
+                                class="full-width"
+                                :type="
+                                  field.component === 'textarea' ||
+                                  field.component === 'string-array'
+                                    ? 'textarea'
+                                    : 'text'
+                                "
+                                :rows="
+                                  field.component === 'textarea' ||
+                                  field.component === 'string-array'
+                                    ? 3
+                                    : undefined
+                                "
+                                :placeholder="
+                                  field.placeholder || field.description || ''
+                                "
+                                @input="
+                                  setParamValue(
+                                    field.path,
+                                    $event,
+                                    field.component
+                                  )
+                                "
+                              />
+                              <div
+                                v-if="field.description"
+                                class="field-help-text"
+                              >
+                                {{ field.description }}
+                              </div>
+                            </div>
+                          </div>
+                          <div v-else class="factor-config-card__empty">
+                            当前因子无额外参数
+                          </div>
+                        </div>
+                      </el-collapse-item>
+                    </el-collapse>
                   </div>
-                </div>
-              </div>
+                </el-collapse-item>
+              </el-collapse>
             </template>
             <div v-else class="dynamic-field-grid">
               <div
@@ -686,9 +761,73 @@
         </el-descriptions>
         <el-card shadow="never" class="detail-card">
           <template #header>参数详情</template>
-          <div class="param-preview-group-list">
+          <template v-if="isIntradayLowSuctionTemplate(detailDialog.data)">
+            <el-collapse
+              v-model="intradayLowSuctionDetailCollapseNames"
+              class="detail-collapse"
+            >
+              <el-collapse-item
+                v-for="section in detailPreviewSections"
+                :key="section.key || section.title"
+                :name="buildSectionCollapseName(section)"
+              >
+                <template #title>
+                  <div class="template-group-header">
+                    <h4>{{ section.title }}</h4>
+                    <p v-if="section.description">{{ section.description }}</p>
+                  </div>
+                </template>
+                <div class="detail-preview-section">
+                  <div class="param-preview-list">
+                    <div
+                      v-for="item in section.items"
+                      :key="`${section.title}-${item.label}`"
+                    >
+                      {{ item.label }}: {{ item.value }}
+                    </div>
+                  </div>
+                  <el-collapse
+                    v-if="section.factorGroups?.length"
+                    v-model="intradayLowSuctionDetailFactorCollapseNames"
+                    class="detail-factor-collapse"
+                  >
+                    <el-collapse-item
+                      v-for="factorGroup in section.factorGroups"
+                      :key="factorGroup.code"
+                      :name="buildFactorCollapseName(factorGroup)"
+                    >
+                      <template #title>
+                        <div class="factor-config-card__header">
+                          <div class="factor-config-card__title">
+                            {{ factorGroup.title }}
+                          </div>
+                          <div class="factor-config-card__desc">
+                            {{ factorGroup.description }}
+                          </div>
+                        </div>
+                      </template>
+                      <div class="factor-config-card">
+                        <div class="param-preview-list">
+                          <div
+                            v-for="item in factorGroup.items"
+                            :key="`${factorGroup.code}-${item.label}`"
+                          >
+                            {{ item.label }}: {{ item.value }}
+                          </div>
+                          <div v-if="!factorGroup.items.length">
+                            当前因子无额外参数
+                          </div>
+                        </div>
+                      </div>
+                    </el-collapse-item>
+                  </el-collapse>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+          <div v-else class="param-preview-group-list">
             <div
-              v-for="section in buildParamPreviewSections(detailDialog.data)"
+              v-for="section in detailPreviewSections"
               :key="section.title"
               class="param-preview-group"
             >
@@ -1342,6 +1481,10 @@ const chipPriceLoading = ref(false);
 const chipPriceRecomputeLoading = ref(false);
 const chipPriceSaving = ref(false);
 const instanceFormRef = ref(null);
+const intradayLowSuctionFormCollapseNames = ref([]);
+const intradayLowSuctionFactorCollapseNames = ref([]);
+const intradayLowSuctionDetailCollapseNames = ref([]);
+const intradayLowSuctionDetailFactorCollapseNames = ref([]);
 
 const templates = ref([]);
 const instances = reactive({ total: 0, items: [] });
@@ -1394,6 +1537,12 @@ const chipTimeLevelOptions = [
   { value: '5min', label: '5min' },
   { value: '30min', label: '30min' },
   { value: '1h', label: '1h' },
+];
+const supportLevelOptions = [
+  { value: '30min', label: 'P1. 30min 筹码集中价' },
+  { value: '5min', label: 'P2. 5min 筹码集中价' },
+  { value: 'prev_low', label: 'P3. 昨日最低价' },
+  { value: 'limit_down', label: 'P4. 当日跌停价' },
 ];
 const intradayLowSuctionFactorOptions = [
   { label: '支撑触碰因子', value: 'SUPPORT_TOUCH_V1' },
@@ -1470,7 +1619,8 @@ const intradayLowSuctionBaseSections = [
   {
     key: 'support',
     title: '3. 昨日多个被验证的支撑位级别P1、P2、P3、P4',
-    description: '支撑缓存决定昨日有效支撑位的读取来源和触碰容差。',
+    description:
+      '支撑位范围分别对应 P1=30min、P2=5min、P3=昨日最低价、P4=当日跌停价。',
     fields: [
       'support_component_code',
       'support_time_levels',
@@ -1546,6 +1696,9 @@ const intradayLowSuctionFormSections = computed(() =>
     instanceForm.params_value
   )
 );
+const detailPreviewSections = computed(() =>
+  buildParamPreviewSections(detailDialog.data || {})
+);
 
 const instanceFormRules = {
   instance_name: [
@@ -1563,6 +1716,44 @@ watch(
   () => {
     applyRoutePreset();
   }
+);
+
+watch(
+  intradayLowSuctionFormSections,
+  (sections) => {
+    intradayLowSuctionFormCollapseNames.value = syncCollapseNames(
+      intradayLowSuctionFormCollapseNames.value,
+      sections.map((section) => buildSectionCollapseName(section))
+    );
+    intradayLowSuctionFactorCollapseNames.value = syncCollapseNames(
+      intradayLowSuctionFactorCollapseNames.value,
+      sections.flatMap((section) =>
+        (section.factorGroups || []).map((factorGroup) =>
+          buildFactorCollapseName(factorGroup)
+        )
+      )
+    );
+  },
+  { immediate: true }
+);
+
+watch(
+  detailPreviewSections,
+  (sections) => {
+    intradayLowSuctionDetailCollapseNames.value = syncCollapseNames(
+      intradayLowSuctionDetailCollapseNames.value,
+      sections.map((section) => buildSectionCollapseName(section))
+    );
+    intradayLowSuctionDetailFactorCollapseNames.value = syncCollapseNames(
+      intradayLowSuctionDetailFactorCollapseNames.value,
+      sections.flatMap((section) =>
+        (section.factorGroups || []).map((factorGroup) =>
+          buildFactorCollapseName(factorGroup)
+        )
+      )
+    );
+  },
+  { immediate: true }
 );
 
 async function applyRoutePreset() {
@@ -1737,6 +1928,12 @@ function getIntradayFactorLabel(code) {
   );
 }
 
+function getSupportLevelLabel(value) {
+  return (
+    supportLevelOptions.find((item) => item.value === value)?.label || value
+  );
+}
+
 function buildIntradayLowSuctionSections(template, paramsValue = {}) {
   if (!isIntradayLowSuctionTemplate(template)) {
     return [];
@@ -1752,6 +1949,7 @@ function buildIntradayLowSuctionSections(template, paramsValue = {}) {
       section.key === 'factors'
         ? enabledFactorCodes.map((factorCode) => ({
             code: factorCode,
+            title: `${enabledFactorCodes.indexOf(factorCode) + 1}. ${getIntradayFactorLabel(factorCode)}`,
             label: getIntradayFactorLabel(factorCode),
             description:
               intradayLowSuctionFactorDescriptionMap[factorCode] ||
@@ -1776,17 +1974,46 @@ function resolveFieldLabel(template, path) {
   return getTemplateFieldMap(template)[path]?.label || path;
 }
 
+function buildSectionCollapseName(section) {
+  return `section:${section?.key || section?.title || 'default'}`;
+}
+
+function buildFactorCollapseName(factorGroup) {
+  return `factor:${factorGroup?.code || factorGroup?.title || 'default'}`;
+}
+
+function syncCollapseNames(currentNames, nextNames) {
+  if (!nextNames.length) {
+    return [];
+  }
+  const currentNameSet = new Set(currentNames || []);
+  return nextNames.filter((name) => currentNameSet.has(name) || true);
+}
+
+function formatParamPreviewValue(path, value) {
+  if (path === 'support_time_levels' && Array.isArray(value)) {
+    return value.map((item) => getSupportLevelLabel(item)).join('、') || '-';
+  }
+  if (path === 'enabled_factor_codes' && Array.isArray(value)) {
+    return value.map((item) => getIntradayFactorLabel(item)).join('、') || '-';
+  }
+  return formatParamValue(value);
+}
+
 function buildParamPreviewSections(row) {
   const paramsValue = row?.params_value || {};
   const template = resolveTemplateByCode(row?.template_code);
   if (!isIntradayLowSuctionTemplate(row || template)) {
     return [
       {
+        key: 'overview',
         title: '参数概览',
+        description: '',
         items: Object.entries(paramsValue).map(([key, value]) => ({
           label: resolveFieldLabel(template, key),
-          value: formatParamValue(value),
+          value: formatParamPreviewValue(key, value),
         })),
+        factorGroups: [],
       },
     ].filter((section) => section.items.length > 0);
   }
@@ -1799,22 +2026,25 @@ function buildParamPreviewSections(row) {
   groupedSections.forEach((section) => {
     const items = section.fields.map((field) => ({
       label: field.label,
-      value: formatParamValue(paramsValue[field.path]),
+      value: formatParamPreviewValue(field.path, paramsValue[field.path]),
     }));
-    section.factorGroups.forEach((factorGroup) => {
-      const factorItems = factorGroup.fields.map((field) => ({
+    const factorGroups = (section.factorGroups || []).map((factorGroup) => ({
+      code: factorGroup.code,
+      title: factorGroup.title,
+      description: factorGroup.description,
+      items: factorGroup.fields.map((field) => ({
         label: field.label,
-        value: formatParamValue(paramsValue[field.path]),
-      }));
-      items.push({
-        label: factorGroup.label,
-        value: factorItems.length
-          ? factorItems.map((item) => `${item.label}=${item.value}`).join('；')
-          : '无额外参数',
+        value: formatParamPreviewValue(field.path, paramsValue[field.path]),
+      })),
+    }));
+    if (items.length || factorGroups.length) {
+      sections.push({
+        key: section.key,
+        title: section.title,
+        description: section.description,
+        items,
+        factorGroups,
       });
-    });
-    if (items.length) {
-      sections.push({ title: section.title, items });
     }
   });
   return sections;
@@ -2379,6 +2609,25 @@ function formatDateInput(value) {
   padding-left: 10px;
 }
 
+.param-preview-factor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.param-preview-factor {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.param-preview-factor__title {
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: #303133;
+}
+
 .param-preview-group__title {
   margin-bottom: 4px;
   font-weight: 600;
@@ -2403,18 +2652,64 @@ function formatDateInput(value) {
   color: #6b7280;
 }
 
-.template-group-section {
+.template-group-collapse,
+.factor-config-collapse,
+.detail-collapse,
+.detail-factor-collapse {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
+}
+
+.template-group-collapse :deep(.el-collapse),
+.factor-config-collapse :deep(.el-collapse),
+.detail-collapse :deep(.el-collapse),
+.detail-factor-collapse :deep(.el-collapse) {
+  border-top: none;
+  border-bottom: none;
+}
+
+.template-group-collapse :deep(.el-collapse-item),
+.factor-config-collapse :deep(.el-collapse-item),
+.detail-collapse :deep(.el-collapse-item),
+.detail-factor-collapse :deep(.el-collapse-item) {
   border: 1px solid #ebeef5;
   border-radius: 10px;
   background: #fff;
 }
 
-.template-group-section + .template-group-section {
-  margin-top: 12px;
+.template-group-collapse :deep(.el-collapse-item__header),
+.factor-config-collapse :deep(.el-collapse-item__header),
+.detail-collapse :deep(.el-collapse-item__header),
+.detail-factor-collapse :deep(.el-collapse-item__header) {
+  align-items: flex-start;
+  height: auto;
+  min-height: 56px;
+  padding: 14px 16px;
+  border-bottom: none;
+  line-height: 1.4;
+  border-radius: 10px;
+}
+
+.template-group-collapse :deep(.el-collapse-item__wrap),
+.factor-config-collapse :deep(.el-collapse-item__wrap),
+.detail-collapse :deep(.el-collapse-item__wrap),
+.detail-factor-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+.template-group-collapse :deep(.el-collapse-item__content),
+.factor-config-collapse :deep(.el-collapse-item__content),
+.detail-collapse :deep(.el-collapse-item__content),
+.detail-factor-collapse :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
+}
+
+.template-group-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
 }
 
 .template-group-header h4 {
@@ -2449,6 +2744,13 @@ function formatDateInput(value) {
   background: #fafafa;
 }
 
+.factor-config-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 12px;
+}
+
 .factor-config-card__title {
   font-weight: 600;
   color: #303133;
@@ -2464,6 +2766,13 @@ function formatDateInput(value) {
 .factor-config-card__empty {
   color: #909399;
   font-size: 12px;
+}
+
+.detail-preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
 }
 
 .dynamic-field-item {
