@@ -99,6 +99,12 @@ export const menuList = [
         path: '/trading-strategy/signal-strategies/common',
         permissions: ['is_superuser'],
       },
+      {
+        name: '筹码集中价管理',
+        foldName: '筹码表',
+        path: '/trading-strategy/signal-strategies/chip-prices',
+        permissions: ['is_superuser'],
+      },
     ],
   },
   {

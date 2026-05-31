@@ -148,6 +148,16 @@ const routes = [
     },
   },
   {
+    path: '/trading-strategy/signal-strategies/chip-prices',
+    component: lazy(
+      () => import('@/views/TradingStrategy/ChipPriceManager/index.vue')
+    ),
+    meta: {
+      permissions: ['is_superuser'],
+      signalMenuTitle: '筹码集中价管理',
+    },
+  },
+  {
     path: '/trading-strategy/intraday-constraints/buy-risk-block',
     component: lazy(
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
