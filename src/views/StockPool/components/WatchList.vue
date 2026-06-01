@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   getStockPoolList,
@@ -61,6 +61,8 @@ const emit = defineEmits(['view-stock', 'edit-stock', 'add-stock']);
 // 股票列表数据
 const stockList = ref([]);
 const loading = ref(false);
+const LIVE_REFRESH_INTERVAL_MS = 5000;
+let liveRefreshTimer = null;
 
 // 分页参数
 const page = reactive({
@@ -90,7 +92,34 @@ const {
 // 页面加载时获取重点观察列表（每次 v-if 挂载时触发）
 onMounted(() => {
   getWatchStockList();
+  startLiveRefresh();
 });
+
+onBeforeUnmount(() => {
+  stopLiveRefresh();
+});
+
+const shouldLiveRefresh = () =>
+  !searchParams.snapshot_date &&
+  document.visibilityState === 'visible' &&
+  !loading.value;
+
+const startLiveRefresh = () => {
+  stopLiveRefresh();
+  liveRefreshTimer = window.setInterval(() => {
+    if (!shouldLiveRefresh()) {
+      return;
+    }
+    getWatchStockList();
+  }, LIVE_REFRESH_INTERVAL_MS);
+};
+
+const stopLiveRefresh = () => {
+  if (liveRefreshTimer) {
+    window.clearInterval(liveRefreshTimer);
+    liveRefreshTimer = null;
+  }
+};
 
 const _buildParams = (additional = {}) =>
   buildStockListRequestParams(page, searchParams, additional, {

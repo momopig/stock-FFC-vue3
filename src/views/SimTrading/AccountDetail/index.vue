@@ -1869,8 +1869,10 @@ const editingPosition = ref(null);
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
+const POSITION_QUOTE_REFRESH_INTERVAL_MS = 5000;
 const ACTIVITY_PAGE_SIZE = 200;
 let autoRefreshTimer = null;
+let positionQuoteRefreshTimer = null;
 let silentRefreshRunning = false;
 const queryForm = reactive({
   keyword: '',
@@ -4008,10 +4010,35 @@ function startAutoRefresh() {
   }, AUTO_REFRESH_INTERVAL_MS);
 }
 
+function startPositionQuoteRefresh() {
+  stopPositionQuoteRefresh();
+  positionQuoteRefreshTimer = window.setInterval(() => {
+    if (
+      !activeAccountId.value ||
+      document.visibilityState !== 'visible' ||
+      positionRefreshLoading.value ||
+      pageLoading.value ||
+      actionLoading.value
+    ) {
+      return;
+    }
+    loadAccountDetail().catch((error) => {
+      console.error(error);
+    });
+  }, POSITION_QUOTE_REFRESH_INTERVAL_MS);
+}
+
 function stopAutoRefresh() {
   if (autoRefreshTimer) {
     window.clearInterval(autoRefreshTimer);
     autoRefreshTimer = null;
+  }
+}
+
+function stopPositionQuoteRefresh() {
+  if (positionQuoteRefreshTimer) {
+    window.clearInterval(positionQuoteRefreshTimer);
+    positionQuoteRefreshTimer = null;
   }
 }
 
@@ -4161,10 +4188,12 @@ watch(activeAccountId, async () => {
 onMounted(async () => {
   await refreshWorkspace();
   startAutoRefresh();
+  startPositionQuoteRefresh();
 });
 
 onUnmounted(() => {
   stopAutoRefresh();
+  stopPositionQuoteRefresh();
 });
 </script>
 

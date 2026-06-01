@@ -7,8 +7,12 @@
       </div>
       <el-space>
         <el-button @click="openLogDrawer">查看日志</el-button>
-        <el-button :loading="actionLoading" @click="refreshAll">刷新数据</el-button>
-        <el-button type="primary" :loading="actionLoading" @click="rebalanceNow">执行重平衡</el-button>
+        <el-button :loading="actionLoading" @click="refreshAll"
+          >刷新数据</el-button
+        >
+        <el-button type="primary" :loading="actionLoading" @click="rebalanceNow"
+          >执行重平衡</el-button
+        >
       </el-space>
     </div>
 
@@ -16,12 +20,17 @@
       <div class="overview-card">
         <span>实时额度占用</span>
         <strong>{{ overviewText(overview.realtime_quota) }}</strong>
-        <small :class="warningClass(overview.realtime_quota?.warning_level)">{{ quotaHintText(overview.realtime_quota) }}</small>
+        <small :class="warningClass(overview.realtime_quota?.warning_level)">{{
+          quotaHintText(overview.realtime_quota)
+        }}</small>
       </div>
       <div class="overview-card">
         <span>历史K线额度</span>
         <strong>{{ overviewText(overview.history_kline_quota) }}</strong>
-        <small :class="warningClass(overview.history_kline_quota?.warning_level)">{{ quotaHintText(overview.history_kline_quota) }}</small>
+        <small
+          :class="warningClass(overview.history_kline_quota?.warning_level)"
+          >{{ quotaHintText(overview.history_kline_quota) }}</small
+        >
       </div>
       <div class="overview-card">
         <span>已订阅股票数</span>
@@ -32,6 +41,132 @@
         <span>最近一次调度</span>
         <strong>{{ formatDateTime(overview.last_rebalance_time) }}</strong>
         <small>{{ overview.warning_message || '当前无额外告警' }}</small>
+      </div>
+      <div class="overview-card">
+        <span>缓存命中率</span>
+        <strong>{{
+          percentText(overview.reliability_metrics?.cache_hit_rate)
+        }}</strong>
+        <small
+          >实时命中
+          {{ overview.reliability_metrics?.realtime_hit_count || 0 }}，快照缓存
+          {{
+            overview.reliability_metrics?.snapshot_cache_hit_count || 0
+          }}，陈旧回退
+          {{ overview.reliability_metrics?.stale_cache_hit_count || 0 }}</small
+        >
+      </div>
+      <div class="overview-card">
+        <span>快照失败率</span>
+        <strong
+          :class="
+            failureRateClass(
+              overview.reliability_metrics?.snapshot_failure_rate
+            )
+          "
+          >{{
+            percentText(overview.reliability_metrics?.snapshot_failure_rate)
+          }}</strong
+        >
+        <small>{{ snapshotFailureHint(overview.reliability_metrics) }}</small>
+      </div>
+      <div class="overview-card">
+        <span>行情缓存规模</span>
+        <strong
+          >{{ overview.reliability_metrics?.realtime_cache_size || 0 }} /
+          {{ overview.reliability_metrics?.snapshot_cache_size || 0 }}</strong
+        >
+        <small
+          >实时订阅
+          {{
+            overview.reliability_metrics?.realtime_subscription_count || 0
+          }}，实时缓存 / 快照缓存</small
+        >
+      </div>
+    </div>
+
+    <div class="metrics-grid" v-loading="overviewLoading">
+      <div class="metrics-card">
+        <div class="metrics-card-header">
+          <span>行情请求命中拆分</span>
+          <strong>{{
+            overview.reliability_metrics?.requested_codes || 0
+          }}</strong>
+        </div>
+        <el-progress
+          :percentage="toProgress(overview.reliability_metrics?.cache_hit_rate)"
+          :stroke-width="10"
+          :show-text="false"
+        />
+        <div class="metrics-row">
+          <span>实时</span>
+          <span>{{
+            overview.reliability_metrics?.realtime_hit_count || 0
+          }}</span>
+        </div>
+        <div class="metrics-row">
+          <span>快照刷新</span>
+          <span>{{
+            overview.reliability_metrics?.snapshot_refresh_hit_count || 0
+          }}</span>
+        </div>
+        <div class="metrics-row">
+          <span>未解析</span>
+          <span>{{ overview.reliability_metrics?.unresolved_count || 0 }}</span>
+        </div>
+      </div>
+      <div class="metrics-card">
+        <div class="metrics-card-header">
+          <span>快照调用质量</span>
+          <strong>{{
+            overview.reliability_metrics?.snapshot_request_count || 0
+          }}</strong>
+        </div>
+        <el-progress
+          :percentage="
+            toProgress(
+              1 -
+                Number(overview.reliability_metrics?.snapshot_failure_rate || 0)
+            )
+          "
+          status="success"
+          :stroke-width="10"
+          :show-text="false"
+        />
+        <div class="metrics-row">
+          <span>快照请求股票数</span>
+          <span>{{
+            overview.reliability_metrics?.snapshot_requested_codes || 0
+          }}</span>
+        </div>
+        <div class="metrics-row">
+          <span>成功返回</span>
+          <span>{{
+            overview.reliability_metrics?.snapshot_success_count || 0
+          }}</span>
+        </div>
+        <div class="metrics-row">
+          <span>失败返回</span>
+          <span>{{
+            overview.reliability_metrics?.snapshot_failed_count || 0
+          }}</span>
+        </div>
+      </div>
+      <div class="metrics-card metrics-card-wide">
+        <div class="metrics-card-header">
+          <span>最近一次快照失败</span>
+          <strong>{{
+            formatDateTime(
+              overview.reliability_metrics?.last_snapshot_failure_time
+            )
+          }}</strong>
+        </div>
+        <div class="metrics-message">
+          {{
+            overview.reliability_metrics?.last_snapshot_failure_message ||
+            '暂无失败记录'
+          }}
+        </div>
       </div>
     </div>
 
@@ -44,17 +179,48 @@
           class="toolbar-input"
           @keyup.enter="loadList"
         />
-        <el-select v-model="filters.source_type" placeholder="来源筛选" clearable class="toolbar-select" @change="loadList">
-          <el-option v-for="item in SOURCE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select
+          v-model="filters.source_type"
+          placeholder="来源筛选"
+          clearable
+          class="toolbar-select"
+          @change="loadList"
+        >
+          <el-option
+            v-for="item in SOURCE_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
-        <el-select v-model="filters.current_status" placeholder="状态筛选" clearable class="toolbar-select" @change="loadList">
-          <el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select
+          v-model="filters.current_status"
+          placeholder="状态筛选"
+          clearable
+          class="toolbar-select"
+          @change="loadList"
+        >
+          <el-option
+            v-for="item in STATUS_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
         <el-button @click="loadList">搜索</el-button>
       </div>
       <div class="toolbar-right">
-        <span class="toolbar-summary">当前列表 {{ items.length }} 只，已订阅 {{ subscribedCount }} 只，待调度 {{ plannedCount }} 只</span>
-        <el-button type="danger" :disabled="!selectedRows.length" :loading="actionLoading" @click="unsubscribeSelected">批量取消订阅</el-button>
+        <span class="toolbar-summary"
+          >当前列表 {{ items.length }} 只，已订阅
+          {{ subscribedCount }} 只，待调度 {{ plannedCount }} 只</span
+        >
+        <el-button
+          type="danger"
+          :disabled="!selectedRows.length"
+          :loading="actionLoading"
+          @click="unsubscribeSelected"
+          >批量取消订阅</el-button
+        >
       </div>
     </div>
 
@@ -66,53 +232,91 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="index" label="序号" width="72" />
-      <el-table-column type="selection" width="48" :selectable="isRowSelectableForUnsubscribe" />
-      <el-table-column prop="stock_code" label="股票代码" min-width="140" sortable />
+      <el-table-column
+        type="selection"
+        width="48"
+        :selectable="isRowSelectableForUnsubscribe"
+      />
+      <el-table-column
+        prop="stock_code"
+        label="股票代码"
+        min-width="140"
+        sortable
+      />
       <el-table-column prop="stock_name" label="股票名称" min-width="160" />
       <el-table-column label="市场" width="110">
-        <template #default="scope">{{ formatMarket(scope.row.exchange_code) }}</template>
+        <template #default="scope">{{
+          formatMarket(scope.row.exchange_code)
+        }}</template>
       </el-table-column>
       <el-table-column label="订阅类型" min-width="140">
         <template #default="scope">
-          <el-tag v-for="item in scope.row.subscription_types" :key="item" size="small" class="tag-gap">{{ item }}</el-tag>
+          <el-tag
+            v-for="item in scope.row.subscription_types"
+            :key="item"
+            size="small"
+            class="tag-gap"
+            >{{ item }}</el-tag
+          >
           <span v-if="!scope.row.subscription_types?.length">--</span>
         </template>
       </el-table-column>
       <el-table-column label="来源" min-width="260">
         <template #default="scope">
           <div class="source-tags">
-            <el-tag v-for="item in scope.row.source_refs" :key="`${item.source_type}_${item.source_id || item.source_label}`" size="small" effect="plain" class="tag-gap">
+            <el-tag
+              v-for="item in scope.row.source_refs"
+              :key="`${item.source_type}_${item.source_id || item.source_label}`"
+              size="small"
+              effect="plain"
+              class="tag-gap"
+            >
               {{ item.source_label }}
             </el-tag>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="priority_tier" label="优先级" width="100" sortable />
+      <el-table-column
+        prop="priority_tier"
+        label="优先级"
+        width="100"
+        sortable
+      />
       <el-table-column label="人工置顶" width="110">
         <template #default="scope">
-          <el-tag :type="scope.row.manual_pin ? 'danger' : 'info'" effect="light">{{ scope.row.manual_pin ? '已置顶' : '否' }}</el-tag>
+          <el-tag
+            :type="scope.row.manual_pin ? 'danger' : 'info'"
+            effect="light"
+            >{{ scope.row.manual_pin ? '已置顶' : '否' }}</el-tag
+          >
         </template>
       </el-table-column>
       <el-table-column label="置顶到期" min-width="170">
-        <template #default="scope">{{ formatDateTime(scope.row.pin_expire_time) }}</template>
+        <template #default="scope">{{
+          formatDateTime(scope.row.pin_expire_time)
+        }}</template>
       </el-table-column>
       <el-table-column prop="current_status" label="状态" width="110" />
       <el-table-column label="操作" fixed="right" width="220">
         <template #default="scope">
           <el-space>
-            <el-button link type="primary" @click="togglePin(scope.row)">{{ scope.row.manual_pin ? '取消置顶' : '人工置顶' }}</el-button>
+            <el-button link type="primary" @click="togglePin(scope.row)">{{
+              scope.row.manual_pin ? '取消置顶' : '人工置顶'
+            }}</el-button>
             <el-button
               v-if="scope.row.current_status === 'subscribed'"
               link
               type="danger"
               @click="unsubscribeOne(scope.row)"
-            >取消订阅</el-button>
+              >取消订阅</el-button
+            >
             <el-button
               v-else
               link
               type="success"
               @click="subscribeOne(scope.row)"
-            >订阅</el-button>
+              >订阅</el-button
+            >
           </el-space>
         </template>
       </el-table-column>
@@ -121,7 +325,9 @@
     <el-drawer v-model="logDrawerVisible" title="订阅调度日志" size="45%">
       <el-table :data="logs" v-loading="logLoading" border>
         <el-table-column label="时间" min-width="170">
-          <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+          <template #default="scope">{{
+            formatDateTime(scope.row.created_time)
+          }}</template>
         </el-table-column>
         <el-table-column prop="action_type" label="动作" width="120" />
         <el-table-column prop="trigger_type" label="触发来源" width="140" />
@@ -134,7 +340,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
@@ -173,6 +379,7 @@ const listLoading = ref(false);
 const logLoading = ref(false);
 const actionLoading = ref(false);
 const logDrawerVisible = ref(false);
+let overviewRefreshTimer = null;
 const overview = reactive({
   realtime_quota: {},
   history_kline_quota: {},
@@ -180,17 +387,27 @@ const overview = reactive({
   source_counts: {},
   last_rebalance_time: null,
   warning_message: '',
+  reliability_metrics: {},
 });
 const filters = reactive({ keyword: '', source_type: '', current_status: '' });
 const items = ref([]);
 const logs = ref([]);
 const selectedRows = ref([]);
-const subscribedCount = computed(() => items.value.filter((item) => item.current_status === 'subscribed').length);
-const plannedCount = computed(() => items.value.filter((item) => item.current_status === 'planned').length);
+const subscribedCount = computed(
+  () =>
+    items.value.filter((item) => item.current_status === 'subscribed').length
+);
+const plannedCount = computed(
+  () => items.value.filter((item) => item.current_status === 'planned').length
+);
 
 function normalizeDate(value) {
   if (!value) return null;
-  const date = new Date(typeof value === 'string' && !/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value) ? `${value}Z` : value);
+  const date = new Date(
+    typeof value === 'string' && !/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value)
+      ? `${value}Z`
+      : value
+  );
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -209,14 +426,40 @@ function overviewText(quota = {}) {
 }
 
 function formatMarket(value) {
-  const normalizedValue = String(value || '').trim().toUpperCase();
+  const normalizedValue = String(value || '')
+    .trim()
+    .toUpperCase();
   return MARKET_LABELS[normalizedValue] || normalizedValue || '--';
+}
+
+function percentText(value) {
+  return `${(Number(value || 0) * 100).toFixed(2)}%`;
+}
+
+function toProgress(value) {
+  return Math.max(0, Math.min(100, Number(value || 0) * 100));
 }
 
 function warningClass(level) {
   if (level === 'critical') return 'profit-down';
   if (level === 'warning') return 'warning-text';
   return '';
+}
+
+function failureRateClass(value) {
+  return Number(value || 0) >= 0.2
+    ? 'profit-down'
+    : Number(value || 0) >= 0.05
+      ? 'warning-text'
+      : '';
+}
+
+function snapshotFailureHint(metrics = {}) {
+  const failed = Number(metrics?.snapshot_failed_count || 0);
+  if (!failed) {
+    return '当前没有快照失败记录';
+  }
+  return `${failed} 次失败，最近原因：${metrics?.last_snapshot_failure_message || '未知'}`;
 }
 
 function quotaHintText(quota = {}) {
@@ -305,7 +548,11 @@ function isRowSelectableForUnsubscribe(row) {
 
 async function unsubscribeSelected() {
   if (!selectedRows.value.length) return;
-  await ElMessageBox.confirm(`确认取消当前选中的 ${selectedRows.value.length} 只股票订阅吗？`, '批量取消订阅', { type: 'warning' });
+  await ElMessageBox.confirm(
+    `确认取消当前选中的 ${selectedRows.value.length} 只股票订阅吗？`,
+    '批量取消订阅',
+    { type: 'warning' }
+  );
   actionLoading.value = true;
   try {
     await unsubscribeFutuSubscriptions({
@@ -326,15 +573,21 @@ async function unsubscribeSelected() {
 }
 
 async function unsubscribeOne(row) {
-  await ElMessageBox.confirm(`确认取消 ${row.stock_name || row.stock_code} 的订阅吗？`, '取消订阅', { type: 'warning' });
+  await ElMessageBox.confirm(
+    `确认取消 ${row.stock_name || row.stock_code} 的订阅吗？`,
+    '取消订阅',
+    { type: 'warning' }
+  );
   actionLoading.value = true;
   try {
     await unsubscribeFutuSubscriptions({
-      items: [{
-        stock_code: row.stock_code,
-        exchange_code: row.exchange_code,
-        subscription_types: row.subscription_types || [],
-      }],
+      items: [
+        {
+          stock_code: row.stock_code,
+          exchange_code: row.exchange_code,
+          subscription_types: row.subscription_types || [],
+        },
+      ],
     });
     ElMessage.success('取消订阅成功');
     await Promise.all([loadOverview(), loadList(), loadLogs()]);
@@ -369,12 +622,16 @@ async function togglePin(row) {
       await unpinFutuSubscription(row.stock_code, row.exchange_code);
       ElMessage.success('已取消置顶');
     } else {
-      const { value } = await ElMessageBox.prompt('请输入置顶原因（可选）', '人工置顶', {
-        inputPlaceholder: '例如：盘中重点观察',
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        inputValue: '',
-      });
+      const { value } = await ElMessageBox.prompt(
+        '请输入置顶原因（可选）',
+        '人工置顶',
+        {
+          inputPlaceholder: '例如：盘中重点观察',
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          inputValue: '',
+        }
+      );
       await pinFutuSubscription({
         stock_code: row.stock_code,
         exchange_code: row.exchange_code,
@@ -398,8 +655,32 @@ async function openLogDrawer() {
   await loadLogs();
 }
 
+function startOverviewRefresh() {
+  if (overviewRefreshTimer) {
+    window.clearInterval(overviewRefreshTimer);
+  }
+  overviewRefreshTimer = window.setInterval(() => {
+    if (
+      document.visibilityState !== 'visible' ||
+      overviewLoading.value ||
+      actionLoading.value
+    ) {
+      return;
+    }
+    loadOverview();
+  }, 10000);
+}
+
 onMounted(async () => {
   await Promise.all([loadOverview(), loadList()]);
+  startOverviewRefresh();
+});
+
+onBeforeUnmount(() => {
+  if (overviewRefreshTimer) {
+    window.clearInterval(overviewRefreshTimer);
+    overviewRefreshTimer = null;
+  }
 });
 </script>
 
@@ -433,6 +714,12 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
 .overview-card {
   display: flex;
   flex-direction: column;
@@ -451,6 +738,49 @@ onMounted(async () => {
 .overview-card strong {
   font-size: 20px;
   line-height: 1.3;
+}
+
+.metrics-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.metrics-card-wide {
+  min-height: 140px;
+}
+
+.metrics-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metrics-card-header span {
+  color: #666;
+}
+
+.metrics-card-header strong {
+  font-size: 18px;
+}
+
+.metrics-row {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 13px;
+}
+
+.metrics-message {
+  min-height: 48px;
+  color: #666;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
 .toolbar-card {

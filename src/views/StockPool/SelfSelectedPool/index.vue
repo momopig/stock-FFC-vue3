@@ -116,6 +116,7 @@ import {
   getUserGroups,
   createGroup,
   deleteGroup,
+  createGroupQuoteStream,
   getGroupStocksByGroups,
   reorderGroups,
   getGroupStocks,
@@ -146,6 +147,7 @@ const tabRef = ref(null);
 const groupsTabsContainerRef = ref(null);
 let sortable = null;
 let groupTabsResizeObserver = null;
+let groupQuoteWs = null;
 const ns = useGetDerivedNamespace().value;
 
 /** 拖拽时边缘滚动的节流间隔（ms），避免连续 click 箭头快于 EP 内部状态更新 */
@@ -265,6 +267,7 @@ watch(
 onMounted(async () => {
   applyRouteGroupId();
   await fetchGroups();
+  document.addEventListener('visibilitychange', handleVisibilityChange);
   await nextTick();
   groupTabsResizeObserver = new ResizeObserver(() => {
     nextTick(flushGroupTabsLayout);
@@ -278,7 +281,77 @@ onBeforeUnmount(() => {
   groupTabsResizeObserver = null;
   clearTabDragEdgeScroll();
   destroySortable();
+  closeGroupQuoteStream();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
+
+const shouldUseGroupQuoteStream = () =>
+  !searchParams.snapshot_date &&
+  document.visibilityState === 'visible' &&
+  !tableLoading.value &&
+  !dialogVisible.value;
+
+const buildGroupQuoteStreamParams = () => ({
+  group_ids:
+    activeGroupId.value === ALL_GROUP_TAB_ID ? 'all' : activeGroupId.value,
+  page: page.pageNo,
+  page_size: page.pageSize,
+  exchange_code: searchParams.exchange_code || undefined,
+  stock_code: searchParams.stock_code || undefined,
+  stock_name: searchParams.stock_name || undefined,
+  refresh_interval: 3,
+});
+
+const closeGroupQuoteStream = () => {
+  if (groupQuoteWs) {
+    groupQuoteWs.close();
+    groupQuoteWs = null;
+  }
+};
+
+const restartGroupQuoteStream = () => {
+  closeGroupQuoteStream();
+  if (!shouldUseGroupQuoteStream()) {
+    return;
+  }
+  groupQuoteWs = createGroupQuoteStream(buildGroupQuoteStreamParams(), {
+    onMessage: (data) => {
+      if (data?.type !== 'group_quotes') {
+        return;
+      }
+      const rows = (data.items || []).map(flattenGroupStockData);
+      stockList.value = rows;
+      page.total = data.total || 0;
+      calculateInsightsFromList();
+      tableLoading.value = false;
+    },
+    onError: () => {
+      tableLoading.value = false;
+    },
+    onClose: () => {
+      groupQuoteWs = null;
+    },
+  });
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    restartGroupQuoteStream();
+    return;
+  }
+  closeGroupQuoteStream();
+};
+
+watch(
+  () => dialogVisible.value,
+  (visible) => {
+    if (visible) {
+      closeGroupQuoteStream();
+      return;
+    }
+    restartGroupQuoteStream();
+  }
+);
 
 // 初始化拖拽排序（全量 tab 与 groups 顺序一致）
 const initSortable = () => {
@@ -634,6 +707,7 @@ const handleGroupChange = async (groupId) => {
 // 获取股票列表（不走缓存）
 const getStockList = async (additionalSearchParams = {}) => {
   if (!activeGroupId.value || activeGroupId.value === 'add') {
+    closeGroupQuoteStream();
     stockList.value = [];
     page.total = 0;
     return;
@@ -658,14 +732,17 @@ const getStockList = async (additionalSearchParams = {}) => {
       page.total = response.payload?.total || 0;
       calculateInsightsFromList();
       tableLoading.value = false;
+      restartGroupQuoteStream();
     } else {
       ElMessage.error(response?.message || '获取股票列表失败');
       tableLoading.value = false;
+      closeGroupQuoteStream();
     }
   } catch (error) {
     console.error('获取股票列表失败:', error);
     ElMessage.error('获取股票列表失败，请稍后重试');
     tableLoading.value = false;
+    closeGroupQuoteStream();
   }
 };
 

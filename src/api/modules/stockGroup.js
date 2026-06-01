@@ -1,5 +1,7 @@
 import request from '../common';
 import qs from 'qs';
+import { createWebSocket } from '@/utils/websocket';
+import { getToken } from '@/utils/auth';
 
 /**
  * 获取用户分组列表
@@ -172,4 +174,30 @@ export const getStockGroupMemberships = async (params) => {
     `/stock-api/api/stock-groups/stocks/memberships?${queryString}`
   );
   return res;
+};
+
+export const createGroupQuoteStream = (params = {}, callbacks = {}) => {
+  const token = getToken();
+  const isDev = import.meta.env.DEV;
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = isDev
+    ? `119.23.68.187:8000`
+    : `${window.location.hostname}:8000`;
+  const queryString = qs.stringify(
+    {
+      ...params,
+      token,
+    },
+    { skipNulls: true }
+  );
+  const wsUrl = `${wsProtocol}//${wsHost}/api/stock-groups/stream/quotes?${queryString}`;
+
+  return createWebSocket(wsUrl, {
+    onMessage: callbacks.onMessage,
+    onOpen: callbacks.onOpen,
+    onClose: callbacks.onClose,
+    onError: callbacks.onError,
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 5,
+  });
 };

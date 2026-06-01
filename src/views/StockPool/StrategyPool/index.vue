@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getStrategyList } from '@/api/modules/strategy';
 import {
@@ -120,6 +120,8 @@ const tableLoading = ref(false);
 const dialogVisible = ref(false);
 const isViewMode = ref(false);
 const isEditMode = ref(false);
+const LIVE_REFRESH_INTERVAL_MS = 5000;
+let liveRefreshTimer = null;
 
 // 分页参数
 const page = reactive({
@@ -178,11 +180,41 @@ const {
   handleFilterChange,
 } = useStockInsights(displayStockList);
 
+const shouldLiveRefresh = () =>
+  Boolean(activeStrategy.value) &&
+  activeStrategy.value !== 'watch' &&
+  !searchParams.snapshot_date &&
+  document.visibilityState === 'visible' &&
+  !tableLoading.value &&
+  !dialogVisible.value;
+
+const startLiveRefresh = () => {
+  stopLiveRefresh();
+  liveRefreshTimer = window.setInterval(() => {
+    if (!shouldLiveRefresh()) {
+      return;
+    }
+    getStockList();
+  }, LIVE_REFRESH_INTERVAL_MS);
+};
+
+const stopLiveRefresh = () => {
+  if (liveRefreshTimer) {
+    window.clearInterval(liveRefreshTimer);
+    liveRefreshTimer = null;
+  }
+};
+
 // 不做数据缓存：每次切换/搜索都直接请求接口
 
 // 页面加载时获取策略列表
 onMounted(async () => {
   await loadStrategies();
+  startLiveRefresh();
+});
+
+onBeforeUnmount(() => {
+  stopLiveRefresh();
 });
 
 // 加载策略列表

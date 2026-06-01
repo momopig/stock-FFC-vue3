@@ -4,13 +4,23 @@
 export function mapQuoteToFlatRowFields(quote, initialPrice) {
   const q = quote || {};
   const lastPrice = q.last_price != null ? Number(q.last_price) : null;
+  const rawChangeRate = q.change_rate != null ? Number(q.change_rate) : null;
+  const dayMapChangeRate = q.day_map_change_rate || null;
+  const day1ChangeRate =
+    dayMapChangeRate && dayMapChangeRate[1] != null
+      ? Number(dayMapChangeRate[1])
+      : null;
+  const normalizedChangeRate =
+    rawChangeRate === 0 && day1ChangeRate != null && day1ChangeRate !== 0
+      ? day1ChangeRate
+      : rawChangeRate;
   const ip =
     initialPrice != null && initialPrice !== '' ? Number(initialPrice) : null;
 
   return {
     last_price: lastPrice,
     pe_ttm_ratio: q.pe_ttm_ratio != null ? Number(q.pe_ttm_ratio) : null,
-    change_rate: q.change_rate != null ? Number(q.change_rate) : null,
+    change_rate: normalizedChangeRate,
     high_price: q.high_price != null ? Number(q.high_price) : null,
     low_price: q.low_price != null ? Number(q.low_price) : null,
     volume: q.volume != null ? Number(q.volume) : null,
@@ -25,7 +35,7 @@ export function mapQuoteToFlatRowFields(quote, initialPrice) {
     kline_data: q.ma_response?.kline_data || null,
     ma_data: q.ma_response?.ma_data || null,
     price_location_indicator: q.ma_response?.price_location_indicator || null,
-    day_map_change_rate: q.day_map_change_rate || null,
+    day_map_change_rate: dayMapChangeRate,
     risk_signs: q?.risk_signs || null,
   };
 }
