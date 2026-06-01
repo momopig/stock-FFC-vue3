@@ -129,6 +129,92 @@ export async function getSimTradingPositionDetail(accountId, positionId) {
   );
 }
 
+export async function getSimTradingTPositionMonitorOverview(accountId) {
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/overview`
+  );
+}
+
+export async function getSimTradingTPositionMonitors(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors${query ? `?${query}` : ''}`
+  );
+}
+
+export async function createSimTradingTPositionMonitor(accountId, data) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors`,
+    data
+  );
+}
+
+export async function updateSimTradingTPositionMonitor(
+  accountId,
+  monitorId,
+  data
+) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/${monitorId}`,
+    data
+  );
+}
+
+export async function pauseSimTradingTPositionMonitor(
+  accountId,
+  monitorId,
+  data
+) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/${monitorId}/pause`,
+    data
+  );
+}
+
+export async function resumeSimTradingTPositionMonitor(
+  accountId,
+  monitorId,
+  data
+) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/${monitorId}/resume`,
+    data
+  );
+}
+
+export async function manualCloseSimTradingTPositionMonitor(
+  accountId,
+  monitorId,
+  data
+) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/${monitorId}/manual-close`,
+    data
+  );
+}
+
+export async function getSimTradingTPositionMonitorLogs(
+  accountId,
+  params = {}
+) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitor-logs${query ? `?${query}` : ''}`
+  );
+}
+
+export async function scanSimTradingTPositionMonitors(accountId) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/scan`
+  );
+}
+
+export async function syncSimTradingTPositionMonitors(accountId) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/t-position-monitors/sync`
+  );
+}
+
 export async function updateSimTradingPosition(accountId, positionId, data) {
   return await request.patch(
     `${API_PREFIX}/accounts/${accountId}/positions/${positionId}`,

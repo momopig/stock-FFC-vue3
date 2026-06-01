@@ -224,6 +224,14 @@
           />
         </el-tab-pane>
 
+        <el-tab-pane label="T仓监控" name="t-position-monitor">
+          <TPositionMonitorPanel
+            v-if="currentAccount"
+            :account-id="Number(activeAccountId)"
+            :positions="positions"
+          />
+        </el-tab-pane>
+
         <el-tab-pane label="买入" name="buy">
           <div class="tab-toolbar">
             <el-space>
@@ -1807,6 +1815,7 @@ import { useRoute, useRouter } from 'vue-router';
 import PositionTable from './PositionTable.vue';
 import ProfitAnalysisPanel from './ProfitAnalysisPanel.vue';
 import StrategyPanel from './StrategyPanel.vue';
+import TPositionMonitorPanel from './TPositionMonitorPanel.vue';
 
 import {
   cancelSimTradingConditionOrder,
@@ -1900,6 +1909,7 @@ const ORDER_QUICK_OPTIONS = [
 const VALID_ACCOUNT_DETAIL_TABS = [
   'position',
   'strategy',
+  't-position-monitor',
   'buy',
   'sell',
   'condition',
