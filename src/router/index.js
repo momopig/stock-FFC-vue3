@@ -158,6 +158,16 @@ const routes = [
     },
   },
   {
+    path: '/trading-strategy/signal-strategies/key-prices',
+    component: lazy(
+      () => import('@/views/TradingStrategy/KeyPriceManager/index.vue')
+    ),
+    meta: {
+      permissions: ['is_superuser'],
+      signalMenuTitle: '关键价格管理',
+    },
+  },
+  {
     path: '/trading-strategy/intraday-constraints/buy-risk-block',
     component: lazy(
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')

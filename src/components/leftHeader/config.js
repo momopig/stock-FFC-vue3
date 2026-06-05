@@ -105,6 +105,12 @@ export const menuList = [
         path: '/trading-strategy/signal-strategies/chip-prices',
         permissions: ['is_superuser'],
       },
+      {
+        name: '关键价格管理',
+        foldName: '关键价',
+        path: '/trading-strategy/signal-strategies/key-prices',
+        permissions: ['is_superuser'],
+      },
     ],
   },
   {

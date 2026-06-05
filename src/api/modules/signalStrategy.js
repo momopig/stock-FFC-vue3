@@ -67,6 +67,46 @@ export const getSignalStrategySupportSnapshot = async (params = {}) => {
   );
 };
 
+export const getSignalStrategyResistanceSnapshot = async (params = {}) => {
+  const queryString = qs.stringify(params);
+  return await request.get(
+    `/stock-api/api/signal-strategies/resistance-snapshot${queryString ? `?${queryString}` : ''}`
+  );
+};
+
+export const getSignalStrategyKeyPrices = async (params = {}) => {
+  const queryString = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `/stock-api/api/signal-strategies/key-prices${queryString ? `?${queryString}` : ''}`
+  );
+};
+
+export const getSignalStrategyKeyPrice = async (recordId) => {
+  return await request.get(
+    `/stock-api/api/signal-strategies/key-prices/${recordId}`
+  );
+};
+
+export const createSignalStrategyKeyPrice = async (data) => {
+  return await request.post(
+    '/stock-api/api/signal-strategies/key-prices',
+    data
+  );
+};
+
+export const updateSignalStrategyKeyPrice = async (recordId, data) => {
+  return await request.patch(
+    `/stock-api/api/signal-strategies/key-prices/${recordId}`,
+    data
+  );
+};
+
+export const deleteSignalStrategyKeyPrice = async (recordId) => {
+  return await request.delete(
+    `/stock-api/api/signal-strategies/key-prices/${recordId}`
+  );
+};
+
 export const getSignalStrategyChipPrices = async (params = {}) => {
   const queryString = qs.stringify(params, { arrayFormat: 'repeat' });
   return await request.get(

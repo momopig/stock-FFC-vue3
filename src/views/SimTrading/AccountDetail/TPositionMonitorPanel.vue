@@ -192,14 +192,25 @@
           }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="活动委托" width="120">
+        <template #default="scope">
+          <el-tag
+            v-if="scope.row.active_close_order_status"
+            :type="orderStatusTagType(scope.row.active_close_order_status)"
+          >
+            {{ scope.row.active_close_order_status }}
+          </el-tag>
+          <span v-else>--</span>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" fixed="right" min-width="290">
         <template #default="scope">
           <el-space wrap>
+            <el-button link type="primary" @click="openDetail(scope.row)"
+              >详情</el-button
+            >
             <el-button link type="primary" @click="openEditDialog(scope.row)"
               >编辑</el-button
-            >
-            <el-button link type="primary" @click="openLogs(scope.row)"
-              >日志</el-button
             >
             <el-button
               v-if="scope.row.show_status === 'RUNNING'"
@@ -509,15 +520,95 @@
     </el-dialog>
 
     <el-drawer
-      v-model="logsDrawer.visible"
-      :title="logsDrawer.title"
+      v-model="detailDrawer.visible"
+      :title="detailDrawer.title"
       size="55%"
     >
+      <template v-if="detailDrawer.row">
+        <el-descriptions :column="2" border class="t-monitor-detail-block">
+          <el-descriptions-item label="股票代码">
+            {{ detailDrawer.row.stock_code }}.{{
+              detailDrawer.row.exchange_code
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="股票名称">
+            {{ detailDrawer.row.stock_name || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            {{ monitorStatusLabel(detailDrawer.row.show_status) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="T仓类型">
+            {{ detailDrawer.row.t_type || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="卖点策略">
+            {{ detailDrawer.row.sell_signal_strategy_name || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="扫描周期">
+            {{ detailDrawer.row.sell_cycle_ms || '--' }} ms
+          </el-descriptions-item>
+          <el-descriptions-item label="浮盈比例">
+            <span :class="profitClass(detailDrawer.row.profit_ratio)">
+              {{ formatDisplayPercent(detailDrawer.row.profit_ratio) }}
+            </span>
+          </el-descriptions-item>
+          <el-descriptions-item label="浮盈金额">
+            <span :class="profitClass(detailDrawer.row.profit_amount)">
+              {{ formatMoney(detailDrawer.row.profit_amount) }}
+            </span>
+          </el-descriptions-item>
+          <el-descriptions-item label="最后扫描">
+            {{ formatDateTime(detailDrawer.row.last_scan_time) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="暂停原因">
+            {{ detailDrawer.row.pause_reason || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="平仓原因">
+            {{ detailDrawer.row.active_close_reason || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="活动委托号">
+            {{ detailDrawer.row.active_close_order_no || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="活动委托状态">
+            {{ detailDrawer.row.active_close_order_status || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="自动交易">
+            {{ detailDrawer.row.auto_trade_enabled ? '开启' : '关闭' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="禁用原因">
+            {{ detailDrawer.row.auto_trade_disable_reason || '--' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">
+            {{ detailDrawer.row.remark || '--' }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <div class="t-monitor-json-grid">
+          <div class="t-monitor-json-card">
+            <div class="t-monitor-json-card__title">运行态</div>
+            <pre>{{ formatJson(detailDrawer.row.runtime_state_json) }}</pre>
+          </div>
+          <div class="t-monitor-json-card">
+            <div class="t-monitor-json-card__title">最后一次信号详情</div>
+            <pre>{{
+              formatJson(detailDrawer.row.last_signal_detail_json)
+            }}</pre>
+          </div>
+        </div>
+
+        <div class="t-monitor-log-section">
+          <div class="t-monitor-log-section__header">
+            <span>监控日志</span>
+            <el-button text @click="loadDetailLogsWithPage(1)"
+              >刷新日志</el-button
+            >
+          </div>
+        </div>
+      </template>
       <el-table
-        :data="logsDrawer.rows"
+        :data="detailDrawer.logs"
         border
         stripe
-        v-loading="logsDrawer.loading"
+        v-loading="detailDrawer.loading"
       >
         <el-table-column prop="created_time" label="时间" min-width="168">
           <template #default="scope">{{
@@ -542,11 +633,13 @@
       <div class="t-monitor-pagination">
         <el-pagination
           background
-          layout="total, prev, pager, next"
-          :total="logsDrawer.total"
-          :current-page="logsDrawer.page"
-          :page-size="logsDrawer.pageSize"
-          @current-change="handleLogPageChange"
+          layout="total, sizes, prev, pager, next"
+          :total="detailDrawer.total"
+          :current-page="detailDrawer.page"
+          :page-size="detailDrawer.pageSize"
+          :page-sizes="[10, 20, 50]"
+          @current-change="handleDetailLogPageChange"
+          @size-change="handleDetailLogPageSizeChange"
         />
       </div>
     </el-drawer>
@@ -644,14 +737,15 @@ const manualCloseDialog = reactive({
   },
 });
 
-const logsDrawer = reactive({
+const detailDrawer = reactive({
   visible: false,
   loading: false,
-  title: '监控日志',
+  title: 'T仓监控详情',
+  row: null,
   monitorId: null,
-  rows: [],
+  logs: [],
   page: 1,
-  pageSize: 20,
+  pageSize: 10,
   total: 0,
 });
 
@@ -766,6 +860,28 @@ function monitorStatusTagType(status) {
   return map[status] || 'info';
 }
 
+function orderStatusTagType(status) {
+  const map = {
+    FILLED: 'success',
+    PENDING_MATCH: 'warning',
+    PART_FILLED: 'warning',
+    FAILED: 'danger',
+    REJECTED: 'danger',
+  };
+  return map[status] || 'info';
+}
+
+function formatJson(value) {
+  if (!value) {
+    return '--';
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (error) {
+    return String(value);
+  }
+}
+
 async function loadSignalStrategyOptions() {
   try {
     const [buyRes, sellRes] = await Promise.all([
@@ -796,11 +912,22 @@ async function loadMonitors() {
     overview.value = res?.payload?.overview || {};
     rows.value = res?.payload?.page?.items || [];
     pagination.total = res?.payload?.page?.total || 0;
+    syncDetailRow();
   } catch (error) {
     console.error(error);
     ElMessage.error('加载 T仓监控列表失败');
   } finally {
     loading.value = false;
+  }
+}
+
+function syncDetailRow() {
+  if (!detailDrawer.row?.id) {
+    return;
+  }
+  const current = rows.value.find((item) => item.id === detailDrawer.row.id);
+  if (current) {
+    detailDrawer.row = current;
   }
 }
 
@@ -1031,6 +1158,12 @@ async function submitManualClose() {
     ElMessage.success('平仓委托已提交');
     manualCloseDialog.visible = false;
     await loadMonitors();
+    if (
+      detailDrawer.visible &&
+      detailDrawer.row?.id === manualCloseDialog.row.id
+    ) {
+      await loadDetailLogs();
+    }
   } catch (error) {
     console.error(error);
     ElMessage.error('提交平仓委托失败');
@@ -1071,37 +1204,56 @@ async function handleSync() {
 }
 
 async function openLogs(row) {
-  logsDrawer.visible = true;
-  logsDrawer.monitorId = row.id;
-  logsDrawer.title = `${row.stock_name} ${row.stock_code} 监控日志`;
-  logsDrawer.page = 1;
-  await loadLogs();
+  await openDetail(row);
 }
 
-async function loadLogs() {
-  if (!logsDrawer.monitorId) {
+async function openDetail(row) {
+  detailDrawer.visible = true;
+  detailDrawer.row = row;
+  detailDrawer.monitorId = row.id;
+  detailDrawer.title = `${row.stock_name} ${row.stock_code} 监控详情`;
+  detailDrawer.page = 1;
+  detailDrawer.pageSize = 10;
+  detailDrawer.total = 0;
+  detailDrawer.logs = [];
+  await loadDetailLogs();
+}
+
+async function loadDetailLogs() {
+  if (!detailDrawer.monitorId) {
     return;
   }
-  logsDrawer.loading = true;
+  detailDrawer.loading = true;
   try {
     const res = await getSimTradingTPositionMonitorLogs(props.accountId, {
-      monitor_id: logsDrawer.monitorId,
-      page: logsDrawer.page,
-      page_size: logsDrawer.pageSize,
+      monitor_id: detailDrawer.monitorId,
+      page: detailDrawer.page,
+      page_size: detailDrawer.pageSize,
     });
-    logsDrawer.rows = res?.payload?.page?.items || [];
-    logsDrawer.total = res?.payload?.page?.total || 0;
+    detailDrawer.logs = res?.payload?.page?.items || [];
+    detailDrawer.total = res?.payload?.page?.total || 0;
   } catch (error) {
     console.error(error);
     ElMessage.error('加载监控日志失败');
   } finally {
-    logsDrawer.loading = false;
+    detailDrawer.loading = false;
   }
 }
 
-function handleLogPageChange(page) {
-  logsDrawer.page = page;
-  loadLogs();
+async function loadDetailLogsWithPage(page) {
+  detailDrawer.page = page;
+  await loadDetailLogs();
+}
+
+function handleDetailLogPageChange(page) {
+  detailDrawer.page = page;
+  loadDetailLogs();
+}
+
+function handleDetailLogPageSizeChange(size) {
+  detailDrawer.pageSize = size;
+  detailDrawer.page = 1;
+  loadDetailLogs();
 }
 </script>
 
@@ -1185,6 +1337,48 @@ function handleLogPageChange(page) {
   justify-content: flex-end;
 }
 
+.t-monitor-detail-block {
+  margin-bottom: 16px;
+}
+
+.t-monitor-json-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.t-monitor-json-card {
+  border: 1px solid #ebeef5;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.t-monitor-json-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #303133;
+}
+
+.t-monitor-json-card pre {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.t-monitor-log-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .is-profit {
   color: #d4380d;
 }
@@ -1196,6 +1390,10 @@ function handleLogPageChange(page) {
 @media (max-width: 960px) {
   .t-monitor-toolbar {
     flex-direction: column;
+  }
+
+  .t-monitor-json-grid {
+    grid-template-columns: 1fr;
   }
 
   .t-monitor-pagination {
