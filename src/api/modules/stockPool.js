@@ -291,7 +291,7 @@ export const getStockPoolList = async (params) => {
  * @param {number} params.priority_level - 优先级（1-10）
  * @param {string} params.created_by - 创建者筛选
  * @param {number} params.interval - 推送间隔（秒），<=0 则只推一次，默认 3
- * @param {boolean} params.once_if_closed - 非交易时段是否只推一次，默认 false
+ * @param {boolean} params.once_if_closed - 非交易时段是否只推一次，默认 true
  * @param {string} params.snapshot_date - 快照日期，格式为YYYY-MM-DD，非必填
  * @param {Object} callbacks - 回调函数
  * @param {Function} callbacks.onMessage - 消息接收回调，参数为响应数据
@@ -314,7 +314,7 @@ export const getStockPoolListWithQuotes = (params = {}, callbacks = {}) => {
   const queryParams = {
     ...params,
     interval: params.interval ?? 5, // 默认推送间隔 3 秒
-    once_if_closed: params.once_if_closed ?? false,
+    once_if_closed: params.once_if_closed ?? true,
   };
 
   // 移除空值参数
