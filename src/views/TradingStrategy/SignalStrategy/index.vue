@@ -637,6 +637,122 @@
                 </el-collapse-item>
               </el-collapse>
             </template>
+            <template v-else-if="groupedTemplateFormSections.length">
+              <el-collapse
+                v-model="groupedTemplateFormCollapseNames"
+                class="template-group-collapse"
+              >
+                <el-collapse-item
+                  v-for="section in groupedTemplateFormSections"
+                  :key="section.key"
+                  :name="buildSectionCollapseName(section)"
+                >
+                  <template #title>
+                    <div class="template-group-header">
+                      <h4>{{ section.title }}</h4>
+                      <p v-if="section.description">
+                        {{ section.description }}
+                      </p>
+                    </div>
+                  </template>
+                  <div class="template-group-section">
+                    <div class="dynamic-field-grid">
+                      <div
+                        v-for="field in section.fields"
+                        :key="field.path"
+                        class="dynamic-field-item"
+                      >
+                        <label class="dynamic-field-label">{{
+                          field.label
+                        }}</label>
+                        <el-input-number
+                          v-if="
+                            field.component === 'number' ||
+                            field.component === 'integer'
+                          "
+                          :model-value="instanceForm.params_value[field.path]"
+                          class="full-width"
+                          controls-position="right"
+                          :step="field.step || 1"
+                          :min="field.min"
+                          :max="field.max"
+                          :precision="
+                            field.component === 'number' ? field.precision : 0
+                          "
+                          @update:model-value="setParamValue(field.path, $event)"
+                        />
+                        <el-switch
+                          v-else-if="field.component === 'boolean'"
+                          :model-value="
+                            Boolean(instanceForm.params_value[field.path])
+                          "
+                          inline-prompt
+                          active-text="是"
+                          inactive-text="否"
+                          @update:model-value="setParamValue(field.path, $event)"
+                        />
+                        <el-select
+                          v-else-if="field.component === 'multi-select'"
+                          :model-value="instanceForm.params_value[field.path] || []"
+                          multiple
+                          collapse-tags
+                          collapse-tags-tooltip
+                          class="full-width"
+                          @update:model-value="setParamValue(field.path, $event)"
+                        >
+                          <el-option
+                            v-for="option in field.options || []"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
+                        <el-select
+                          v-else-if="field.component === 'select'"
+                          :model-value="instanceForm.params_value[field.path]"
+                          class="full-width"
+                          @update:model-value="setParamValue(field.path, $event)"
+                        >
+                          <el-option
+                            v-for="option in field.options || []"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
+                        <el-input
+                          v-else
+                          :model-value="
+                            normalizeInputValue(
+                              instanceForm.params_value[field.path],
+                              field.component
+                            )
+                          "
+                          class="full-width"
+                          :type="
+                            field.component === 'textarea' ||
+                            field.component === 'string-array'
+                              ? 'textarea'
+                              : 'text'
+                          "
+                          :rows="
+                            field.component === 'textarea' ||
+                            field.component === 'string-array'
+                              ? 3
+                              : undefined
+                          "
+                          :placeholder="field.placeholder || field.description || ''"
+                          @input="setParamValue(field.path, $event, field.component)"
+                        />
+                        <div v-if="field.description" class="field-help-text">
+                          {{ field.description }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+            </template>
             <div v-else class="dynamic-field-grid">
               <div
                 v-for="field in currentTemplate.params_schema?.fields || []"
@@ -668,6 +784,22 @@
                   inactive-text="否"
                   @update:model-value="setParamValue(field.path, $event)"
                 />
+                <el-select
+                  v-else-if="field.component === 'multi-select'"
+                  :model-value="instanceForm.params_value[field.path] || []"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  class="full-width"
+                  @update:model-value="setParamValue(field.path, $event)"
+                >
+                  <el-option
+                    v-for="option in field.options || []"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
                 <el-select
                   v-else-if="field.component === 'select'"
                   :model-value="instanceForm.params_value[field.path]"
@@ -1481,6 +1613,7 @@ const chipPriceLoading = ref(false);
 const chipPriceRecomputeLoading = ref(false);
 const chipPriceSaving = ref(false);
 const instanceFormRef = ref(null);
+const groupedTemplateFormCollapseNames = ref([]);
 const intradayLowSuctionFormCollapseNames = ref([]);
 const intradayLowSuctionFactorCollapseNames = ref([]);
 const intradayLowSuctionDetailCollapseNames = ref([]);
@@ -1690,6 +1823,9 @@ const currentTemplate = computed(
       (item) => item.template_code === instanceForm.template_code
     ) || null
 );
+const groupedTemplateFormSections = computed(() =>
+  buildGroupedTemplateSections(currentTemplate.value)
+);
 const intradayLowSuctionFormSections = computed(() =>
   buildIntradayLowSuctionSections(
     currentTemplate.value,
@@ -1716,6 +1852,17 @@ watch(
   () => {
     applyRoutePreset();
   }
+);
+
+watch(
+  groupedTemplateFormSections,
+  (sections) => {
+    groupedTemplateFormCollapseNames.value = syncCollapseNames(
+      groupedTemplateFormCollapseNames.value,
+      sections.map((section) => buildSectionCollapseName(section))
+    );
+  },
+  { immediate: true }
 );
 
 watch(
@@ -1964,6 +2111,41 @@ function buildIntradayLowSuctionSections(template, paramsValue = {}) {
   }));
 }
 
+function hasTemplateFieldGroups(template) {
+  return (template?.params_schema?.fields || []).some(
+    (field) => field.group_key
+  );
+}
+
+function buildGroupedTemplateSections(template) {
+  if (!hasTemplateFieldGroups(template)) {
+    return [];
+  }
+  const sections = new Map();
+  (template?.params_schema?.fields || []).forEach((field, index) => {
+    const sectionKey = String(field.group_key || `section-${index}`);
+    if (!sections.has(sectionKey)) {
+      sections.set(sectionKey, {
+        key: sectionKey,
+        title: field.group_label || '参数配置',
+        description: field.group_description || '',
+        order:
+          typeof field.group_order === 'number'
+            ? field.group_order
+            : Number.MAX_SAFE_INTEGER,
+        fields: [],
+      });
+    }
+    sections.get(sectionKey).fields.push(field);
+  });
+  return Array.from(sections.values()).sort((left, right) => {
+    if (left.order !== right.order) {
+      return left.order - right.order;
+    }
+    return left.key.localeCompare(right.key);
+  });
+}
+
 function resolveTemplateByCode(templateCode) {
   return (
     templates.value.find((item) => item.template_code === templateCode) || null
@@ -1990,12 +2172,29 @@ function syncCollapseNames(currentNames, nextNames) {
   return nextNames.filter((name) => currentNameSet.has(name) || true);
 }
 
-function formatParamPreviewValue(path, value) {
+function resolveFieldOptionLabel(field, value) {
+  return (
+    (field?.options || []).find((option) => option.value === value)?.label ||
+    value
+  );
+}
+
+function formatParamPreviewValue(template, path, value) {
+  const field = getTemplateFieldMap(template)[path];
   if (path === 'support_time_levels' && Array.isArray(value)) {
     return value.map((item) => getSupportLevelLabel(item)).join('、') || '-';
   }
   if (path === 'enabled_factor_codes' && Array.isArray(value)) {
     return value.map((item) => getIntradayFactorLabel(item)).join('、') || '-';
+  }
+  if (field?.component === 'select') {
+    return resolveFieldOptionLabel(field, value);
+  }
+  if (field?.component === 'multi-select' && Array.isArray(value)) {
+    return (
+      value.map((item) => resolveFieldOptionLabel(field, item)).join('、') ||
+      '-'
+    );
   }
   return formatParamValue(value);
 }
@@ -2003,6 +2202,24 @@ function formatParamPreviewValue(path, value) {
 function buildParamPreviewSections(row) {
   const paramsValue = row?.params_value || {};
   const template = resolveTemplateByCode(row?.template_code);
+  if (!isIntradayLowSuctionTemplate(row || template) && hasTemplateFieldGroups(template)) {
+    return buildGroupedTemplateSections(template)
+      .map((section) => ({
+        key: section.key,
+        title: section.title,
+        description: section.description,
+        items: section.fields.map((field) => ({
+          label: field.label,
+          value: formatParamPreviewValue(
+            template,
+            field.path,
+            paramsValue[field.path]
+          ),
+        })),
+        factorGroups: [],
+      }))
+      .filter((section) => section.items.length > 0);
+  }
   if (!isIntradayLowSuctionTemplate(row || template)) {
     return [
       {
@@ -2011,7 +2228,7 @@ function buildParamPreviewSections(row) {
         description: '',
         items: Object.entries(paramsValue).map(([key, value]) => ({
           label: resolveFieldLabel(template, key),
-          value: formatParamPreviewValue(key, value),
+          value: formatParamPreviewValue(template, key, value),
         })),
         factorGroups: [],
       },
@@ -2026,7 +2243,7 @@ function buildParamPreviewSections(row) {
   groupedSections.forEach((section) => {
     const items = section.fields.map((field) => ({
       label: field.label,
-      value: formatParamPreviewValue(field.path, paramsValue[field.path]),
+      value: formatParamPreviewValue(template, field.path, paramsValue[field.path]),
     }));
     const factorGroups = (section.factorGroups || []).map((factorGroup) => ({
       code: factorGroup.code,
@@ -2034,7 +2251,7 @@ function buildParamPreviewSections(row) {
       description: factorGroup.description,
       items: factorGroup.fields.map((field) => ({
         label: field.label,
-        value: formatParamPreviewValue(field.path, paramsValue[field.path]),
+        value: formatParamPreviewValue(template, field.path, paramsValue[field.path]),
       })),
     }));
     if (items.length || factorGroups.length) {
