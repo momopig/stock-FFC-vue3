@@ -21,11 +21,27 @@
           <strong>{{ settings.last_dispatch_status || '未执行' }}</strong>
           <small>{{ formatDateTime(settings.last_dispatch_time) }}</small>
         </div>
+        <div class="toolbar-card groups-card" v-if="accountBoundGroups.length">
+          <span class="toolbar-label">当前股票分组</span>
+          <div class="toolbar-group-tags">
+            <el-tag
+              v-for="group in accountBoundGroups"
+              :key="`toolbar-group-${group.id}`"
+              size="small"
+              class="bound-group-tag"
+              @click="openGroupStocksPage(group)"
+            >
+              {{ group.name }}
+            </el-tag>
+          </div>
+          <small>仅建仓策略使用账号级股票分组配置。</small>
+        </div>
       </div>
       <el-space>
         <el-button @click="loadAll">刷新</el-button>
-        <el-button type="primary" plain :loading="saving" @click="runDebugDispatch">调试触发</el-button>
-        <el-button type="primary" @click="openCreateDialog()">新增绑定</el-button>
+        <el-tooltip content="立即执行一次当前账号已启用的自动化策略，并刷新最近结果与日志。" placement="top">
+          <el-button type="primary" plain :loading="saving" @click="runDebugDispatch">立即调试执行</el-button>
+        </el-tooltip>
       </el-space>
     </div>
 
@@ -98,7 +114,7 @@
                   <span v-else>-</span>
                 </template>
               </el-table-column>
-              <el-table-column label="股票分组" min-width="220">
+              <el-table-column v-if="group.category === 'OPEN_POSITION'" label="股票分组" min-width="220">
                 <template #default="scope">
                   <div v-if="getBoundGroups(scope.row).length" class="bound-group-cell">
                     <el-tag
@@ -369,6 +385,23 @@ const selectableStrategies = computed(() => {
     }
     return item.strategy_category === bindingDialog.selectedCategory && !boundIds.has(item.id);
   });
+});
+const accountBoundGroups = computed(() => {
+  const result = [];
+  const seen = new Set();
+  bindings.value
+    .filter((binding) => binding.strategy_category === 'OPEN_POSITION')
+    .forEach((binding) => {
+      getBoundGroups(binding).forEach((group) => {
+        const groupId = Number(group?.id || 0);
+        if (!groupId || seen.has(groupId)) {
+          return;
+        }
+        seen.add(groupId);
+        result.push(group);
+      });
+    });
+  return result;
 });
 const currentBindingStrategy = computed(() => {
   if (bindingDialog.mode === 'create') {
@@ -902,6 +935,19 @@ function formatCoordinationBudget(value) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.groups-card {
+  min-width: 280px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolbar-group-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .toolbar-automation-control {
