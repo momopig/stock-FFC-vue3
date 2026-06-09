@@ -231,6 +231,28 @@
         <el-form-item label="启用状态">
           <el-switch v-model="bindingForm.enabled" inline-prompt active-text="开启" inactive-text="关闭" />
         </el-form-item>
+        <el-form-item v-if="bindingDialog.selectedCategory === 'OPEN_POSITION'" label="绑定股票分组">
+          <el-select
+            v-model="bindingForm.group_ids"
+            class="full-width"
+            multiple
+            filterable
+            clearable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="请选择当前账号要使用的股票分组"
+          >
+            <el-option
+              v-for="group in userGroups"
+              :key="group.id"
+              :label="group.name"
+              :value="group.id"
+            />
+          </el-select>
+          <div class="field-help-text">
+            2.0 起建仓范围从策略模板中解耦，统一在账号绑定层配置，不再跟随策略模板一起复用。
+          </div>
+        </el-form-item>
         <el-form-item v-if="showBindingOverrideJson" label="覆盖配置 JSON">
           <el-input v-model="bindingForm.account_override_json_text" type="textarea" :rows="8" placeholder="可选，填写账号级覆盖配置 JSON" />
         </el-form-item>
@@ -317,6 +339,7 @@ const bindingDialog = reactive({
 const bindingForm = reactive({
   strategy_id: undefined,
   enabled: true,
+  group_ids: [],
   account_override_json_text: '',
 });
 
@@ -354,7 +377,12 @@ const currentBindingStrategy = computed(() => {
   const currentBinding = bindings.value.find((item) => item.id === bindingDialog.bindingId) || null;
   return currentBinding?.strategy || null;
 });
-const showBindingOverrideJson = computed(() => currentBindingStrategy.value?.strategy_code !== 'TAIL_BREAK_MA_SELL');
+const showBindingOverrideJson = computed(() => {
+  if (bindingDialog.selectedCategory === 'OPEN_POSITION') {
+    return false;
+  }
+  return currentBindingStrategy.value?.strategy_code !== 'TAIL_BREAK_MA_SELL';
+});
 
 watch(
   () => props.accountId,
@@ -460,6 +488,7 @@ function openCreateDialog(category = CATEGORY_OPTIONS[0].value) {
   bindingDialog.selectedCategory = category;
   bindingForm.strategy_id = undefined;
   bindingForm.enabled = true;
+  bindingForm.group_ids = [];
   bindingForm.account_override_json_text = '';
 }
 
@@ -470,22 +499,49 @@ function openEditDialog(binding) {
   bindingDialog.selectedCategory = binding.strategy_category;
   bindingForm.strategy_id = binding.strategy_id;
   bindingForm.enabled = binding.enabled;
+  bindingForm.group_ids = getBindingGroupIds(binding);
   bindingForm.account_override_json_text = binding.account_override_json ? JSON.stringify(binding.account_override_json, null, 2) : '';
 }
 
 function parseOverrideJson() {
   if (!showBindingOverrideJson.value) {
-    return null;
+    return buildBindingOverridePayload();
   }
   const text = (bindingForm.account_override_json_text || '').trim();
   if (!text) {
-    return null;
+    return buildBindingOverridePayload();
   }
   try {
-    return JSON.parse(text);
+    return mergeBindingOverridePayload(JSON.parse(text));
   } catch (error) {
     throw new Error('覆盖配置 JSON 格式不正确');
   }
+}
+
+function buildBindingOverridePayload() {
+  if (bindingDialog.selectedCategory !== 'OPEN_POSITION') {
+    return null;
+  }
+  const groupIds = Array.isArray(bindingForm.group_ids)
+    ? bindingForm.group_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
+    : [];
+  return {
+    open_position_scope: {
+      group_ids: Array.from(new Set(groupIds)),
+    },
+  };
+}
+
+function mergeBindingOverridePayload(baseOverride) {
+  const nextOverride = isPlainObject(baseOverride) ? { ...baseOverride } : {};
+  const scopedOverride = buildBindingOverridePayload();
+  if (!scopedOverride) {
+    return Object.keys(nextOverride).length ? nextOverride : null;
+  }
+  return {
+    ...nextOverride,
+    open_position_scope: scopedOverride.open_position_scope,
+  };
 }
 
 async function submitBinding() {
@@ -695,12 +751,23 @@ function getBindingEffectiveConfig(binding) {
   return mergeConfig(strategyConfig, overrideConfig);
 }
 
+function getBindingGroupIds(binding) {
+  const scopedGroupIds = binding?.account_override_json?.open_position_scope?.group_ids;
+  if (Array.isArray(scopedGroupIds)) {
+    return scopedGroupIds.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0);
+  }
+  const legacyGroupIds = binding?.strategy?.rule_config_json?.universe?.group_ids;
+  if (Array.isArray(legacyGroupIds)) {
+    return legacyGroupIds.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0);
+  }
+  return [];
+}
+
 function getBoundGroups(binding) {
   if (binding?.strategy_category !== 'OPEN_POSITION') {
     return [];
   }
-  const config = getBindingEffectiveConfig(binding);
-  const groupIds = Array.isArray(config?.universe?.group_ids) ? config.universe.group_ids : [];
+  const groupIds = getBindingGroupIds(binding);
   return groupIds
     .map((groupId) => {
       const normalizedId = Number(groupId);

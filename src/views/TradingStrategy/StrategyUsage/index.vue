@@ -80,7 +80,10 @@
           </el-table-column>
           <el-table-column label="操作" width="150" fixed="right">
             <template #default="scope">
-              <el-button link type="primary" @click="goToAccountStrategy(scope.row.account_id)">查看账号绑定</el-button>
+              <el-space wrap>
+                <el-button link type="primary" @click="goToAccountStrategy(scope.row.account_id)">查看账号绑定</el-button>
+                <el-button link type="danger" @click="removeUsageBinding(scope.row)">快捷解绑</el-button>
+              </el-space>
             </template>
           </el-table-column>
         </el-table>
@@ -106,13 +109,14 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   getTradingStrategyDetail,
   getTradingStrategyUsageBindings,
   getTradingStrategyUsageSummary,
 } from '@/api/modules/tradingStrategy';
+import { deleteAccountStrategyBinding } from '@/api/modules/simTradingStrategy';
 import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
 import { useTabsStore } from '@/composables/useTabsStore';
 
@@ -243,6 +247,31 @@ async function loadUsageBindings() {
     ElMessage.error('获取策略使用明细失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function removeUsageBinding(row) {
+  const accountId = Number(row?.account_id || 0);
+  const bindingId = Number(row?.binding_id || 0);
+  if (!(accountId > 0) || !(bindingId > 0)) {
+    ElMessage.warning('当前绑定缺少有效标识，无法解绑');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认解绑账号“${row.account_name || accountId}”上的当前策略吗？`,
+      '解绑确认',
+      { type: 'warning' }
+    );
+    await deleteAccountStrategyBinding(accountId, bindingId);
+    ElMessage.success('策略绑定已解除');
+    await loadPageData();
+  } catch (error) {
+    if (error === 'cancel') {
+      return;
+    }
+    console.error(error);
+    ElMessage.error(error?.message || '解绑策略失败');
   }
 }
 

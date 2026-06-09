@@ -44,16 +44,19 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="股票分组" min-width="220">
+        <el-table-column label="当前使用账号" min-width="240">
           <template #default="scope">
-            <div v-if="getStrategyGroupNames(scope.row).length" class="strategy-group-tags-cell">
-              <el-tag
-                v-for="groupName in getStrategyGroupNames(scope.row)"
-                :key="`${scope.row.id}-${groupName}`"
-                size="small"
+            <div v-if="getUsageAccounts(scope.row).length" class="strategy-group-tags-cell">
+              <el-button
+                v-for="account in getUsageAccounts(scope.row)"
+                :key="`${scope.row.id}-${account.account_id}`"
+                link
+                type="primary"
+                class="usage-account-link"
+                @click="goToAccountStrategy(account.account_id)"
               >
-                {{ groupName }}
-              </el-tag>
+                {{ account.account_name }}
+              </el-button>
             </div>
             <span v-else>-</span>
           </template>
@@ -81,6 +84,7 @@
             </el-space>
           </template>
         </el-table-column>
+
       </el-table>
 
       <div class="table-pagination">
@@ -369,7 +373,6 @@ import {
   validateTradingStrategy,
 } from '@/api/modules/tradingStrategy';
 import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
-import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
 
 
@@ -393,8 +396,6 @@ const SIGNAL_SOURCE_OPTIONS = [
 ];
 
 const CONFIGURABLE_OPEN_POSITION_FIELDS = [
-  { path: 'universe.group_ids', label: '允许分组', component: 'multi-select', options: [] },
-  { path: 'universe.stock_codes', label: '指定股票池', component: 'string-array', placeholder: '如 000001.SZ,600000.SH' },
   { path: 'order.position_ratio', label: '单次建仓仓位', component: 'number', min: 0, max: 100, step: 1, precision: 2 },
   { path: 'order.max_symbol_count', label: '股票最大持仓个数', component: 'integer', min: 1, max: 50, step: 1 },
   { path: 'order.order_type', label: '委托类型', component: 'select', options: [{ label: '限价单', value: 'LIMIT' }, { label: '市价单', value: 'MARKET' }] },
@@ -425,9 +426,8 @@ const strategies = reactive({ total: 0, items: [] });
 const filters = reactive({ strategy_category: '', enabled: undefined, keyword: '' });
 const pagination = reactive({ page: 1, pageSize: 10 });
 const signalStrategyOptions = reactive({ entry: [], exit: [], riskBlock: [], trendGuard: [] });
-const builtinGroupOptions = ref([]);
 
-const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false });
+const dialog = reactive({ visible: false, mode: 'create', strategyId: null, isBuiltin: false, usageAccounts: [], editAckText: '' });
 const form = reactive(createInitialForm());
 const strategyFormRef = ref(null);
 const routeStrategyCategoryPreset = computed(() => String(route.meta?.strategyCategoryPreset || ''));
@@ -613,12 +613,6 @@ const structuredConfigSections = computed(() => {
       ]
     : [
         {
-          key: 'universe',
-          title: '分组范围',
-          description: '决定这条建仓策略从哪些分组和候选股票里挑选标的。',
-          paths: ['universe.group_ids', 'universe.stock_codes'],
-        },
-        {
           key: 'order',
           title: '仓位执行',
           description: '控制单次建仓资金占比、最大持仓数量和委托类型。',
@@ -725,7 +719,6 @@ const riskPreview = computed(() => {
 onMounted(() => {
   applyRoutePreset();
   loadSignalStrategyOptions();
-  loadGroupOptions();
 });
 
 watch(
@@ -776,10 +769,6 @@ function buildInitialRuleConfig(strategyCategory) {
     };
   }
   return {
-    universe: {
-      group_ids: [],
-      stock_codes: [],
-    },
     signal: {},
     order: {
       position_ratio: 0.2,
@@ -895,22 +884,6 @@ async function loadSignalStrategyOptions() {
   }
 }
 
-async function loadGroupOptions() {
-  groupOptionsLoading.value = true;
-  try {
-    const res = await getUserGroups();
-    builtinGroupOptions.value = (res?.payload?.items || []).map((item) => ({
-      label: item.name,
-      value: item.id,
-    }));
-  } catch (error) {
-    console.error(error);
-    ElMessage.error('获取股票分组选项失败');
-  } finally {
-    groupOptionsLoading.value = false;
-  }
-}
-
 async function loadStrategies() {
   loading.value = true;
   try {
@@ -957,6 +930,8 @@ function openEditDialog(row) {
   dialog.mode = 'edit';
   dialog.strategyId = row.id;
   dialog.isBuiltin = row.strategy_mode === 'BUILTIN';
+  dialog.usageAccounts = Array.isArray(row?.usage_accounts) ? row.usage_accounts : [];
+  dialog.editAckText = row?.edit_ack_text || '';
   Object.assign(form, {
     strategy_code: row.strategy_code,
     strategy_name: row.strategy_name,
@@ -1084,29 +1059,11 @@ function normalizeBuiltinMultiSelectValue(field) {
 }
 
 function getBuiltinFieldOptions(field) {
-  if (field.path === 'universe.group_ids') {
-    return builtinGroupOptions.value;
-  }
   return field.options || [];
 }
 
-function getStrategyGroupNames(row) {
-  if (row?.strategy_category !== 'OPEN_POSITION') {
-    return [];
-  }
-  const groupIds = Array.isArray(row?.rule_config_json?.universe?.group_ids)
-    ? row.rule_config_json.universe.group_ids
-    : [];
-  return groupIds
-    .map((groupId) => {
-      const normalizedId = Number(groupId);
-      if (!normalizedId) {
-        return null;
-      }
-      const matchedOption = builtinGroupOptions.value.find((item) => Number(item.value) === normalizedId);
-      return matchedOption?.label || `分组#${normalizedId}`;
-    })
-    .filter(Boolean);
+function getUsageAccounts(row) {
+  return Array.isArray(row?.usage_accounts) ? row.usage_accounts : [];
 }
 
 function formatBuiltinFieldValue(field) {
@@ -1199,6 +1156,41 @@ async function submitStrategy() {
       await createTradingStrategy(payload);
       ElMessage.success('执行策略创建成功');
     } else {
+      let acknowledgedText = '';
+      if (Array.isArray(dialog.usageAccounts) && dialog.usageAccounts.length > 1) {
+        try {
+          const promptRes = await ElMessageBox.prompt(
+            [
+              '当前策略已被以下账号使用：',
+              ...dialog.usageAccounts.map((item) => `- ${item.account_name}`),
+              '',
+              `请输入以下确认语句后继续保存：${dialog.editAckText || '已经知晓改动配置会影响到以上所有账号'}`,
+            ].join('\n'),
+            '多账号影响确认',
+            {
+              confirmButtonText: '确认保存',
+              cancelButtonText: '取消',
+              inputPlaceholder: dialog.editAckText || '已经知晓改动配置会影响到以上所有账号',
+              inputValidator: (value) => {
+                const expected = dialog.editAckText || '已经知晓改动配置会影响到以上所有账号';
+                if (String(value || '').trim() !== expected) {
+                  return '确认语句不匹配';
+                }
+                return true;
+              },
+            }
+          );
+          acknowledgedText = String(promptRes.value || '').trim();
+        } catch (error) {
+          if (error === 'cancel') {
+            return;
+          }
+          throw error;
+        }
+      }
+      if (acknowledgedText) {
+        payload.edit_acknowledge_text = acknowledgedText;
+      }
       await updateTradingStrategy(dialog.strategyId, payload);
       ElMessage.success('执行策略更新成功');
     }
@@ -1206,7 +1198,9 @@ async function submitStrategy() {
     await loadStrategies();
   } catch (error) {
     console.error(error);
-    ElMessage.error(error?.message || '保存执行策略失败');
+    const detail = error?.response?.data?.detail;
+    const message = typeof detail === 'object' ? detail?.message : error?.message;
+    ElMessage.error(message || '保存执行策略失败');
   } finally {
     submitting.value = false;
   }
