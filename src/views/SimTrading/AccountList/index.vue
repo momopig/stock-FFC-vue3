@@ -58,11 +58,14 @@
           }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" fixed="right" width="300">
+      <el-table-column label="操作" fixed="right" width="380">
         <template #default="scope">
           <el-space>
             <el-button link type="primary" @click="openDetail(scope.row)"
               >查看详情</el-button
+            >
+            <el-button link type="primary" @click="openStrategyConfig(scope.row)"
+              >自动化策略配置</el-button
             >
             <el-button link @click="openEditDialog(scope.row)">编辑</el-button>
             <el-button link @click="quickAction(scope.row, 'deposit')"
@@ -541,15 +544,26 @@ function openEditDialog(row) {
 }
 
 function openDetail(row) {
-  const path = `/sim-trading/account-detail?accountId=${row.id}`;
-  const workspaceTitle =
-    row.account_type === 'QMT' ? 'QMT 实盘交易工作台' : '交易账户工作台';
-  addTab('/sim-trading/account-detail', workspaceTitle);
-  router.push(path);
+  openAccountWorkspace(row);
+}
+
+function openStrategyConfig(row) {
+  openAccountWorkspace(row, { tab: 'strategy' });
 }
 
 function quickAction(row, action) {
-  const path = `/sim-trading/account-detail?accountId=${row.id}&tab=transfer&action=${action}`;
+  openAccountWorkspace(row, { tab: 'transfer', action });
+}
+
+function openAccountWorkspace(row, options = {}) {
+  const query = new URLSearchParams({ accountId: String(row.id) });
+  if (options.tab) {
+    query.set('tab', options.tab);
+  }
+  if (options.action) {
+    query.set('action', options.action);
+  }
+  const path = `/sim-trading/account-detail?${query.toString()}`;
   const workspaceTitle =
     row.account_type === 'QMT' ? 'QMT 实盘交易工作台' : '交易账户工作台';
   addTab('/sim-trading/account-detail', workspaceTitle);

@@ -993,6 +993,7 @@
                     :precision="2"
                     class="full-width"
                   />
+                  <div class="amount-chinese-hint">金额大写：{{ formatChineseMoney(depositForm.amount) }}</div>
                 </el-form-item>
                 <el-form-item label="原因">
                   <el-input v-model="depositForm.reason" />
@@ -1017,6 +1018,7 @@
                     :precision="2"
                     class="full-width"
                   />
+                  <div class="amount-chinese-hint">金额大写：{{ formatChineseMoney(withdrawForm.amount) }}</div>
                 </el-form-item>
                 <el-form-item label="原因">
                   <el-input v-model="withdrawForm.reason" />
@@ -2186,6 +2188,75 @@ function formatMoney(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatChineseMoney(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return '--';
+  }
+
+  const digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
+  const integerUnits = ['', '拾', '佰', '仟'];
+  const sectionUnits = ['', '万', '亿', '兆'];
+  const normalizedAmount = Math.round(amount * 100) / 100;
+  const [integerText, decimalText = ''] = normalizedAmount.toFixed(2).split('.');
+  let integerValue = Number(integerText || 0);
+
+  const convertSection = (section) => {
+    let result = '';
+    let zeroPending = false;
+    for (let index = 0; index < 4; index += 1) {
+      const digit = section % 10;
+      if (digit === 0) {
+        if (result) {
+          zeroPending = true;
+        }
+      } else {
+        const zeroText = zeroPending ? '零' : '';
+        result = `${digits[digit]}${integerUnits[index]}${zeroText}${result}`;
+        zeroPending = false;
+      }
+      section = Math.floor(section / 10);
+    }
+    return result;
+  };
+
+  let integerResult = '';
+  let sectionIndex = 0;
+  let needZeroBetweenSections = false;
+  while (integerValue > 0 && sectionIndex < sectionUnits.length) {
+    const section = integerValue % 10000;
+    if (section === 0) {
+      needZeroBetweenSections = integerResult.length > 0;
+    } else {
+      const sectionText = convertSection(section);
+      const zeroText = needZeroBetweenSections && !sectionText.startsWith('零') ? '零' : '';
+      integerResult = `${sectionText}${sectionUnits[sectionIndex]}${zeroText}${integerResult}`;
+      needZeroBetweenSections = section < 1000;
+    }
+    integerValue = Math.floor(integerValue / 10000);
+    sectionIndex += 1;
+  }
+
+  if (!integerResult) {
+    integerResult = '零';
+  }
+
+  const jiao = Number(decimalText[0] || 0);
+  const fen = Number(decimalText[1] || 0);
+  let decimalResult = '';
+  if (jiao > 0) {
+    decimalResult += `${digits[jiao]}角`;
+  }
+  if (fen > 0) {
+    if (jiao === 0) {
+      decimalResult += '零';
+    }
+    decimalResult += `${digits[fen]}分`;
+  }
+
+  return `${integerResult}元${decimalResult || '整'}`;
 }
 
 function formatPercent(value) {
@@ -4518,6 +4589,13 @@ onUnmounted(() => {
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 10px 30px rgba(24, 59, 86, 0.04);
+}
+
+.amount-chinese-hint {
+  margin-top: 8px;
+  color: #60748a;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .transfer-grid {

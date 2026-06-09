@@ -562,7 +562,8 @@ async function moveBinding(items, index, direction) {
 }
 
 async function removeBinding(binding) {
-  await ElMessageBox.confirm(`确认解绑策略“${binding.strategy.strategy_name}”吗？`, '解绑确认', {
+  const strategyName = binding?.strategy?.strategy_name || `策略#${binding?.strategy_id || binding?.id || '--'}`;
+  await ElMessageBox.confirm(`确认解绑策略“${strategyName}”吗？`, '解绑确认', {
     type: 'warning',
   });
   await deleteAccountStrategyBinding(accountIdNumber.value, binding.id);

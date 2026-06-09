@@ -187,18 +187,19 @@
                 <div class="builtin-config-grid">
                   <div v-for="field in section.fields" :key="field.path" class="builtin-config-item">
                     <label class="builtin-config-label">{{ getBuiltinFieldLabel(field) }}</label>
-                    <el-input-number
-                      v-if="field.component === 'number' || field.component === 'integer'"
-                      :model-value="getBuiltinFieldValue(field)"
-                      class="full-width"
-                      controls-position="right"
-                      :min="field.min"
-                      :max="field.max"
-                      :step="field.step || 1"
-                      :precision="field.component === 'number' ? field.precision : 0"
-                      @update:model-value="setBuiltinFieldValue(field, $event)"
-                    />
-                    <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
+                    <template v-if="field.component === 'number' || field.component === 'integer'">
+                      <el-input-number
+                        :model-value="getBuiltinFieldValue(field)"
+                        class="full-width"
+                        controls-position="right"
+                        :min="field.min"
+                        :max="field.max"
+                        :step="field.step || 1"
+                        :precision="field.component === 'number' ? field.precision : 0"
+                        @update:model-value="setBuiltinFieldValue(field, $event)"
+                      />
+                      <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
+                    </template>
                     <el-switch
                       v-else-if="field.component === 'boolean'"
                       :model-value="Boolean(getBuiltinFieldValue(field))"
@@ -254,18 +255,19 @@
             <div v-else class="builtin-config-grid">
               <div v-for="field in currentBuiltinFields" :key="field.path" class="builtin-config-item">
                 <label class="builtin-config-label">{{ getBuiltinFieldLabel(field) }}</label>
-                <el-input-number
-                  v-if="field.component === 'number' || field.component === 'integer'"
-                  :model-value="getBuiltinFieldValue(field)"
-                  class="full-width"
-                  controls-position="right"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step || 1"
-                  :precision="field.component === 'number' ? field.precision : 0"
-                  @update:model-value="setBuiltinFieldValue(field, $event)"
-                />
-                <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
+                <template v-if="field.component === 'number' || field.component === 'integer'">
+                  <el-input-number
+                    :model-value="getBuiltinFieldValue(field)"
+                    class="full-width"
+                    controls-position="right"
+                    :min="field.min"
+                    :max="field.max"
+                    :step="field.step || 1"
+                    :precision="field.component === 'number' ? field.precision : 0"
+                    @update:model-value="setBuiltinFieldValue(field, $event)"
+                  />
+                  <div v-if="field.path === 'order.position_ratio'" class="builtin-config-meta">单位：% ，范围 0~100%</div>
+                </template>
                 <el-switch
                   v-else-if="field.component === 'boolean'"
                   :model-value="Boolean(getBuiltinFieldValue(field))"
@@ -339,7 +341,7 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item v-if="!hideRuleConfigEditor" :label="dialog.isBuiltin ? '参数 JSON（高级）' : '规则 JSON'" prop="rule_config_json_text">
+        <el-form-item v-if="shouldShowRuleConfigEditor" :label="dialog.isBuiltin ? '参数 JSON（高级）' : '规则 JSON'" prop="rule_config_json_text">
           <el-input v-model="form.rule_config_json_text" type="textarea" :rows="12" placeholder="请输入合法 JSON" />
         </el-form-item>
       </el-form>
@@ -461,7 +463,19 @@ const createButtonText = computed(() => {
   return '新建执行策略';
 });
 
-const currentBuiltinFields = computed(() => form.config_form_schema?.fields || []);
+function dedupeConfigFields(fields) {
+  const seen = new Set();
+  return (fields || []).filter((field) => {
+    const path = String(field?.path || '').trim();
+    if (!path || seen.has(path)) {
+      return false;
+    }
+    seen.add(path);
+    return true;
+  });
+}
+
+const currentBuiltinFields = computed(() => dedupeConfigFields(form.config_form_schema?.fields || []));
 const isAccountRiskSlotStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_ACCOUNT_RISK_BASE');
 const isOpenPositionBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_OPEN_POSITION_BASE');
 const isIntradayTBuiltinStrategy = computed(() => dialog.isBuiltin && form.strategy_code === 'EXEC_INTRADAY_T_BASE');
@@ -543,7 +557,6 @@ const currentSignalStrategyBindings = computed(() => {
   }
   return [];
 });
-const hideRuleConfigEditor = computed(() => isTailBreakCloseStrategy.value || currentEditableStrategyCategory.value === 'INTRADAY_T');
 const structuredConfigFields = computed(() => {
   if (isOpenPositionBuiltinStrategy.value) {
     return currentBuiltinFields.value || [];
@@ -552,14 +565,23 @@ const structuredConfigFields = computed(() => {
     return currentBuiltinFields.value || [];
   }
   if (isConfigurableOpenPositionStrategy.value) {
-    return CONFIGURABLE_OPEN_POSITION_FIELDS;
+    return dedupeConfigFields(CONFIGURABLE_OPEN_POSITION_FIELDS);
   }
   if (isConfigurableIntradayTStrategy.value) {
-    return CONFIGURABLE_INTRADAY_T_FIELDS;
+    return dedupeConfigFields(CONFIGURABLE_INTRADAY_T_FIELDS);
   }
   return [];
 });
 const showStructuredConfig = computed(() => structuredConfigFields.value.length > 0);
+const shouldShowRuleConfigEditor = computed(() => {
+  if (showStructuredConfig.value) {
+    return false;
+  }
+  if (dialog.isBuiltin && currentBuiltinFields.value.length) {
+    return false;
+  }
+  return !(isTailBreakCloseStrategy.value || currentEditableStrategyCategory.value === 'INTRADAY_T');
+});
 const structuredConfigSections = computed(() => {
   if (!showStructuredConfig.value) {
     return [];
