@@ -116,33 +116,6 @@
         </el-form-item>
         <template v-if="formData.account_type === 'QMT'">
           <el-divider content-position="left">QMT 连接配置</el-divider>
-          <el-form-item label="QMT 客户端目录">
-            <el-input
-              v-model="formData.connection_config_json.client_path"
-              placeholder="例如：D:\国金证券QMT交易端\bin.x64"
-            >
-              <template #append>
-                <el-button
-                  :loading="qmtAutoReading"
-                  @click="triggerQmtConfigPicker"
-                  >选择并自动读取</el-button
-                >
-              </template>
-            </el-input>
-            <input
-              ref="qmtConfigPickerRef"
-              class="hidden-picker"
-              type="file"
-              webkitdirectory
-              directory
-              multiple
-              @change="handleQmtConfigPick"
-            />
-            <div class="form-help-text">
-              选择 QMT 目录后会尝试自动读取“资金账号 /
-              会话ID”。受浏览器安全限制，通常无法回填本机绝对路径。当前建议填写：D:\国金证券QMT交易端\bin.x64。
-            </div>
-          </el-form-item>
           <el-form-item label="接入方式">
             <el-input :model-value="'REMOTE_AGENT（固定）'" disabled />
           </el-form-item>
@@ -271,12 +244,9 @@ const dialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingAccountId = ref(null);
 const accounts = ref([]);
-const qmtConfigPickerRef = ref(null);
-const qmtAutoReading = ref(false);
 
 const QMT_BROKER_NAME = 'GJZQ_QMT';
 const SIM_BROKER_NAME = 'LOCAL_SIM';
-const QMT_DEFAULT_CLIENT_PATH = 'D:\\国金证券QMT交易端\\bin.x64';
 const QMT_DEFAULT_AGENT_BASE_URL = 'http://127.0.0.1:9101';
 
 const initFormData = () => ({
@@ -289,7 +259,6 @@ const initFormData = () => ({
   connection_config_json: {
     gateway_mode: 'REMOTE_AGENT',
     agent_base_url: QMT_DEFAULT_AGENT_BASE_URL,
-    client_path: QMT_DEFAULT_CLIENT_PATH,
     account_id: '',
     account_type: 'STOCK',
     session_id: 900001,
@@ -300,110 +269,6 @@ const initFormData = () => ({
 });
 
 const formData = reactive(initFormData());
-
-function triggerQmtConfigPicker() {
-  qmtConfigPickerRef.value?.click?.();
-}
-
-function normalizeClientPath(value) {
-  return String(value || '')
-    .trim()
-    .replace(/\//g, '\\');
-}
-
-function isAbsoluteClientPath(value) {
-  const normalized = normalizeClientPath(value);
-  return /^[A-Za-z]:\\/.test(normalized) || /^\\\\/.test(normalized);
-}
-
-function tryExtractAccountId(text) {
-  const patterns = [
-    /(?:account[_-]?id|fund[_-]?account|资金账号|证券账号|stock[_-]?account)\s*[:=：]\s*["']?([A-Za-z0-9_-]{5,32})/i,
-    /["']account_id["']\s*[:=]\s*["']?([A-Za-z0-9_-]{5,32})/i,
-  ];
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return String(match[1]).trim();
-  }
-  return '';
-}
-
-function tryExtractSessionId(text) {
-  const patterns = [
-    /(?:session[_-]?id|会话ID|会话id|session)\s*[:=：]\s*["']?(\d{3,10})/i,
-    /["']session_id["']\s*[:=]\s*(\d{3,10})/i,
-  ];
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return Number(match[1]);
-  }
-  return null;
-}
-
-function shouldTryReadFile(file) {
-  const fileName = String(file?.name || '').toLowerCase();
-  const relativePath = String(file?.webkitRelativePath || '').toLowerCase();
-  const allowedExt = ['.json', '.ini', '.cfg', '.conf', '.txt', '.xml', '.log'];
-  const allowedByExt = allowedExt.some((ext) => fileName.endsWith(ext));
-  const allowedByName = /(account|session|config|setting|xt|qmt)/i.test(
-    fileName + relativePath
-  );
-  return (
-    (allowedByExt || allowedByName) && Number(file?.size || 0) <= 1024 * 1024
-  );
-}
-
-async function handleQmtConfigPick(event) {
-  const files = Array.from(event?.target?.files || []);
-  if (!files.length) return;
-
-  qmtAutoReading.value = true;
-  try {
-    let detectedAccountId = '';
-    let detectedSessionId = null;
-    const candidates = files.filter(shouldTryReadFile);
-
-    for (const file of candidates) {
-      if (detectedAccountId && detectedSessionId) break;
-      let text = '';
-      try {
-        text = await file.text();
-      } catch {
-        text = '';
-      }
-      if (!text) continue;
-
-      if (!detectedAccountId) {
-        detectedAccountId = tryExtractAccountId(text);
-      }
-      if (!detectedSessionId) {
-        detectedSessionId = tryExtractSessionId(text);
-      }
-    }
-
-    if (detectedAccountId) {
-      formData.connection_config_json.account_id = detectedAccountId;
-    }
-    if (detectedSessionId) {
-      formData.connection_config_json.session_id = detectedSessionId;
-    }
-
-    if (detectedAccountId || detectedSessionId) {
-      ElMessage.success(
-        '已自动读取资金账号/会话ID。QMT 客户端目录仍需手动填写本机绝对路径。'
-      );
-    } else {
-      ElMessage.warning(
-        '未识别到账号/会话ID，且浏览器无法返回本机绝对路径，请手动填写 QMT 客户端目录。'
-      );
-    }
-  } finally {
-    qmtAutoReading.value = false;
-    if (event?.target) {
-      event.target.value = '';
-    }
-  }
-}
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -482,9 +347,6 @@ function normalizeConnectionConfig(config = {}) {
   return {
     gateway_mode: 'REMOTE_AGENT',
     agent_base_url: config?.agent_base_url || QMT_DEFAULT_AGENT_BASE_URL,
-    client_path: normalizeClientPath(
-      config?.client_path || config?.mini_qmt_path || QMT_DEFAULT_CLIENT_PATH
-    ),
     account_id: config?.account_id || config?.fund_account || '',
     account_type: config?.account_type || 'STOCK',
     session_id: Number(config?.session_id || 900001),
@@ -687,13 +549,17 @@ async function submitForm() {
   try {
     const qmtConnectionConfig =
       formData.account_type === 'QMT'
-        ? {
-            ...formData.connection_config_json,
-            gateway_mode: 'REMOTE_AGENT',
-            agent_base_url:
-              formData.connection_config_json.agent_base_url ||
-              QMT_DEFAULT_AGENT_BASE_URL,
-          }
+        ? (() => {
+            const { client_path, mini_qmt_path, ...restConfig } =
+              formData.connection_config_json || {};
+            return {
+              ...restConfig,
+              gateway_mode: 'REMOTE_AGENT',
+              agent_base_url:
+                formData.connection_config_json.agent_base_url ||
+                QMT_DEFAULT_AGENT_BASE_URL,
+            };
+          })()
         : null;
 
     const payload = isEditMode.value
@@ -723,22 +589,6 @@ async function submitForm() {
         };
 
     if (formData.account_type === 'QMT') {
-      formData.connection_config_json.client_path = normalizeClientPath(
-        formData.connection_config_json.client_path
-      );
-
-      if (!formData.connection_config_json.client_path) {
-        ElMessage.warning('请填写 QMT 客户端目录');
-        submitting.value = false;
-        return;
-      }
-      if (!isAbsoluteClientPath(formData.connection_config_json.client_path)) {
-        ElMessage.warning(
-          'QMT 客户端目录必须填写本机绝对路径，例如 D:\国金证券QMT交易端\bin.x64'
-        );
-        submitting.value = false;
-        return;
-      }
       if (!formData.connection_config_json.account_id) {
         ElMessage.warning('请填写 QMT 资金账号');
         submitting.value = false;
