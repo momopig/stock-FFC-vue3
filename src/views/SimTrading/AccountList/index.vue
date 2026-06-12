@@ -122,10 +122,10 @@
           <el-form-item label="Agent 地址">
             <el-input
               v-model="formData.connection_config_json.agent_base_url"
-              disabled
+              placeholder="例如：http://127.0.0.1:9101"
             />
             <div class="form-help-text">
-              QMT 账户统一通过本机 qmt-agent 转发，不再切换为 LOCAL 模式。
+              QMT 账户统一通过 qmt-agent 转发。开发环境和生产环境可配置不同的 Agent 地址，编辑账户时也可修改。
             </div>
           </el-form-item>
           <el-form-item label="资金账号">
