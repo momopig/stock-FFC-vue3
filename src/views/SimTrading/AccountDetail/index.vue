@@ -175,12 +175,26 @@
           <div class="tab-toolbar">
             <el-space>
               <el-button
+                type="warning"
+                :loading="chipPriceGenerateLoading"
+                :disabled="!positions.length"
+                @click="handleGenerateChipPrices"
+                >{{ manualChipPriceButtonLabel }}</el-button
+              >
+              <el-button
                 :loading="positionRefreshLoading"
                 @click="refreshPositionsOnly()"
                 >刷新持仓与行情</el-button
               >
             </el-space>
           </div>
+          <el-alert
+            :title="manualChipPriceWindowNotice"
+            type="info"
+            :closable="false"
+            show-icon
+            class="position-chip-alert"
+          />
           <el-alert
             v-if="positionCapabilityNotice"
             :title="positionCapabilityNotice"
@@ -1824,6 +1838,7 @@ import {
   cancelSimTradingOrder,
   createSimTradingConditionOrder,
   createSimTradingOrder,
+  generateSimTradingAccountChipPrices,
   getSimTradingAccountActivity,
   depositSimTradingAccount,
   getSimTradingAccountDetail,
@@ -1870,12 +1885,16 @@ const positionEditSubmitting = ref(false);
 const editingPosition = ref(null);
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
+const chipPriceGenerateLoading = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 const POSITION_QUOTE_REFRESH_INTERVAL_MS = 5000;
 const ACTIVITY_PAGE_SIZE = 200;
 let autoRefreshTimer = null;
 let positionQuoteRefreshTimer = null;
 let silentRefreshRunning = false;
+let syncingWorkspace = false;
+const activityLoadedAccountId = ref('');
+const cashFlowLoadedAccountId = ref('');
 const queryForm = reactive({
   keyword: '',
   orderKeyword: '',
@@ -1924,6 +1943,9 @@ const VALID_ACCOUNT_DETAIL_TABS = [
   'query',
   'profit-analysis',
 ];
+
+const ACTIVITY_LAZY_TABS = ['condition', 'cancel', 'query', 'profit-analysis'];
+const CASH_FLOW_LAZY_TABS = ['transfer', 'profit-analysis'];
 
 const buyForm = reactive({
   stock_code: '',
@@ -2061,6 +2083,31 @@ const isDebugModeEnabled = computed(() =>
     currentAccount.value?.debug_mode ??
     false
   )
+);
+const manualChipPriceWindowInfo = computed(() => {
+  const shanghaiNow = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' })
+  );
+  const isAfterClose =
+    shanghaiNow.getHours() > 15 ||
+    (shanghaiNow.getHours() === 15 && shanghaiNow.getMinutes() >= 0);
+  return isAfterClose
+    ? {
+        label: '生成今日筹码集中价',
+        notice:
+          '盘后至当日 24:00 之间，按钮只会生成“今日筹码集中价”；开盘前和盘中则自动回退为“昨日筹码集中价”。',
+      }
+    : {
+        label: '生成昨日筹码集中价',
+        notice:
+          '开盘前和盘中，按钮只会生成“昨日筹码集中价”；盘后至当日 24:00 之间则自动切换为“今日筹码集中价”。',
+      };
+});
+const manualChipPriceButtonLabel = computed(
+  () => manualChipPriceWindowInfo.value.label
+);
+const manualChipPriceWindowNotice = computed(
+  () => manualChipPriceWindowInfo.value.notice
 );
 const currentTradeModeLabel = computed(() =>
   isDebugModeEnabled.value ? '调试模式' : '正常模式'
@@ -3864,14 +3911,34 @@ async function loadAccounts() {
     routeAccountId || (accounts.value[0] ? String(accounts.value[0].id) : '');
 }
 
-async function loadAccountDetail() {
-  if (!activeAccountId.value) {
+function clearAccountScopedState() {
+  detailPayload.value = null;
+  accountStrategyBindings.value = [];
+  openOrders.value = [];
+  allOrders.value = [];
+  conditionOrders.value = [];
+  trades.value = [];
+  cashFlows.value = [];
+  selectedOpenOrderIds.value = [];
+  activityLoadedAccountId.value = '';
+  cashFlowLoadedAccountId.value = '';
+}
+
+function isSameActiveAccount(accountId) {
+  return String(activeAccountId.value || '') === String(accountId || '');
+}
+
+async function loadAccountDetail(accountId = activeAccountId.value) {
+  if (!accountId) {
     detailPayload.value = null;
     return;
   }
-  const res = await getSimTradingAccountDetail(Number(activeAccountId.value));
+  const res = await getSimTradingAccountDetail(Number(accountId));
   if (!res?.success) {
     throw new Error(res?.message || '获取账户详情失败');
+  }
+  if (!isSameActiveAccount(accountId)) {
+    return;
   }
   detailPayload.value = res.payload;
 }
@@ -3880,7 +3947,7 @@ async function refreshPositionsOnly() {
   if (!activeAccountId.value || positionRefreshLoading.value) return;
   positionRefreshLoading.value = true;
   try {
-    await loadAccountDetail();
+    await loadAccountDetail(activeAccountId.value);
   } catch (error) {
     console.error(error);
     ElMessage.error(error?.message || '刷新持仓与行情失败');
@@ -3889,13 +3956,16 @@ async function refreshPositionsOnly() {
   }
 }
 
-async function loadAccountStrategyBindings() {
-  if (!activeAccountId.value) {
+async function loadAccountStrategyBindings(accountId = activeAccountId.value) {
+  if (!accountId) {
     accountStrategyBindings.value = [];
     return;
   }
-  const res = await getAccountStrategyBindings(Number(activeAccountId.value));
+  const res = await getAccountStrategyBindings(Number(accountId));
   if (res?.success) {
+    if (!isSameActiveAccount(accountId)) {
+      return;
+    }
     accountStrategyBindings.value = res.payload?.items || [];
   }
 }
@@ -3915,14 +3985,17 @@ function applyActivitySnapshot(payload) {
     : [];
 }
 
-async function loadLegacyOrders(onlyOpen = false) {
-  if (!activeAccountId.value) return;
+async function loadLegacyOrders(onlyOpen = false, accountId = activeAccountId.value) {
+  if (!accountId) return;
   const res = await getSimTradingOrders({
-    account_id: Number(activeAccountId.value),
+    account_id: Number(accountId),
     page: 1,
     page_size: onlyOpen ? 100 : 200,
     only_open: onlyOpen ? true : null,
   });
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
   if (res?.success) {
     if (onlyOpen) {
       openOrders.value = (res.payload?.items || []).filter((item) =>
@@ -3937,39 +4010,45 @@ async function loadLegacyOrders(onlyOpen = false) {
   }
 }
 
-async function loadLegacyTrades() {
-  if (!activeAccountId.value) return;
+async function loadLegacyTrades(accountId = activeAccountId.value) {
+  if (!accountId) return;
   const res = await getSimTradingTrades({
-    account_id: Number(activeAccountId.value),
+    account_id: Number(accountId),
     page: 1,
     page_size: ACTIVITY_PAGE_SIZE,
   });
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
   if (res?.success) {
     trades.value = res.payload?.items || [];
   }
 }
 
-async function loadLegacyConditionOrders() {
-  if (!activeAccountId.value || !supportsConditionOrder.value) {
+async function loadLegacyConditionOrders(accountId = activeAccountId.value) {
+  if (!accountId || !supportsConditionOrder.value) {
     conditionOrders.value = [];
     return;
   }
   const res = await getSimTradingConditionOrders(
-    Number(activeAccountId.value),
+    Number(accountId),
     {
       page: 1,
       page_size: ACTIVITY_PAGE_SIZE,
     }
   );
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
   if (res?.success) {
     conditionOrders.value = res.payload?.items || [];
   }
 }
 
-async function loadAccountActivitySnapshot() {
-  if (!activeAccountId.value) return;
+async function loadAccountActivitySnapshot(accountId = activeAccountId.value) {
+  if (!accountId) return;
   const res = await getSimTradingAccountActivity(
-    Number(activeAccountId.value),
+    Number(accountId),
     {
       page: 1,
       page_size: ACTIVITY_PAGE_SIZE,
@@ -3978,24 +4057,27 @@ async function loadAccountActivitySnapshot() {
   if (!res?.success) {
     throw new Error(res?.message || '获取账户活动快照失败');
   }
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
   applyActivitySnapshot(res.payload || {});
 }
 
-async function loadActivityPanels() {
-  if (!activeAccountId.value) return;
+async function loadActivityPanels(accountId = activeAccountId.value) {
+  if (!accountId) return;
   if (isQmtAccount.value) {
     try {
-      await loadAccountActivitySnapshot();
+      await loadAccountActivitySnapshot(accountId);
       return;
     } catch (error) {
       console.warn('loadAccountActivitySnapshot fallback', error);
     }
   }
   await Promise.all([
-    loadLegacyOrders(true),
-    loadLegacyOrders(false),
-    loadLegacyConditionOrders(),
-    loadLegacyTrades(),
+    loadLegacyOrders(true, accountId),
+    loadLegacyOrders(false, accountId),
+    loadLegacyConditionOrders(accountId),
+    loadLegacyTrades(accountId),
   ]);
 }
 
@@ -4023,14 +4105,63 @@ async function loadConditionOrders() {
   await loadLegacyConditionOrders();
 }
 
-async function loadCashFlows() {
-  if (!activeAccountId.value) return;
-  const res = await getSimTradingCashFlows(Number(activeAccountId.value), {
+async function loadCashFlows(accountId = activeAccountId.value) {
+  if (!accountId) return;
+  const res = await getSimTradingCashFlows(Number(accountId), {
     page: 1,
     page_size: 200,
   });
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
   if (res?.success) {
     cashFlows.value = res.payload?.items || [];
+  }
+}
+
+function shouldLoadActivityForTab(tabName) {
+  return ACTIVITY_LAZY_TABS.includes(tabName);
+}
+
+function shouldLoadCashFlowsForTab(tabName) {
+  return CASH_FLOW_LAZY_TABS.includes(tabName);
+}
+
+async function ensureActiveTabData(options = {}) {
+  const { force = false, accountId = activeAccountId.value } = options;
+  if (!accountId) {
+    return;
+  }
+
+  const jobs = [];
+  if (
+    shouldLoadActivityForTab(activeTab.value) &&
+    (force || activityLoadedAccountId.value !== String(accountId))
+  ) {
+    jobs.push(
+      loadActivityPanels(accountId).then(() => {
+        if (isSameActiveAccount(accountId)) {
+          activityLoadedAccountId.value = String(accountId);
+        }
+      })
+    );
+  }
+
+  if (
+    shouldLoadCashFlowsForTab(activeTab.value) &&
+    (force || cashFlowLoadedAccountId.value !== String(accountId))
+  ) {
+    jobs.push(
+      loadCashFlows(accountId).then(() => {
+        if (isSameActiveAccount(accountId)) {
+          cashFlowLoadedAccountId.value = String(accountId);
+        }
+      })
+    );
+  }
+
+  if (jobs.length) {
+    await Promise.all(jobs);
   }
 }
 
@@ -4050,19 +4181,20 @@ async function refreshWorkspace(options = {}) {
     pageLoading.value = true;
   }
   try {
+    syncingWorkspace = true;
     await Promise.all([loadAccounts()]);
     await Promise.all([
-      loadAccountDetail(),
-      loadAccountStrategyBindings(),
-      loadActivityPanels(),
-      loadCashFlows(),
+      loadAccountDetail(activeAccountId.value),
+      loadAccountStrategyBindings(activeAccountId.value),
     ]);
+    await ensureActiveTabData({ force: true, accountId: activeAccountId.value });
   } catch (error) {
     console.error(error);
     if (!silent) {
       ElMessage.error(error?.message || '加载交易页面失败');
     }
   } finally {
+    syncingWorkspace = false;
     if (silent) {
       silentRefreshRunning = false;
     } else {
@@ -4093,7 +4225,7 @@ function startPositionQuoteRefresh() {
     ) {
       return;
     }
-    loadAccountDetail().catch((error) => {
+    loadAccountDetail(activeAccountId.value).catch((error) => {
       console.error(error);
     });
   }, POSITION_QUOTE_REFRESH_INTERVAL_MS);
@@ -4124,6 +4256,34 @@ function handleAccountChange(value) {
   });
 }
 
+async function handleGenerateChipPrices() {
+  if (!activeAccountId.value || chipPriceGenerateLoading.value) {
+    return;
+  }
+  chipPriceGenerateLoading.value = true;
+  try {
+    const res = await generateSimTradingAccountChipPrices(Number(activeAccountId.value));
+    if (!res?.success) {
+      throw new Error(res?.message || '生成筹码集中价失败');
+    }
+    const payload = res.payload || {};
+    const successCount = Number(payload.success_count || 0);
+    const failureCount = Number(payload.failure_count || 0);
+    const skippedCount = Number(payload.skipped_count || 0);
+    const summaryText = `${payload.window_label || '筹码集中价'}生成完成：成功 ${successCount} 只，失败 ${failureCount} 只，跳过 ${skippedCount} 只。`;
+    if (failureCount > 0) {
+      ElMessage.warning(summaryText);
+    } else {
+      ElMessage.success(summaryText);
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '生成筹码集中价失败');
+  } finally {
+    chipPriceGenerateLoading.value = false;
+  }
+}
+
 watch(activeTab, (value) => {
   const nextQuery = {
     ...route.query,
@@ -4136,6 +4296,9 @@ watch(activeTab, (value) => {
   router.replace({
     path: '/sim-trading/account-detail',
     query: nextQuery,
+  });
+  ensureActiveTabData().catch((error) => {
+    console.error(error);
   });
 });
 
@@ -4245,14 +4408,23 @@ watch(
   { immediate: true }
 );
 
-watch(activeAccountId, async () => {
-  if (activeAccountId.value) {
+watch(activeAccountId, async (value, oldValue) => {
+  if (!value || value === oldValue || syncingWorkspace) {
+    return;
+  }
+  pageLoading.value = true;
+  clearAccountScopedState();
+  try {
     await Promise.all([
-      loadAccountDetail(),
-      loadAccountStrategyBindings(),
-      loadActivityPanels(),
-      loadCashFlows(),
+      loadAccountDetail(value),
+      loadAccountStrategyBindings(value),
     ]);
+    await ensureActiveTabData({ force: true, accountId: value });
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '切换账户失败');
+  } finally {
+    pageLoading.value = false;
   }
 });
 
