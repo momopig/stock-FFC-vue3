@@ -2085,23 +2085,11 @@ const isDebugModeEnabled = computed(() =>
   )
 );
 const manualChipPriceWindowInfo = computed(() => {
-  const shanghaiNow = new Date(
-    new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' })
-  );
-  const isAfterClose =
-    shanghaiNow.getHours() > 15 ||
-    (shanghaiNow.getHours() === 15 && shanghaiNow.getMinutes() >= 0);
-  return isAfterClose
-    ? {
-        label: '生成今日筹码集中价',
-        notice:
-          '盘后至当日 24:00 之间，按钮只会生成“今日筹码集中价”；开盘前和盘中则自动回退为“昨日筹码集中价”。',
-      }
-    : {
-        label: '生成昨日筹码集中价',
-        notice:
-          '开盘前和盘中，按钮只会生成“昨日筹码集中价”；盘后至当日 24:00 之间则自动切换为“今日筹码集中价”。',
-      };
+  return {
+    label: '生成最后一个完整成交日筹码集中价',
+    notice:
+      '按钮会统一按“最后一个完整成交日”生成筹码集中价，自动跳过周末与节假日，不再区分“今日/昨日”。',
+  };
 });
 const manualChipPriceButtonLabel = computed(
   () => manualChipPriceWindowInfo.value.label
