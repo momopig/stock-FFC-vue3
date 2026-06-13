@@ -81,7 +81,7 @@
           <el-option :value="false" label="仅有效记录" />
           <el-option :value="true" label="包含失效记录" />
         </el-select>
-        <el-button type="primary" :loading="loading" @click="loadChipPrices">
+        <el-button type="primary" :loading="loading" @click="handleQuery">
           查询
         </el-button>
         <el-button @click="resetFilters">重置</el-button>
@@ -92,7 +92,7 @@
       <div class="table-toolbar">
         <div class="toolbar-summary">
           <span>当前记录数</span>
-          <strong>{{ chipPrices.length }}</strong>
+          <strong>{{ chipPricePagination.total }}</strong>
         </div>
         <div class="toolbar-summary">
           <span>查询日期</span>
@@ -103,13 +103,34 @@
       <el-table :data="chipPrices" border v-loading="loading">
         <el-table-column prop="id" label="ID" width="90" sortable />
         <el-table-column prop="stock_code" label="股票代码" min-width="140" />
-        <el-table-column label="股票名称" min-width="140" show-overflow-tooltip>
+        <el-table-column
+          label="股票名称"
+          min-width="140"
+          show-overflow-tooltip
+          column-key="stock_name"
+          :filters="stockNameColumnFilters"
+          :filter-method="filterByStockName"
+        >
           <template #default="scope">
             {{ getStockDisplayName(scope.row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="trade_date" label="交易日期" min-width="120" />
-        <el-table-column prop="time_level" label="时间级别" width="100" />
+        <el-table-column
+          prop="trade_date"
+          label="交易日期"
+          min-width="120"
+          column-key="trade_date"
+          :filters="tradeDateColumnFilters"
+          :filter-method="filterByTradeDate"
+        />
+        <el-table-column
+          prop="time_level"
+          label="时间级别"
+          width="100"
+          column-key="time_level"
+          :filters="timeLevelColumnFilters"
+          :filter-method="filterByTimeLevel"
+        />
         <el-table-column
           prop="concentrated_price"
           label="最强筹码集中价"
@@ -171,6 +192,18 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="table-pagination">
+        <el-pagination
+          v-model:current-page="chipPricePagination.page"
+          v-model:page-size="chipPricePagination.pageSize"
+          background
+          layout="total, sizes, prev, pager, next"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="chipPricePagination.total"
+          @current-change="handleChipPricePageChange"
+          @size-change="handleChipPricePageSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog
@@ -277,7 +310,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -301,6 +334,7 @@ const stockSearchOptions = ref([]);
 const stockNameMap = ref({});
 const selectedQueryStockOption = ref(null);
 const selectedEditorStockOption = ref(null);
+const chipPricePagination = reactive({ page: 1, pageSize: 20, total: 0 });
 
 const EXCHANGE_MAP = {
   SH: 'SH',
@@ -327,6 +361,30 @@ const editorDialog = reactive({
   recordId: null,
 });
 const editorForm = reactive(createInitialEditorForm());
+
+const stockNameColumnFilters = computed(() =>
+  Array.from(
+    new Set(
+      chipPrices.value
+        .map((row) => getStockDisplayName(row))
+        .filter((name) => name && name !== '--')
+    )
+  ).map((name) => ({ text: name, value: name }))
+);
+
+const tradeDateColumnFilters = computed(() =>
+  Array.from(
+    new Set(
+      chipPrices.value
+        .map((row) => String(row?.trade_date || '').trim())
+        .filter(Boolean)
+    )
+  ).map((tradeDate) => ({ text: tradeDate, value: tradeDate }))
+);
+
+const timeLevelColumnFilters = computed(() =>
+  chipTimeLevelOptions.map((item) => ({ text: item.label, value: item.value }))
+);
 
 onMounted(async () => {
   hydrateQueryFromRoute();
@@ -446,6 +504,8 @@ async function loadChipPrices() {
   try {
     const res = await getSignalStrategyChipPrices(
       compactParams({
+        page: chipPricePagination.page,
+        page_size: chipPricePagination.pageSize,
         stock_code: queryForm.stock_code.trim(),
         trade_date: queryForm.trade_date,
         time_levels: queryForm.time_levels,
@@ -453,6 +513,13 @@ async function loadChipPrices() {
       })
     );
     chipPrices.value = res?.payload?.items || [];
+    chipPricePagination.total = Number(res?.payload?.total || 0);
+    chipPricePagination.page = Number(
+      res?.payload?.page || chipPricePagination.page
+    );
+    chipPricePagination.pageSize = Number(
+      res?.payload?.page_size || chipPricePagination.pageSize
+    );
     await hydrateStockNames(chipPrices.value);
   } catch (error) {
     ElMessage.error(error.message || '加载筹码集中价失败');
@@ -461,8 +528,38 @@ async function loadChipPrices() {
   }
 }
 
+function handleQuery() {
+  chipPricePagination.page = 1;
+  loadChipPrices();
+}
+
+function handleChipPricePageChange(nextPage) {
+  chipPricePagination.page = Number(nextPage || 1);
+  loadChipPrices();
+}
+
+function handleChipPricePageSizeChange(nextPageSize) {
+  chipPricePagination.pageSize = Number(nextPageSize || 20);
+  chipPricePagination.page = 1;
+  loadChipPrices();
+}
+
+function filterByStockName(filterValue, row) {
+  return getStockDisplayName(row) === filterValue;
+}
+
+function filterByTradeDate(filterValue, row) {
+  return String(row?.trade_date || '') === String(filterValue || '');
+}
+
+function filterByTimeLevel(filterValue, row) {
+  return String(row?.time_level || '') === String(filterValue || '');
+}
+
 function resetFilters() {
   Object.assign(queryForm, createInitialQueryForm());
+  chipPricePagination.page = 1;
+  chipPricePagination.pageSize = 20;
   stockSearchOptions.value = [];
   selectedQueryStockOption.value = null;
   hydrateQueryFromRoute();
@@ -765,6 +862,12 @@ function formatNumber(value) {
 .chip-price-strong {
   display: inline-block;
   white-space: nowrap;
+}
+
+.table-pagination {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 @media (max-width: 768px) {
