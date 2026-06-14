@@ -21,7 +21,7 @@
               v-for="group in groups"
               :key="group.id"
               :name="String(group.id)"
-              :closable="group.create_type !== 'system'"
+              :closable="!isBuiltInGroup(group)"
             >
               <template #label>
                 <span class="group-tab-label" :title="group?.name">{{
@@ -63,6 +63,12 @@
       :pageSize="page.pageSize"
       :isSelfSelected="true"
       :showAddToSelfButton="true"
+      :showAddToRecycleButton="activeGroupId !== String(recycleGroup?.id || '')"
+      :showGroupMembershipColumn="activeGroupId === ALL_GROUP_TAB_ID"
+      :enableBatchActions="true"
+      :showBulkDeleteButton="true"
+      :showBulkAddToGroupButton="true"
+      :showBulkAddToRecycleButton="true"
       @page-change="handlePageChange"
       @size-change="handlePageSizeChange"
       @search="handleSearchEvent"
@@ -72,8 +78,14 @@
       @status-change="handleStatusChange"
       @add-stock="addStockFn"
       @add-to-self="handleAddToSelf"
+      @add-to-recycle="handleAddToRecycle"
       @remove-from-self="handleRemoveFromSelf"
       @filter-change="handleFilterChange"
+      @open-group="handleOpenGroup"
+      @selection-change="handleSelectionChange"
+      @bulk-delete="handleBulkDelete"
+      @bulk-add-to-group="handleBulkAddToGroup"
+      @bulk-add-to-recycle="handleBulkAddToRecycle"
     />
 
     <!-- 股票添加/编辑对话框 -->
@@ -93,7 +105,7 @@
       v-model:visible="addToGroupDialogVisible"
       :stock-data="selectedStockData"
       :strategy-info="selectedStrategyInfo"
-      @submit="handleAddToGroupSubmit"
+      @submit="handleAddToGroupSubmitWrapped"
     />
   </div>
 </template>
@@ -102,6 +114,7 @@
 import {
   ref,
   reactive,
+  computed,
   onMounted,
   onBeforeUnmount,
   nextTick,
@@ -111,7 +124,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useGetDerivedNamespace } from 'element-plus';
 import Sortable from 'sortablejs';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   getUserGroups,
   createGroup,
@@ -137,9 +150,12 @@ import { useStockListPagingHandlers } from '../composables/useStockListPagingHan
 import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow';
 
 const route = useRoute();
+const router = useRouter();
 
 // 分组相关数据
 const ALL_GROUP_TAB_ID = 'all';
+const SELF_GROUP_NAME = '自选';
+const RECYCLE_GROUP_NAME = '回收站';
 const groups = ref([]);
 const activeGroupId = ref(ALL_GROUP_TAB_ID);
 const groupLoading = ref(false);
@@ -174,6 +190,35 @@ function getTargetGroupIdFromRoute() {
   return String(rawGroupId || '');
 }
 
+function isRecycleGroup(group) {
+  return String(group?.name || '').trim() === RECYCLE_GROUP_NAME;
+}
+
+function isSelfGroup(group) {
+  return String(group?.name || '').trim() === SELF_GROUP_NAME;
+}
+
+function isBuiltInGroup(group) {
+  return group?.create_type === 'system' || isRecycleGroup(group);
+}
+
+function sortGroupsForDisplay(groupItems) {
+  const sortedByOrder = [...groupItems].sort(
+    (a, b) => (a.display_order || 0) - (b.display_order || 0)
+  );
+  const selfGroup = sortedByOrder.find((item) => isSelfGroup(item));
+  const recycle = sortedByOrder.find((item) => isRecycleGroup(item));
+  const rest = sortedByOrder.filter(
+    (item) => item.id !== selfGroup?.id && item.id !== recycle?.id
+  );
+
+  const result = [];
+  if (selfGroup) result.push(selfGroup);
+  if (recycle) result.push(recycle);
+  result.push(...rest);
+  return result;
+}
+
 function applyRouteGroupId() {
   const targetGroupId = getTargetGroupIdFromRoute();
   if (!targetGroupId || targetGroupId === 'add') return;
@@ -196,6 +241,14 @@ const tableLoading = ref(false);
 const dialogVisible = ref(false);
 const isViewMode = ref(false);
 const isEditMode = ref(false);
+const selectedRows = ref([]);
+const bulkAddRows = ref([]);
+
+const recycleGroup = computed(() =>
+  groups.value.find(
+    (group) => String(group?.name || '').trim() === RECYCLE_GROUP_NAME
+  )
+);
 
 // 分页参数
 const page = reactive({
@@ -286,6 +339,8 @@ onBeforeUnmount(() => {
 });
 
 const shouldUseGroupQuoteStream = () =>
+  !String(searchParams.stock_code || '').trim() &&
+  !String(searchParams.stock_name || '').trim() &&
   !searchParams.snapshot_date &&
   document.visibilityState === 'visible' &&
   !tableLoading.value &&
@@ -515,10 +570,7 @@ const fetchGroups = async () => {
     const response = await getUserGroups();
     if (response?.success) {
       const items = response.payload?.items || [];
-      // 按 display_order 排序
-      groups.value = items.sort(
-        (a, b) => (a.display_order || 0) - (b.display_order || 0)
-      );
+      groups.value = sortGroupsForDisplay(items);
 
       // 如果没有选中分组或当前分组不存在，默认选中“全部”标签
       if (
@@ -609,9 +661,9 @@ const handleTabEdit = async (targetName, action) => {
     const group = groups.value.find((g) => g.id === groupId);
     if (!group) return;
 
-    // 系统分组不允许删除
-    if (group.create_type === 'system') {
-      ElMessage.warning('系统分组不允许删除');
+    // 内置分组不允许删除
+    if (isBuiltInGroup(group)) {
+      ElMessage.warning('内置分组不允许删除');
       return;
     }
 
@@ -750,6 +802,77 @@ const getStockList = async (additionalSearchParams = {}) => {
 const flattenGroupStockData = (stock) => {
   const quote = stock?.quote || {};
   const initialPrice = stock.initial_price ? Number(stock.initial_price) : null;
+  const resolveGroupNameById = (groupId) => {
+    if (groupId === null || groupId === undefined || groupId === '') {
+      return '';
+    }
+    return (
+      groups.value.find((group) => Number(group.id) === Number(groupId))
+        ?.name || ''
+    );
+  };
+  const normalizeMembership = (item = {}) => {
+    const id = item?.id ?? item?.group_id ?? null;
+    const groupId = item?.group_id ?? item?.id ?? null;
+    const name =
+      item?.name ??
+      item?.group_name ??
+      resolveGroupNameById(id ?? groupId) ??
+      '';
+    return {
+      id,
+      group_id: groupId,
+      name,
+      group_name: name,
+      item_id: item?.item_id ?? null,
+    };
+  };
+  const rawGroupMemberships = Array.isArray(stock.group_memberships)
+    ? stock.group_memberships
+    : [];
+  const pairGroupMemberships =
+    Array.isArray(stock.group_ids) || Array.isArray(stock.group_names)
+      ? (stock.group_ids || []).map((groupId, index) => ({
+          id: groupId,
+          group_id: groupId,
+          name: stock.group_names?.[index] || resolveGroupNameById(groupId),
+          group_name:
+            stock.group_names?.[index] || resolveGroupNameById(groupId),
+          item_id: stock.id ?? null,
+        }))
+      : [];
+  const singleGroupMembership =
+    stock.group_id || stock.group_name
+      ? [
+          {
+            id: stock.group_id ?? null,
+            group_id: stock.group_id ?? null,
+            name: stock.group_name || resolveGroupNameById(stock.group_id),
+            group_name:
+              stock.group_name || resolveGroupNameById(stock.group_id),
+            item_id: stock.id ?? null,
+          },
+        ]
+      : [];
+  const combinedMemberships = [
+    ...rawGroupMemberships,
+    ...pairGroupMemberships,
+    ...singleGroupMembership,
+  ]
+    .map((item) => normalizeMembership(item))
+    .filter((item) => item.name);
+  const groupMemberships = Array.from(
+    new Map(
+      combinedMemberships.map((item) => [
+        `${item.id ?? item.group_id ?? ''}::${item.name}`,
+        item,
+      ])
+    ).values()
+  );
+  const groupNames = groupMemberships.map((item) => item.name).filter(Boolean);
+  const groupIds = groupMemberships
+    .map((item) => item.id ?? item.group_id)
+    .filter((id) => id !== null && id !== undefined);
 
   const mappedStock = {
     id: stock.id, // 这是分组内的 item_id，用于编辑和删除
@@ -768,6 +891,9 @@ const flattenGroupStockData = (stock) => {
     notes: stock.remark || '',
     updated_time: stock.updated_at || '',
     statusLoading: false,
+    group_memberships: groupMemberships,
+    group_names: groupNames,
+    group_ids: groupIds,
     ...mapQuoteToFlatRowFields(quote, initialPrice),
   };
 
@@ -798,6 +924,163 @@ const {
 } = useAddToGroupDialogFlow({
   onSuccess: () => getStockList(),
 });
+
+const openRouteInNewTab = (location) => {
+  const resolvedRoute = router.resolve(location);
+  window.open(resolvedRoute.href, '_blank', 'noopener');
+};
+
+const handleOpenGroup = (group) => {
+  const groupId = group?.id ?? group?.group_id;
+  if (groupId === null || groupId === undefined || groupId === '') {
+    return;
+  }
+  openRouteInNewTab({
+    path: '/stock-pool/self-selected',
+    query: {
+      groupId: String(groupId),
+    },
+  });
+};
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = Array.isArray(rows) ? rows : [];
+};
+
+const removeRowLocally = (rowId) => {
+  stockList.value = stockList.value.filter((item) => item.id !== rowId);
+  page.total = Math.max(0, Number(page.total || 0) - 1);
+  calculateInsightsFromList();
+};
+
+const handleAddToRecycle = async (row) => {
+  if (!recycleGroup.value?.id) {
+    ElMessage.error('未找到回收站分组，请先创建“回收站”分组');
+    return;
+  }
+  try {
+    const addResult = await addStockToGroups({
+      group_ids: [recycleGroup.value.id],
+      exchange_code: row.exchange_code,
+      stock_code: row.stock_code,
+      stock_name: row.stock_name,
+      initial_price: row.initial_price || 0,
+      add_reason: row.add_reason || '',
+      remark: row.notes || '',
+    });
+    if (addResult?.success === false) {
+      ElMessage.error(addResult?.message || '加入回收站失败');
+      return;
+    }
+
+    if (activeGroupId.value !== ALL_GROUP_TAB_ID && row.id) {
+      const removeResult = await removeStockFromGroup(row.id);
+      if (removeResult?.success === false) {
+        ElMessage.error(removeResult?.message || '从当前分组移除失败');
+        return;
+      }
+    }
+
+    removeRowLocally(row.id);
+    ElMessage.success('已加入回收站');
+  } catch (error) {
+    console.error('加入回收站失败:', error);
+    ElMessage.error('加入回收站失败，请稍后重试');
+  }
+};
+
+const handleBulkDelete = async (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要删除的股票');
+    return;
+  }
+  let successCount = 0;
+  let failCount = 0;
+  for (const row of targets) {
+    try {
+      const result = await removeStockFromGroup(row.id);
+      if (result?.success !== false) {
+        successCount += 1;
+        removeRowLocally(row.id);
+      } else {
+        failCount += 1;
+      }
+    } catch {
+      failCount += 1;
+    }
+  }
+  selectedRows.value = [];
+  ElMessage.success(
+    `批量删除完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+  );
+};
+
+const handleBulkAddToGroup = (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要加入分组的股票');
+    return;
+  }
+  bulkAddRows.value = [...targets];
+  handleAddToSelf(targets[0]);
+};
+
+const handleAddToGroupSubmitWrapped = async (submitData) => {
+  if (!bulkAddRows.value.length) {
+    await handleAddToGroupSubmit(submitData);
+    return;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+  for (const row of bulkAddRows.value) {
+    try {
+      const result = await addStockToGroups({
+        group_ids: submitData.group_ids,
+        exchange_code: row.exchange_code,
+        stock_code: row.stock_code,
+        stock_name: row.stock_name,
+        add_time: submitData.add_time || null,
+        initial_price: submitData.initial_price || row.initial_price || 0,
+        add_reason: submitData.add_reason || row.add_reason || '',
+        remark: submitData.remark || row.notes || '',
+      });
+      if (result?.success !== false) {
+        successCount += 1;
+      } else {
+        failCount += 1;
+      }
+    } catch {
+      failCount += 1;
+    }
+  }
+
+  ElMessage.success(
+    `批量加入分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+  );
+  bulkAddRows.value = [];
+  addToGroupDialogVisible.value = false;
+  selectedStockData.value = null;
+  selectedStrategyInfo.value = null;
+  selectedRows.value = [];
+  getStockList();
+};
+
+const handleBulkAddToRecycle = async (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要加入回收站的股票');
+    return;
+  }
+
+  for (const row of targets) {
+    // 逐条处理，保证复用已有单条逻辑与提示。
+    // eslint-disable-next-line no-await-in-loop
+    await handleAddToRecycle(row);
+  }
+  selectedRows.value = [];
+};
 
 // 查看股票详情
 const handleViewStock = (id) => {

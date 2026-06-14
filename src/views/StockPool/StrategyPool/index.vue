@@ -25,6 +25,10 @@
           :showAddButton="false"
           :showAddToSelfButton="true"
           :showAddToWatchButton="userStore.userInfo?.is_superuser"
+          :enableBatchActions="true"
+          :showBulkDeleteButton="true"
+          :showBulkAddToGroupButton="true"
+          :showBulkAddToWatchButton="userStore.userInfo?.is_superuser"
           @page-change="handlePageChange"
           @size-change="handlePageSizeChange"
           @search="handleSearchEvent"
@@ -37,6 +41,10 @@
           @add-to-watch="handleAddToWatch"
           @remove-from-self="handleRemoveFromSelf"
           @filter-change="handleFilterChange"
+          @selection-change="handleSelectionChange"
+          @bulk-delete="handleBulkDelete"
+          @bulk-add-to-group="handleBulkAddToGroup"
+          @bulk-add-to-watch="handleBulkAddToWatch"
         />
       </el-tab-pane>
 
@@ -76,14 +84,14 @@
       v-model:visible="addToGroupDialogVisible"
       :stock-data="selectedStockData"
       :strategy-info="selectedStrategyInfo"
-      @submit="handleAddToGroupSubmit"
+      @submit="handleAddToGroupSubmitWrapped"
     />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getStrategyList } from '@/api/modules/strategy';
 import {
   getStockPoolList,
@@ -105,6 +113,7 @@ import { useStockInsights } from '../composables/useStockInsights';
 import { useStockListPagingHandlers } from '../composables/useStockListPagingHandlers';
 import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow';
 import { useStockRowStatusChange } from '../composables/useStockRowStatusChange';
+import { addStockToGroups } from '@/api/modules/stockGroup';
 
 // 用户状态管理
 const userStore = UserStore();
@@ -120,6 +129,8 @@ const tableLoading = ref(false);
 const dialogVisible = ref(false);
 const isViewMode = ref(false);
 const isEditMode = ref(false);
+const selectedRows = ref([]);
+const bulkAddRows = ref([]);
 
 // 分页参数
 const page = reactive({
@@ -284,6 +295,134 @@ const {
 } = useAddToGroupDialogFlow({
   onSuccess: () => getStockList(),
 });
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = Array.isArray(rows) ? rows : [];
+};
+
+const handleBulkDelete = async (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要删除的股票');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定批量删除 ${targets.length} 只股票吗？`,
+      '批量删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+  for (const row of targets) {
+    try {
+      const result = await deleteStock(row.id);
+      if (result?.success !== false) {
+        successCount += 1;
+      } else {
+        failCount += 1;
+      }
+    } catch {
+      failCount += 1;
+    }
+  }
+
+  ElMessage.success(
+    `批量删除完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+  );
+  selectedRows.value = [];
+  getStockList(null, {}, { force: true });
+};
+
+const handleBulkAddToGroup = (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要加入分组的股票');
+    return;
+  }
+  bulkAddRows.value = [...targets];
+  handleAddToSelf(targets[0]);
+};
+
+const handleAddToGroupSubmitWrapped = async (submitData) => {
+  if (!bulkAddRows.value.length) {
+    await handleAddToGroupSubmit(submitData);
+    return;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+  for (const row of bulkAddRows.value) {
+    try {
+      const result = await addStockToGroups({
+        group_ids: submitData.group_ids,
+        exchange_code: row.exchange_code,
+        stock_code: row.stock_code,
+        stock_name: row.stock_name,
+        add_time: submitData.add_time || null,
+        initial_price: submitData.initial_price || row.initial_price || 0,
+        add_reason: submitData.add_reason || row.add_reason || '',
+        remark: submitData.remark || row.notes || '',
+      });
+      if (result?.success !== false) {
+        successCount += 1;
+      } else {
+        failCount += 1;
+      }
+    } catch {
+      failCount += 1;
+    }
+  }
+
+  ElMessage.success(
+    `批量加入分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+  );
+  bulkAddRows.value = [];
+  addToGroupDialogVisible.value = false;
+  selectedStockData.value = null;
+  selectedStrategyInfo.value = null;
+  selectedRows.value = [];
+  getStockList(null, {}, { force: true });
+};
+
+const handleBulkAddToWatch = async (rows) => {
+  const targets = Array.isArray(rows) ? rows : selectedRows.value;
+  if (!targets.length) {
+    ElMessage.warning('请先选择要加入观察的股票');
+    return;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+  for (const row of targets) {
+    try {
+      const result = await updateStock(row.id, {
+        is_self_selected: true,
+      });
+      if (result?.success !== false) {
+        successCount += 1;
+      } else {
+        failCount += 1;
+      }
+    } catch {
+      failCount += 1;
+    }
+  }
+
+  ElMessage.success(
+    `批量加入观察完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+  );
+  selectedRows.value = [];
+  getStockList(null, {}, { force: true });
+};
 
 // 查看股票详情
 const handleViewStock = (id) => {

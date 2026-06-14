@@ -58,8 +58,8 @@ export const menuList = [
         path: '/stock-pool/strategy',
       },
       {
-        name: '自选股票池',
-        foldName: '自选股票池',
+        name: '自选分组股票池',
+        foldName: '自选分组股票池',
         path: '/stock-pool/self-selected',
       },
       {
