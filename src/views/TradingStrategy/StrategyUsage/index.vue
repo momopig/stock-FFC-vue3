@@ -34,7 +34,8 @@
           </div>
           <div class="usage-card">
             <span>最近执行</span>
-            <strong>{{ usageSummary.latest_result_code || '暂无' }}</strong>
+            <strong class="usage-bilingual-main">{{ getResultCodeLabel(usageSummary.latest_result_code).cn }}</strong>
+            <small class="usage-bilingual-sub">{{ getResultCodeLabel(usageSummary.latest_result_code).en || '暂无' }}</small>
             <small>{{ formatDateTime(usageSummary.latest_dispatch_time) }}</small>
           </div>
         </div>
@@ -73,7 +74,12 @@
           <el-table-column prop="priority" label="优先级" width="90" />
           <el-table-column prop="bound_config_version" label="版本" width="80" />
           <el-table-column label="最近结果" min-width="160">
-            <template #default="scope">{{ scope.row.last_execute_result || '-' }}</template>
+            <template #default="scope">
+              <div class="bilingual-code-cell">
+                <span class="bilingual-code-cn">{{ getResultCodeLabel(scope.row.last_execute_result).cn }}</span>
+                <span class="bilingual-code-en">{{ getResultCodeLabel(scope.row.last_execute_result).en || '-' }}</span>
+              </div>
+            </template>
           </el-table-column>
           <el-table-column label="最近执行时间" min-width="180">
             <template #default="scope">{{ formatDateTime(scope.row.last_execute_time) }}</template>
@@ -119,6 +125,7 @@ import {
 import { deleteAccountStrategyBinding } from '@/api/modules/simTradingStrategy';
 import { getSignalStrategyOptions } from '@/api/modules/signalStrategy';
 import { useTabsStore } from '@/composables/useTabsStore';
+import { getStrategyResultLabel } from '@/utils/strategyCodeLabels';
 
 const route = useRoute();
 const router = useRouter();
@@ -295,6 +302,10 @@ function goBack() {
   addTab('/trading-strategy/execution', '执行策略管理');
   router.push('/trading-strategy/execution');
 }
+
+function getResultCodeLabel(code) {
+  return getStrategyResultLabel(code);
+}
 </script>
 
 <style scoped>
@@ -320,6 +331,23 @@ function goBack() {
 .page-header h2 {
   margin: 0;
   font-size: 24px;
+}
+
+.bilingual-code-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.bilingual-code-cn,
+.usage-bilingual-main {
+  color: #303133;
+}
+
+.bilingual-code-en,
+.usage-bilingual-sub {
+  color: #909399;
+  font-size: 12px;
 }
 
 .page-header p {

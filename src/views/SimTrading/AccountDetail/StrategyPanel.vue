@@ -99,8 +99,13 @@
               </el-table-column>
               <el-table-column prop="priority" label="优先级" width="90" />
               <el-table-column prop="bound_config_version" label="版本" width="80" />
-              <el-table-column prop="last_execute_result" label="最近结果" min-width="140">
-                <template #default="scope">{{ scope.row.last_execute_result || '-' }}</template>
+              <el-table-column prop="last_execute_result" label="最近结果" min-width="180">
+                <template #default="scope">
+                  <div class="bilingual-code-cell">
+                    <span class="bilingual-code-cn">{{ getResultCodeLabel(scope.row.last_execute_result).cn }}</span>
+                    <span class="bilingual-code-en">{{ getResultCodeLabel(scope.row.last_execute_result).en || '-' }}</span>
+                  </div>
+                </template>
               </el-table-column>
               <el-table-column label="风控参数" min-width="220">
                 <template #default="scope">
@@ -167,10 +172,22 @@
           <el-table-column label="分类" width="130">
             <template #default="scope">{{ getCategoryLabel(scope.row.strategy_category) }}</template>
           </el-table-column>
-          <el-table-column prop="action_code" label="动作" width="160">
-            <template #default="scope">{{ scope.row.action_code || '-' }}</template>
+          <el-table-column prop="action_code" label="动作" width="190">
+            <template #default="scope">
+              <div class="bilingual-code-cell">
+                <span class="bilingual-code-cn">{{ getActionCodeLabel(scope.row.action_code).cn }}</span>
+                <span class="bilingual-code-en">{{ getActionCodeLabel(scope.row.action_code).en || '-' }}</span>
+              </div>
+            </template>
           </el-table-column>
-          <el-table-column prop="result_code" label="结果" width="180" />
+          <el-table-column prop="result_code" label="结果" width="220">
+            <template #default="scope">
+              <div class="bilingual-code-cell">
+                <span class="bilingual-code-cn">{{ getResultCodeLabel(scope.row.result_code).cn }}</span>
+                <span class="bilingual-code-en">{{ getResultCodeLabel(scope.row.result_code).en || '-' }}</span>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="trigger_reason" label="原因" min-width="260">
             <template #default="scope">
               <div class="reason-cell">{{ scope.row.trigger_reason || scope.row.system_remark || '-' }}</div>
@@ -300,6 +317,7 @@ import {
 } from '@/api/modules/simTradingStrategy';
 import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
+import { getStrategyActionLabel, getStrategyResultLabel } from '@/utils/strategyCodeLabels';
 
 
 const props = defineProps({
@@ -904,6 +922,14 @@ function formatCoordinationBudget(value) {
   }
   return formatMoney(num);
 }
+
+function getActionCodeLabel(code) {
+  return getStrategyActionLabel(code);
+}
+
+function getResultCodeLabel(code) {
+  return getStrategyResultLabel(code);
+}
 </script>
 
 <style scoped>
@@ -1020,6 +1046,21 @@ function formatCoordinationBudget(value) {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
+}
+
+.bilingual-code-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.bilingual-code-cn {
+  color: #303133;
+}
+
+.bilingual-code-en {
+  color: #909399;
+  font-size: 12px;
 }
 
 .coordination-tags {
