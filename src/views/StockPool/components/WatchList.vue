@@ -92,7 +92,7 @@ const {
 // 页面加载时获取重点观察列表（每次 v-if 挂载时触发）
 onMounted(() => {
   getWatchStockList();
-  startLiveRefresh();
+  // startLiveRefresh();
 });
 
 onBeforeUnmount(() => {

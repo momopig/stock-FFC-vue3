@@ -10,18 +10,18 @@
           <el-input
             class="search-input"
             v-model="localSearchQuery.stock_code"
-            placeholder="搜索股票代码"
+            placeholder="搜索股票代码，多个使用空格或逗号隔开"
             clearable
             @keyup.enter="handleSearch"
-            style="width: 150px; margin-right: 10px"
+            style="width: 300px; margin-right: 10px"
           />
           <el-input
             class="search-input"
             v-model="localSearchQuery.stock_name"
-            placeholder="搜索股票名称"
+            placeholder="搜索股票名称，多个使用空格或逗号隔开"
             clearable
             @keyup.enter="handleSearch"
-            style="width: 150px; margin-right: 10px"
+            style="width: 300px; margin-right: 10px"
           />
           <el-select
             v-model="localFilterParams.exchange_code"
@@ -68,6 +68,45 @@
             >搜索</el-button
           >
           <el-button class="search-btn" @click="handleReset">重置</el-button>
+          <template v-if="enableBatchActions">
+            <el-tag type="info">已选 {{ selectedRows.length }} 项</el-tag>
+            <el-button
+              v-if="showBulkDeleteButton"
+              class="search-btn"
+              type="danger"
+              :disabled="!selectedRows.length"
+              @click="handleBulkDelete"
+            >
+              批量删除
+            </el-button>
+            <el-button
+              v-if="showBulkAddToGroupButton"
+              class="search-btn"
+              type="primary"
+              :disabled="!selectedRows.length"
+              @click="handleBulkAddToGroup"
+            >
+              批量加入分组
+            </el-button>
+            <el-button
+              v-if="showBulkAddToWatchButton"
+              class="search-btn"
+              type="warning"
+              :disabled="!selectedRows.length"
+              @click="handleBulkAddToWatch"
+            >
+              批量加入观察
+            </el-button>
+            <el-button
+              v-if="showBulkAddToRecycleButton"
+              class="search-btn"
+              type="warning"
+              :disabled="!selectedRows.length"
+              @click="handleBulkAddToRecycle"
+            >
+              批量加入回收站
+            </el-button>
+          </template>
           <el-button
             v-if="showAddButton"
             class="add-stock-btn"
@@ -103,12 +142,21 @@
               : 'calc(100vh - 440px)'
         "
         :data="props.stockList"
+        :row-key="getRowKey"
         v-loading="loading"
         element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
         @filter-change="handleTableDisplayChange"
         @sort-change="handleTableDisplayChange"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column
+          v-if="enableBatchActions"
+          type="selection"
+          width="54"
+          align="center"
+          reserve-selection
+        />
         <el-table-column
           v-for="item in columns"
           :key="item.key"
@@ -155,6 +203,15 @@
                       isSelfSelected ? '加入新分组' : '加入分组'
                     }}</span>
                   </el-button>
+                  <el-button
+                    v-if="showAddToRecycleButton"
+                    link
+                    type="warning"
+                    @click.stop="$emit('add-to-recycle', row)"
+                  >
+                    <el-icon style="margin-right: 0px"><Remove /></el-icon>
+                    <span>加入回收站</span>
+                  </el-button>
                   <!-- 加入观察按钮（仅超管可见） -->
                   <el-button
                     v-if="
@@ -177,7 +234,7 @@
                     <el-icon style="margin-right: 4px;"><Remove /></el-icon>
                     <span>取消自选</span>
                   </el-button> -->
-                  <!-- 自选股票池：显示取消自选按钮 -->
+                  <!-- 自选分组股票池：显示取消自选按钮 -->
                   <!-- <el-button
                     v-if="showRemoveFromSelfButton"
                     link
@@ -334,6 +391,30 @@
             <span v-else class="ellipsis" :title="row[item.prop] || '--'">
               {{ row[item.prop] || '--' }}
             </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          v-if="showGroupMembershipColumn"
+          prop="group_memberships"
+          label="所在分组"
+          min-width="220"
+        >
+          <template #default="{ row }">
+            <div class="group-memberships-cell">
+              <el-button
+                v-for="group in getGroupMemberships(row)"
+                :key="`${group.id || group.name}-${row.id}`"
+                link
+                type="primary"
+                @click="handleOpenGroup(group)"
+              >
+                {{ group.name }}
+              </el-button>
+              <span v-if="!getGroupMemberships(row).length" class="text-muted"
+                >--</span
+              >
+            </div>
           </template>
         </el-table-column>
 
@@ -565,12 +646,12 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  // 是否显示"取消自选"按钮（自选股票池专用）
+  // 是否显示"取消自选"按钮（自选分组股票池专用）
   showRemoveFromSelfButton: {
     type: Boolean,
     default: false,
   },
-  // 是否是自选股票池
+  // 是否是自选分组股票池
   isSelfSelected: {
     type: Boolean,
     default: false,
@@ -589,6 +670,34 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  enableBatchActions: {
+    type: Boolean,
+    default: false,
+  },
+  showBulkDeleteButton: {
+    type: Boolean,
+    default: false,
+  },
+  showBulkAddToGroupButton: {
+    type: Boolean,
+    default: false,
+  },
+  showBulkAddToWatchButton: {
+    type: Boolean,
+    default: false,
+  },
+  showBulkAddToRecycleButton: {
+    type: Boolean,
+    default: false,
+  },
+  showAddToRecycleButton: {
+    type: Boolean,
+    default: false,
+  },
+  showGroupMembershipColumn: {
+    type: Boolean,
+    default: false,
+  },
 });
 const userStore = UserStore();
 // Emits 定义
@@ -604,8 +713,15 @@ const emit = defineEmits([
   'add-stock',
   'add-to-self',
   'add-to-watch',
+  'add-to-recycle',
   'remove-from-self',
   'filter-change',
+  'selection-change',
+  'bulk-delete',
+  'bulk-add-to-group',
+  'bulk-add-to-watch',
+  'bulk-add-to-recycle',
+  'open-group',
 ]);
 
 // 本地搜索和筛选状态
@@ -627,11 +743,22 @@ const stabilityFiltersCache = new WeakMap();
 const maTrendFiltersCache = new WeakMap();
 const riskSignsFiltersCache = new WeakMap();
 const tableRef = ref(null);
+const selectedRows = ref([]);
 
 const getDisplayedStockList = () => {
   const tableData = tableRef.value?.store?.states?.data;
   const displayedRows = tableData?.value ?? tableData;
   return Array.isArray(displayedRows) ? displayedRows : props.stockList;
+};
+
+const getRowKey = (row) => {
+  if (row?.id !== null && row?.id !== undefined && row?.id !== '') {
+    return String(row.id);
+  }
+  const exchangeCode = row?.exchange_code || '';
+  const stockCode = row?.stock_code || '';
+  const groupId = row?.group_id ?? row?.groupId ?? '';
+  return `${exchangeCode}:${stockCode}:${groupId}`;
 };
 
 // 勿用 deep：大列表含 kline/ma/risk 等深层字段时，深度监听会极慢并阻塞 tab 绘制
@@ -1013,15 +1140,15 @@ const handleSearch = () => {
     const searchParams = {};
 
     // 股票代码搜索
-    const stockCode = localSearchQuery.stock_code?.trim() || '';
-    if (stockCode) {
-      searchParams.stock_code = stockCode;
+    const stockCodeTokens = splitBatchKeywords(localSearchQuery.stock_code);
+    if (stockCodeTokens.length) {
+      searchParams.stock_code = stockCodeTokens.join(',');
     }
 
     // 股票名称搜索
-    const stockName = localSearchQuery.stock_name?.trim() || '';
-    if (stockName) {
-      searchParams.stock_name = stockName;
+    const stockNameTokens = splitBatchKeywords(localSearchQuery.stock_name);
+    if (stockNameTokens.length) {
+      searchParams.stock_name = stockNameTokens.join(',');
     }
 
     // 交易所代码
@@ -1049,6 +1176,58 @@ const handleReset = () => {
   localFilterParams.snapshot_date = '';
   // 重置时触发搜索接口，清空搜索条件
   emit('search', {}, { force: true });
+};
+
+const splitBatchKeywords = (rawValue) => {
+  return String(rawValue || '')
+    .split(/[\s,，、;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = Array.isArray(rows) ? rows : [];
+  emit('selection-change', selectedRows.value);
+};
+
+const handleBulkDelete = () => {
+  emit('bulk-delete', selectedRows.value);
+};
+
+const handleBulkAddToGroup = () => {
+  emit('bulk-add-to-group', selectedRows.value);
+};
+
+const handleBulkAddToWatch = () => {
+  emit('bulk-add-to-watch', selectedRows.value);
+};
+
+const handleBulkAddToRecycle = () => {
+  emit('bulk-add-to-recycle', selectedRows.value);
+};
+
+const getGroupMemberships = (row) => {
+  if (!row) return [];
+  if (Array.isArray(row.group_memberships) && row.group_memberships.length) {
+    return row.group_memberships
+      .map((item) => ({
+        id: item?.id ?? item?.group_id ?? null,
+        name: item?.name ?? item?.group_name ?? '',
+      }))
+      .filter((item) => item.name);
+  }
+  if (Array.isArray(row.group_names) && row.group_names.length) {
+    const ids = Array.isArray(row.group_ids) ? row.group_ids : [];
+    return row.group_names
+      .map((name, index) => ({ id: ids[index] ?? null, name }))
+      .filter((item) => item.name);
+  }
+  return [];
+};
+
+const handleOpenGroup = (group) => {
+  if (!group) return;
+  emit('open-group', group);
 };
 
 // 数值排序方法
@@ -1289,6 +1468,16 @@ const copySinglePageStockNames = () => {
     .join(' ');
   copyToClipboard(stockNames);
 };
+
+watch(
+  () => props.enableBatchActions,
+  (enabled) => {
+    if (!enabled) {
+      selectedRows.value = [];
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped lang="less">
@@ -1383,6 +1572,13 @@ const copySinglePageStockNames = () => {
         margin: 2px 0 0 0;
       }
     }
+
+    .group-memberships-cell {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
   }
 
   .pagination {
@@ -1454,5 +1650,9 @@ const copySinglePageStockNames = () => {
   gap: 2px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.text-muted {
+  color: #909399;
 }
 </style>

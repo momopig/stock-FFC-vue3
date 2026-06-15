@@ -141,14 +141,19 @@
             <el-table-column label="监控分组" min-width="220">
               <template #default="{ row }">
                 <div class="group-tags">
-                  <el-tag
-                    v-for="groupName in row.group_names || []"
-                    :key="groupName"
-                    size="small"
-                    effect="plain"
+                  <el-button
+                    v-for="(groupName, index) in row.group_names || []"
+                    :key="`${row.id}-${groupName}-${index}`"
+                    link
+                    type="primary"
+                    @click="
+                      openGroupInNewTab(
+                        resolveConfigGroupId(row, index, groupName)
+                      )
+                    "
                   >
                     {{ groupName }}
-                  </el-tag>
+                  </el-button>
                   <span v-if="!row.group_names?.length" class="text-muted"
                     >未绑定分组</span
                   >
@@ -158,7 +163,9 @@
             <el-table-column label="触发条件" min-width="240">
               <template #default="{ row }">
                 <div>策略：{{ row.buy_signal_strategy_name || '--' }}</div>
-                <div>摘要：{{ row.buy_signal_strategy_params_preview || '--' }}</div>
+                <div>
+                  摘要：{{ row.buy_signal_strategy_params_preview || '--' }}
+                </div>
               </template>
             </el-table-column>
             <el-table-column label="执行策略" min-width="240">
@@ -2329,7 +2336,11 @@ const handleEdit = async (row) => {
 };
 
 const refreshConfigRelatedData = async () => {
-  await Promise.all([fetchConfigs(), fetchConfigOptions(), fetchSignalStrategyOptions()]);
+  await Promise.all([
+    fetchConfigs(),
+    fetchConfigOptions(),
+    fetchSignalStrategyOptions(),
+  ]);
 };
 
 const handleSubmit = async (payload) => {
@@ -2486,6 +2497,15 @@ const openGroupInNewTab = (groupId) => {
       groupId: String(groupId),
     },
   });
+};
+
+const resolveConfigGroupId = (row, index, groupName) => {
+  const groupIds = Array.isArray(row?.group_ids) ? row.group_ids : [];
+  const fromRow = groupIds[index];
+  if (fromRow !== undefined && fromRow !== null && fromRow !== '') {
+    return fromRow;
+  }
+  return groups.value.find((item) => item.name === groupName)?.id;
 };
 
 const handleGroupClick = (row) => {
