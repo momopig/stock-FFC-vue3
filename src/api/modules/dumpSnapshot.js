@@ -114,6 +114,25 @@ async function normalizeDownloadBlob(blob) {
   return blob;
 }
 
+export function buildDumpSnapshotDownloadUrl(relativePath) {
+  const query = qs.stringify(
+    { relative_path: relativePath },
+    { skipNulls: true }
+  );
+  return `${API_PREFIX}/download${query ? `?${query}` : ''}`;
+}
+
+export function triggerDumpSnapshotBrowserDownload(relativePath) {
+  const url = buildDumpSnapshotDownloadUrl(relativePath);
+  const link = document.createElement('a');
+  link.href = url;
+  link.rel = 'noopener';
+  link.target = '_blank';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 export async function downloadDumpSnapshotBlob(relativePath) {
   const query = qs.stringify(
     { relative_path: relativePath },

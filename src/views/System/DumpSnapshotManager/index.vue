@@ -628,7 +628,6 @@
 </template>
 
 <script setup>
-import { saveAs } from 'file-saver';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { removeToken } from '@/utils/auth';
@@ -637,9 +636,9 @@ import { UserStore } from '@/state/user';
 import {
   activateDumpSnapshotDatabase,
   activateOriginalDatabase,
+  buildDumpSnapshotDownloadUrl,
   createDumpSnapshotExportTask,
   deleteDumpSnapshot,
-  downloadDumpSnapshotBlob,
   getDumpSnapshotExportTasks,
   getDumpSnapshotList,
   getDumpSnapshotOverview,
@@ -950,10 +949,10 @@ async function saveMetadata() {
 
 async function downloadSnapshot(row) {
   try {
-    const { blob, fileName } = await downloadDumpSnapshotBlob(
-      row.relative_path
+    triggerNativeDownload(
+      buildDumpSnapshotDownloadUrl(row.relative_path),
+      row.file_name
     );
-    triggerBlobDownload(blob, fileName || row.file_name);
   } catch (error) {
     ElMessage.error(error?.message || '下载 dump 文件失败');
   }
@@ -968,11 +967,17 @@ function downloadTaskFile(row) {
   }
 }
 
-function triggerBlobDownload(blob, fileName) {
-  if (!(blob instanceof Blob) || blob.size === 0) {
-    throw new Error('下载文件内容为空，未能生成有效的 dump 文件');
+function triggerNativeDownload(url, fileName) {
+  const link = document.createElement('a');
+  link.href = url;
+  if (fileName) {
+    link.download = fileName;
   }
-  saveAs(blob, fileName || 'dump-snapshot.sql');
+  link.rel = 'noopener';
+  link.target = '_blank';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function openRestoreDialog(row) {
