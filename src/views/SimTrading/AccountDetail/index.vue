@@ -171,7 +171,7 @@
       </div>
 
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="持仓" name="position">
+        <el-tab-pane label="持仓" name="position" lazy="true">
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -223,7 +223,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="自动化策略" name="strategy">
+        <el-tab-pane label="自动化策略" name="strategy" lazy="true">
           <StrategyPanel
             v-if="currentAccount && supportsStrategyAutomation"
             :account-id="activeAccountId"
@@ -238,7 +238,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="T仓监控" name="t-position-monitor">
+        <el-tab-pane label="T仓监控" name="t-position-monitor" lazy="true">
           <TPositionMonitorPanel
             v-if="currentAccount"
             :account-id="Number(activeAccountId)"
@@ -457,7 +457,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="卖出" name="sell">
+        <el-tab-pane label="卖出" name="sell" lazy="true">
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -683,6 +683,7 @@
           v-if="supportsConditionOrder"
           label="条件单"
           name="condition"
+          lazy="true"
         >
           <div class="tab-toolbar">
             <el-space>
@@ -867,7 +868,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="撤单" name="cancel">
+        <el-tab-pane label="撤单" name="cancel" lazy="true">
           <div class="tab-toolbar">
             <el-space>
               <el-button @click="loadOrders(true)">刷新未完成委托</el-button>
@@ -995,7 +996,12 @@
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showTransferTab" label="转账" name="transfer">
+        <el-tab-pane
+          v-if="showTransferTab"
+          label="转账"
+          name="transfer"
+          lazy="true"
+        >
           <div class="transfer-grid">
             <div class="form-panel">
               <h3>入金</h3>
@@ -1007,7 +1013,9 @@
                     :precision="2"
                     class="full-width"
                   />
-                  <div class="amount-chinese-hint">金额大写：{{ formatChineseMoney(depositForm.amount) }}</div>
+                  <div class="amount-chinese-hint">
+                    金额大写：{{ formatChineseMoney(depositForm.amount) }}
+                  </div>
                 </el-form-item>
                 <el-form-item label="原因">
                   <el-input v-model="depositForm.reason" />
@@ -1032,7 +1040,9 @@
                     :precision="2"
                     class="full-width"
                   />
-                  <div class="amount-chinese-hint">金额大写：{{ formatChineseMoney(withdrawForm.amount) }}</div>
+                  <div class="amount-chinese-hint">
+                    金额大写：{{ formatChineseMoney(withdrawForm.amount) }}
+                  </div>
                 </el-form-item>
                 <el-form-item label="原因">
                   <el-input v-model="withdrawForm.reason" />
@@ -1095,7 +1105,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="查询" name="query">
+        <el-tab-pane label="查询" name="query" lazy="true">
           <div class="query-shell">
             <el-alert
               v-if="queryCapabilityNotice"
@@ -1754,7 +1764,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="盈亏分析" name="profit-analysis">
+        <el-tab-pane label="盈亏分析" name="profit-analysis" lazy="true">
           <el-alert
             v-if="profitAnalysisCapabilityNotice && !supportsProfitAnalysis"
             :title="profitAnalysisCapabilityNotice"
@@ -2235,7 +2245,9 @@ function formatChineseMoney(value) {
   const integerUnits = ['', '拾', '佰', '仟'];
   const sectionUnits = ['', '万', '亿', '兆'];
   const normalizedAmount = Math.round(amount * 100) / 100;
-  const [integerText, decimalText = ''] = normalizedAmount.toFixed(2).split('.');
+  const [integerText, decimalText = ''] = normalizedAmount
+    .toFixed(2)
+    .split('.');
   let integerValue = Number(integerText || 0);
 
   const convertSection = (section) => {
@@ -2266,7 +2278,8 @@ function formatChineseMoney(value) {
       needZeroBetweenSections = integerResult.length > 0;
     } else {
       const sectionText = convertSection(section);
-      const zeroText = needZeroBetweenSections && !sectionText.startsWith('零') ? '零' : '';
+      const zeroText =
+        needZeroBetweenSections && !sectionText.startsWith('零') ? '零' : '';
       integerResult = `${sectionText}${sectionUnits[sectionIndex]}${zeroText}${integerResult}`;
       needZeroBetweenSections = section < 1000;
     }
@@ -3973,7 +3986,10 @@ function applyActivitySnapshot(payload) {
     : [];
 }
 
-async function loadLegacyOrders(onlyOpen = false, accountId = activeAccountId.value) {
+async function loadLegacyOrders(
+  onlyOpen = false,
+  accountId = activeAccountId.value
+) {
   if (!accountId) return;
   const res = await getSimTradingOrders({
     account_id: Number(accountId),
@@ -4018,13 +4034,10 @@ async function loadLegacyConditionOrders(accountId = activeAccountId.value) {
     conditionOrders.value = [];
     return;
   }
-  const res = await getSimTradingConditionOrders(
-    Number(accountId),
-    {
-      page: 1,
-      page_size: ACTIVITY_PAGE_SIZE,
-    }
-  );
+  const res = await getSimTradingConditionOrders(Number(accountId), {
+    page: 1,
+    page_size: ACTIVITY_PAGE_SIZE,
+  });
   if (!isSameActiveAccount(accountId)) {
     return;
   }
@@ -4035,13 +4048,10 @@ async function loadLegacyConditionOrders(accountId = activeAccountId.value) {
 
 async function loadAccountActivitySnapshot(accountId = activeAccountId.value) {
   if (!accountId) return;
-  const res = await getSimTradingAccountActivity(
-    Number(accountId),
-    {
-      page: 1,
-      page_size: ACTIVITY_PAGE_SIZE,
-    }
-  );
+  const res = await getSimTradingAccountActivity(Number(accountId), {
+    page: 1,
+    page_size: ACTIVITY_PAGE_SIZE,
+  });
   if (!res?.success) {
     throw new Error(res?.message || '获取账户活动快照失败');
   }
@@ -4175,7 +4185,10 @@ async function refreshWorkspace(options = {}) {
       loadAccountDetail(activeAccountId.value),
       loadAccountStrategyBindings(activeAccountId.value),
     ]);
-    await ensureActiveTabData({ force: true, accountId: activeAccountId.value });
+    await ensureActiveTabData({
+      force: true,
+      accountId: activeAccountId.value,
+    });
   } catch (error) {
     console.error(error);
     if (!silent) {
@@ -4250,7 +4263,9 @@ async function handleGenerateChipPrices() {
   }
   chipPriceGenerateLoading.value = true;
   try {
-    const res = await generateSimTradingAccountChipPrices(Number(activeAccountId.value));
+    const res = await generateSimTradingAccountChipPrices(
+      Number(activeAccountId.value)
+    );
     if (!res?.success) {
       throw new Error(res?.message || '生成筹码集中价失败');
     }
