@@ -165,6 +165,8 @@ let sortable = null;
 let groupTabsResizeObserver = null;
 let groupQuoteWs = null;
 const ns = useGetDerivedNamespace().value;
+// 需求约束：暂时关闭自动 WS 推送，改为手动触发查询刷新，避免列表被异常覆盖。
+const ENABLE_AUTO_GROUP_QUOTE_STREAM = false;
 
 /** 拖拽时边缘滚动的节流间隔（ms），避免连续 click 箭头快于 EP 内部状态更新 */
 const TAB_DRAG_EDGE_SCROLL_MS = 420;
@@ -339,6 +341,7 @@ onBeforeUnmount(() => {
 });
 
 const shouldUseGroupQuoteStream = () =>
+  ENABLE_AUTO_GROUP_QUOTE_STREAM &&
   !String(searchParams.stock_code || '').trim() &&
   !String(searchParams.stock_name || '').trim() &&
   !searchParams.snapshot_date &&
