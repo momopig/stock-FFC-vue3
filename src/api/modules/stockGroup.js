@@ -41,7 +41,7 @@ export const createGroup = async (data) => {
  * @returns {Promise}
  */
 export const updateGroup = async (groupId, data) => {
-  const res = await request.put(
+  const res = await request.patch(
     `/stock-api/api/stock-groups/user-groups/${groupId}`,
     data
   );

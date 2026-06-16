@@ -12,30 +12,45 @@
             type="card"
             class="groups-tabs"
           >
-            <el-tab-pane :name="ALL_GROUP_TAB_ID" :closable="false">
-              <template #label>
-                <span class="group-tab-label" title="全部">全部</span>
-              </template>
-            </el-tab-pane>
             <el-tab-pane
-              v-for="group in groups"
-              :key="group.id"
-              :name="String(group.id)"
-              :closable="!isBuiltInGroup(group)"
+              v-for="tab in displayTabs"
+              :key="tab.tabId"
+              :name="tab.tabId"
+              :closable="!isBuiltInGroup(tab)"
             >
               <template #label>
-                <span class="group-tab-label" :title="group?.name">{{
-                  group?.name
-                }}</span>
+                <span
+                  v-if="!isEditingTab(tab)"
+                  class="group-tab-label"
+                  :title="tab?.name"
+                  @dblclick.stop="startRenameTab(tab)"
+                >
+                  {{ tab?.name }}
+                </span>
+                <el-input
+                  v-else
+                  ref="renameInputRef"
+                  v-model="editingTabName"
+                  class="group-tab-input"
+                  size="small"
+                  maxlength="20"
+                  @click.stop
+                  @dblclick.stop
+                  @keydown.stop
+                  @blur="submitRenameTab"
+                  @keyup.enter.stop="submitRenameTab"
+                  @keyup.esc.stop="cancelRenameTab"
+                />
               </template>
             </el-tab-pane>
           </el-tabs>
         </div>
         <div class="group-actions">
           <GroupSearchPopover
-            :groups="groups"
+            :groups="groupSearchGroups"
             :active-group-id="activeGroupId"
-            :all-group-id="ALL_GROUP_TAB_ID"
+            :all-group-id="allGroupId"
+            :all-group-name="allGroup?.name || '全部'"
             storage-key="stock:self-selected:recent-group-ids"
             @select="handleGroupChange"
           />
@@ -64,7 +79,7 @@
       :isSelfSelected="true"
       :showAddToSelfButton="true"
       :showAddToRecycleButton="activeGroupId !== String(recycleGroup?.id || '')"
-      :showGroupMembershipColumn="activeGroupId === ALL_GROUP_TAB_ID"
+      :showGroupMembershipColumn="isAllGroup(findDisplayTabById(activeGroupId))"
       :enableBatchActions="true"
       :showBulkDeleteButton="true"
       :showBulkAddToGroupButton="true"
@@ -94,7 +109,7 @@
       :form-data="stockForm"
       :is-view-mode="isViewMode"
       :is-edit-mode="isEditMode"
-      :groups="groups"
+      :groups="assignableGroups"
       :active-group-id="activeGroupId"
       @submit="submitStock"
       @group-created="handleGroupCreated"
@@ -128,6 +143,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   getUserGroups,
   createGroup,
+  updateGroup,
   deleteGroup,
   createGroupQuoteStream,
   getGroupStocksByGroups,
@@ -153,20 +169,29 @@ const route = useRoute();
 const router = useRouter();
 
 // 分组相关数据
-const ALL_GROUP_TAB_ID = 'all';
-const SELF_GROUP_NAME = '自选';
-const RECYCLE_GROUP_NAME = '回收站';
+const BUILTIN_GROUP_CREATE_TYPES = Object.freeze([
+  'mainline',
+  'all',
+  'self',
+  'recycle',
+]);
 const groups = ref([]);
-const activeGroupId = ref(ALL_GROUP_TAB_ID);
+const activeGroupId = ref('');
 const groupLoading = ref(false);
 const tabRef = ref(null);
 const groupsTabsContainerRef = ref(null);
+const renameInputRef = ref(null);
+const editingTabId = ref('');
+const editingTabName = ref('');
 let sortable = null;
 let groupTabsResizeObserver = null;
 let groupQuoteWs = null;
 const ns = useGetDerivedNamespace().value;
 // 需求约束：暂时关闭自动 WS 推送，改为手动触发查询刷新，避免列表被异常覆盖。
 const ENABLE_AUTO_GROUP_QUOTE_STREAM = false;
+// 需求约束：切换分组时默认不刷新，优先保留上次查询结果。
+const ENABLE_GROUP_TAB_SWITCH_REFRESH = false;
+const groupTabStateCache = reactive({});
 
 /** 拖拽时边缘滚动的节流间隔（ms），避免连续 click 箭头快于 EP 内部状态更新 */
 const TAB_DRAG_EDGE_SCROLL_MS = 420;
@@ -192,33 +217,238 @@ function getTargetGroupIdFromRoute() {
   return String(rawGroupId || '');
 }
 
+function createDefaultSearchParams() {
+  return {
+    stock_code: '',
+    stock_name: '',
+    exchange_code: '',
+    strategy_name: '',
+    snapshot_date: '',
+  };
+}
+
+function getBuiltinCreateType(group) {
+  const type = String(group?.builtinType || group?.create_type || '')
+    .trim()
+    .toLowerCase();
+  if (type === 'all') return 'all';
+  if (BUILTIN_GROUP_CREATE_TYPES.includes(type)) return type;
+  return 'custom';
+}
+
+function isAllGroup(group) {
+  return getBuiltinCreateType(group) === 'all';
+}
+
 function isRecycleGroup(group) {
-  return String(group?.name || '').trim() === RECYCLE_GROUP_NAME;
+  return getBuiltinCreateType(group) === 'recycle';
 }
 
 function isSelfGroup(group) {
-  return String(group?.name || '').trim() === SELF_GROUP_NAME;
+  return getBuiltinCreateType(group) === 'self';
+}
+
+function isMainlineGroup(group) {
+  return getBuiltinCreateType(group) === 'mainline';
 }
 
 function isBuiltInGroup(group) {
-  return group?.create_type === 'system' || isRecycleGroup(group);
+  return getBuiltinCreateType(group) !== 'custom';
 }
 
 function sortGroupsForDisplay(groupItems) {
   const sortedByOrder = [...groupItems].sort(
-    (a, b) => (a.display_order || 0) - (b.display_order || 0)
+    (a, b) =>
+      (a.display_order || 0) - (b.display_order || 0) ||
+      (a.id || 0) - (b.id || 0)
   );
+  const mainlineGroup = sortedByOrder.find((item) => isMainlineGroup(item));
+  const allGroup = sortedByOrder.find((item) => isAllGroup(item));
   const selfGroup = sortedByOrder.find((item) => isSelfGroup(item));
   const recycle = sortedByOrder.find((item) => isRecycleGroup(item));
-  const rest = sortedByOrder.filter(
-    (item) => item.id !== selfGroup?.id && item.id !== recycle?.id
-  );
+  const rest = sortedByOrder.filter((item) => !isBuiltInGroup(item));
 
   const result = [];
+  if (mainlineGroup) result.push(mainlineGroup);
+  if (allGroup) result.push(allGroup);
   if (selfGroup) result.push(selfGroup);
   if (recycle) result.push(recycle);
   result.push(...rest);
   return result;
+}
+
+function cloneSearchParams() {
+  return {
+    stock_code: searchParams.stock_code || '',
+    stock_name: searchParams.stock_name || '',
+    exchange_code: searchParams.exchange_code || '',
+    strategy_name: searchParams.strategy_name || '',
+    snapshot_date: searchParams.snapshot_date || '',
+  };
+}
+
+function applySearchParams(nextSearchParams = {}) {
+  Object.assign(searchParams, createDefaultSearchParams(), nextSearchParams);
+}
+
+function getGroupTabCacheKey(groupId = activeGroupId.value) {
+  return String(groupId || '');
+}
+
+function updateCurrentTabCache(groupId = activeGroupId.value) {
+  const cacheKey = getGroupTabCacheKey(groupId);
+  if (!cacheKey || cacheKey === 'add') {
+    return;
+  }
+  groupTabStateCache[cacheKey] = {
+    stockList: Array.isArray(stockList.value) ? [...stockList.value] : [],
+    total: Number(page.total || 0),
+    pageNo: Number(page.pageNo || 1),
+    pageSize: Number(page.pageSize || 50),
+    searchParams: cloneSearchParams(),
+  };
+}
+
+function restoreTabCache(groupId = activeGroupId.value) {
+  const cachedState = groupTabStateCache[getGroupTabCacheKey(groupId)];
+  if (!cachedState) {
+    return false;
+  }
+  stockList.value = Array.isArray(cachedState.stockList)
+    ? [...cachedState.stockList]
+    : [];
+  page.total = Number(cachedState.total || 0);
+  page.pageNo = Number(cachedState.pageNo || 1);
+  page.pageSize = Number(cachedState.pageSize || 50);
+  applySearchParams(cachedState.searchParams || {});
+  calculateInsightsFromList();
+  tableLoading.value = false;
+  closeGroupQuoteStream();
+  return true;
+}
+
+const displayTabs = computed(() => {
+  return sortGroupsForDisplay(groups.value).map((group) => ({
+    ...group,
+    tabId: String(group.id),
+    builtinType: getBuiltinCreateType(group),
+  }));
+});
+
+const allGroup = computed(() =>
+  groups.value.find((group) => isAllGroup(group)) || null
+);
+
+const allGroupId = computed(() => String(allGroup.value?.id || ''));
+
+const groupSearchGroups = computed(() =>
+  sortGroupsForDisplay(groups.value).filter((group) => !isAllGroup(group))
+);
+
+const assignableGroups = computed(() =>
+  sortGroupsForDisplay(groups.value).filter((group) => !isAllGroup(group))
+);
+
+const firstBuiltinTabId = computed(
+  () => String(displayTabs.value[0]?.tabId || '')
+);
+
+function findDisplayTabById(tabId) {
+  return (
+    displayTabs.value.find(
+      (tab) => String(tab?.tabId || tab?.id || '') === String(tabId || '')
+    ) || null
+  );
+}
+
+function isEditingTab(tab) {
+  return (
+    String(editingTabId.value || '') ===
+    String(tab?.tabId || tab?.id || '')
+  );
+}
+
+function startRenameTab(tab) {
+  if (!tab) {
+    return;
+  }
+  editingTabId.value = String(tab?.tabId || tab?.id || '');
+  editingTabName.value = String(tab?.name || '').trim();
+  nextTick(() => {
+    renameInputRef.value?.focus?.();
+    renameInputRef.value?.select?.();
+  });
+}
+
+function cancelRenameTab() {
+  editingTabId.value = '';
+  editingTabName.value = '';
+}
+
+async function submitRenameTab() {
+  const tab = findDisplayTabById(editingTabId.value);
+  const nextName = String(editingTabName.value || '').trim();
+  if (!tab) {
+    cancelRenameTab();
+    return;
+  }
+  if (!nextName) {
+    ElMessage.warning('分组名称不能为空');
+    return;
+  }
+  if (nextName.length > 20) {
+    ElMessage.warning('分组名称长度为1-20个字符');
+    return;
+  }
+  if (nextName === String(tab?.name || '').trim()) {
+    cancelRenameTab();
+    return;
+  }
+  try {
+    const result = await updateGroup(tab.id, { name: nextName });
+    if (result?.success === false) {
+      ElMessage.error(result?.message || '重命名分组失败');
+      return;
+    }
+    groups.value = sortGroupsForDisplay(
+      groups.value.map((group) =>
+        Number(group.id) === Number(tab.id)
+          ? { ...group, name: result?.payload?.name || nextName }
+          : group
+      )
+    );
+    ElMessage.success('分组名称已更新');
+    cancelRenameTab();
+  } catch (error) {
+    console.error('重命名分组失败:', error);
+    ElMessage.error(
+      error?.response?.data?.message ||
+        error?.response?.data?.detail ||
+        '重命名分组失败，请稍后重试'
+    );
+  }
+}
+
+async function activateGroupTab(
+  groupId,
+  { preferCache = !ENABLE_GROUP_TAB_SWITCH_REFRESH, resetFilters = true } = {}
+) {
+  if (!groupId || groupId === 'add') {
+    return;
+  }
+  const nextGroupId = String(groupId);
+  if (String(activeGroupId.value || '') !== nextGroupId) {
+    updateCurrentTabCache(activeGroupId.value);
+    activeGroupId.value = nextGroupId;
+  }
+  if (preferCache && restoreTabCache(nextGroupId)) {
+    return;
+  }
+  if (resetFilters) {
+    page.pageNo = 1;
+    applySearchParams();
+  }
+  await getStockList();
 }
 
 function applyRouteGroupId() {
@@ -247,9 +477,7 @@ const selectedRows = ref([]);
 const bulkAddRows = ref([]);
 
 const recycleGroup = computed(() =>
-  groups.value.find(
-    (group) => String(group?.name || '').trim() === RECYCLE_GROUP_NAME
-  )
+  groups.value.find((group) => isRecycleGroup(group))
 );
 
 // 分页参数
@@ -260,13 +488,7 @@ const page = reactive({
 });
 
 // 搜索参数
-const searchParams = reactive({
-  stock_code: '',
-  stock_name: '',
-  exchange_code: '',
-  strategy_name: '',
-  snapshot_date: '',
-});
+const searchParams = reactive(createDefaultSearchParams());
 
 // 不做数据缓存：每次切换/搜索都直接请求接口
 
@@ -311,9 +533,9 @@ watch(activeGroupId, () => {
 watch(
   () => route.query?.groupId,
   async () => {
-    applyRouteGroupId();
-    if (groups.value.length > 0 && activeGroupId.value !== 'add') {
-      await getStockList();
+    const targetGroupId = getTargetGroupIdFromRoute();
+    if (groups.value.length > 0 && targetGroupId && targetGroupId !== 'add') {
+      await activateGroupTab(targetGroupId, { preferCache: true });
     }
   }
 );
@@ -350,8 +572,9 @@ const shouldUseGroupQuoteStream = () =>
   !dialogVisible.value;
 
 const buildGroupQuoteStreamParams = () => ({
-  group_ids:
-    activeGroupId.value === ALL_GROUP_TAB_ID ? 'all' : activeGroupId.value,
+  group_ids: isAllGroup(findDisplayTabById(activeGroupId.value))
+    ? 'all'
+    : activeGroupId.value,
   page: page.pageNo,
   page_size: page.pageSize,
   exchange_code: searchParams.exchange_code || undefined,
@@ -518,14 +741,26 @@ const initSortable = () => {
       ) {
         return;
       }
-      if (oldDraggableIndex === 0 || newDraggableIndex === 0) {
+      const tabs = displayTabs.value;
+      const movedTab = tabs?.[oldDraggableIndex];
+      const targetTab = tabs?.[newDraggableIndex];
+      if (!movedTab || !targetTab) {
+        nextTick(flushGroupTabsLayout);
+        return;
+      }
+      if (isBuiltInGroup(movedTab) || isBuiltInGroup(targetTab)) {
+        nextTick(flushGroupTabsLayout);
         nextTick(() => tabRef.value?.tabNavRef?.scrollToActiveTab?.());
         return;
       }
-      const oldGroupIndex = oldDraggableIndex - 1;
-      const newGroupIndex = newDraggableIndex - 1;
-      const list = groups.value;
-      const moved = list?.[oldGroupIndex];
+      const customGroups = groups.value.filter((group) => !isBuiltInGroup(group));
+      const oldGroupIndex = customGroups.findIndex(
+        (group) => Number(group.id) === Number(movedTab.id)
+      );
+      const newGroupIndex = customGroups.findIndex(
+        (group) => Number(group.id) === Number(targetTab.id)
+      );
+      const moved = customGroups?.[oldGroupIndex];
       if (!moved?.id) return;
       handleReorderGroups(oldGroupIndex, newGroupIndex);
     },
@@ -534,8 +769,8 @@ const initSortable = () => {
 
 // 处理分组顺序变更
 const handleReorderGroups = async (oldIndex, newIndex) => {
-  // 创建分组数组的副本
-  const reorderedGroups = [...groups.value];
+  // 仅允许调整自建分组顺序，内置分组保持固定展示顺序。
+  const reorderedGroups = groups.value.filter((group) => !isBuiltInGroup(group));
 
   // 重新排序分组数组
   const movedGroup = reorderedGroups[oldIndex];
@@ -545,7 +780,7 @@ const handleReorderGroups = async (oldIndex, newIndex) => {
   // 构建顺序列表
   const orderList = reorderedGroups.map((group, index) => ({
     id: group.id,
-    display_order: index,
+    display_order: BUILTIN_GROUP_CREATE_TYPES.length + index,
   }));
 
   try {
@@ -575,18 +810,20 @@ const fetchGroups = async () => {
       const items = response.payload?.items || [];
       groups.value = sortGroupsForDisplay(items);
 
-      // 如果没有选中分组或当前分组不存在，默认选中“全部”标签
+      // 如果没有选中分组或当前分组不存在，默认选中内置分组数组的第一项：主线。
       if (
         !activeGroupId.value ||
-        (activeGroupId.value !== ALL_GROUP_TAB_ID &&
-          !groups.value.find((g) => String(g.id) === activeGroupId.value))
+        !groups.value.find((g) => String(g.id) === activeGroupId.value)
       ) {
-        activeGroupId.value = ALL_GROUP_TAB_ID;
+        activeGroupId.value = firstBuiltinTabId.value;
       }
 
       // 如果选中了分组，加载该分组的股票
       if (activeGroupId.value && activeGroupId.value !== 'add') {
-        await getStockList();
+        await activateGroupTab(activeGroupId.value, {
+          preferCache: true,
+          resetFilters: false,
+        });
       }
     } else {
       ElMessage.error(response?.message || '获取分组列表失败');
@@ -641,6 +878,8 @@ const handleCreateGroup = async () => {
         // 选中新创建的分组
         if (result.payload?.id) {
           activeGroupId.value = String(result.payload.id);
+          applySearchParams();
+          page.pageNo = 1;
           await getStockList();
         }
       } else {
@@ -688,14 +927,7 @@ const handleTabEdit = async (targetName, action) => {
           ElMessage.success('删除分组成功');
           // 如果删除的是当前分组，切换到第一个分组
           if (String(groupId) === activeGroupId.value) {
-            const remainingGroups = groups.value.filter(
-              (g) => g.id !== groupId
-            );
-            if (remainingGroups.length > 0) {
-              activeGroupId.value = ALL_GROUP_TAB_ID;
-            } else {
-              activeGroupId.value = ALL_GROUP_TAB_ID;
-            }
+            activeGroupId.value = firstBuiltinTabId.value;
           }
           await fetchGroups();
           // 如果还有选中分组，重新加载股票列表
@@ -753,10 +985,7 @@ const handleTabEdit = async (targetName, action) => {
 // 切换分组
 const handleGroupChange = async (groupId) => {
   if (groupId === 'add') return; // 新建分组按钮不处理
-
-  activeGroupId.value = groupId;
-  page.pageNo = 1;
-  await getStockList();
+  await activateGroupTab(groupId, { preferCache: true });
 };
 
 // 获取股票列表（不走缓存）
@@ -778,7 +1007,7 @@ const getStockList = async (additionalSearchParams = {}) => {
 
   try {
     const response =
-      activeGroupId.value === ALL_GROUP_TAB_ID
+      isAllGroup(findDisplayTabById(activeGroupId.value))
         ? await getGroupStocksByGroups([], params)
         : await getGroupStocks(Number(activeGroupId.value), params);
     if (response?.success) {
@@ -786,6 +1015,7 @@ const getStockList = async (additionalSearchParams = {}) => {
       stockList.value = rows;
       page.total = response.payload?.total || 0;
       calculateInsightsFromList();
+      updateCurrentTabCache();
       tableLoading.value = false;
       restartGroupQuoteStream();
     } else {
@@ -954,6 +1184,7 @@ const removeRowLocally = (rowId) => {
   stockList.value = stockList.value.filter((item) => item.id !== rowId);
   page.total = Math.max(0, Number(page.total || 0) - 1);
   calculateInsightsFromList();
+  updateCurrentTabCache();
 };
 
 const handleAddToRecycle = async (row) => {
@@ -976,7 +1207,7 @@ const handleAddToRecycle = async (row) => {
       return;
     }
 
-    if (activeGroupId.value !== ALL_GROUP_TAB_ID && row.id) {
+    if (!isAllGroup(findDisplayTabById(activeGroupId.value)) && row.id) {
       const removeResult = await removeStockFromGroup(row.id);
       if (removeResult?.success === false) {
         ElMessage.error(removeResult?.message || '从当前分组移除失败');
@@ -1200,7 +1431,7 @@ const addStockFn = () => {
   if (
     activeGroupId.value &&
     activeGroupId.value !== 'add' &&
-    activeGroupId.value !== ALL_GROUP_TAB_ID
+    !isAllGroup(findDisplayTabById(activeGroupId.value))
   ) {
     stockForm.value.group_ids = [Number(activeGroupId.value)];
   }
@@ -1267,7 +1498,7 @@ const submitStock = async (formData) => {
           ? formData.group_ids
           : activeGroupId.value &&
               activeGroupId.value !== 'add' &&
-              activeGroupId.value !== ALL_GROUP_TAB_ID
+              !isAllGroup(findDisplayTabById(activeGroupId.value))
             ? [Number(activeGroupId.value)]
             : [];
 
@@ -1371,6 +1602,11 @@ const submitStock = async (formData) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+  cursor: pointer;
+}
+
+.group-tab-input {
+  width: 110px;
 }
 
 .group-actions {

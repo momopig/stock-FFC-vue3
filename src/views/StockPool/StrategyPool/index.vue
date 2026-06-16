@@ -122,6 +122,8 @@ const userStore = UserStore();
 const strategies = ref([]);
 const strategiesLoading = ref(false);
 const activeStrategy = ref('');
+const ENABLE_STRATEGY_TAB_SWITCH_REFRESH = false;
+const strategyTabStateCache = reactive({});
 
 // 股票列表数据
 const stockList = ref([]);
@@ -140,13 +142,91 @@ const page = reactive({
 });
 
 // 搜索参数
-const searchParams = reactive({
-  stock_code: '',
-  stock_name: '',
-  exchange_code: '',
-  strategy_name: '',
-  snapshot_date: '',
-});
+function createDefaultSearchParams() {
+  return {
+    stock_code: '',
+    stock_name: '',
+    exchange_code: '',
+    strategy_name: '',
+    snapshot_date: '',
+  };
+}
+
+const searchParams = reactive(createDefaultSearchParams());
+
+function cloneSearchParams() {
+  return {
+    stock_code: searchParams.stock_code || '',
+    stock_name: searchParams.stock_name || '',
+    exchange_code: searchParams.exchange_code || '',
+    strategy_name: searchParams.strategy_name || '',
+    snapshot_date: searchParams.snapshot_date || '',
+  };
+}
+
+function applySearchParams(nextSearchParams = {}) {
+  Object.assign(searchParams, createDefaultSearchParams(), nextSearchParams);
+}
+
+function getStrategyTabCacheKey(strategyName = activeStrategy.value) {
+  return String(strategyName || '');
+}
+
+function updateCurrentStrategyCache(strategyName = activeStrategy.value) {
+  const cacheKey = getStrategyTabCacheKey(strategyName);
+  if (!cacheKey || cacheKey === 'watch') {
+    return;
+  }
+  strategyTabStateCache[cacheKey] = {
+    stockList: Array.isArray(stockList.value) ? [...stockList.value] : [],
+    total: Number(page.total || 0),
+    pageNo: Number(page.pageNo || 1),
+    pageSize: Number(page.pageSize || 50),
+    searchParams: cloneSearchParams(),
+  };
+}
+
+function restoreStrategyCache(strategyName = activeStrategy.value) {
+  const cachedState = strategyTabStateCache[getStrategyTabCacheKey(strategyName)];
+  if (!cachedState) {
+    return false;
+  }
+  stockList.value = Array.isArray(cachedState.stockList)
+    ? [...cachedState.stockList]
+    : [];
+  page.total = Number(cachedState.total || 0);
+  page.pageNo = Number(cachedState.pageNo || 1);
+  page.pageSize = Number(cachedState.pageSize || 50);
+  applySearchParams(cachedState.searchParams || {});
+  calculateInsightsFromList();
+  tableLoading.value = false;
+  return true;
+}
+
+async function activateStrategyTab(
+  strategyName,
+  { preferCache = !ENABLE_STRATEGY_TAB_SWITCH_REFRESH, resetFilters = true } = {}
+) {
+  if (!strategyName || strategyName === 'watch') {
+    activeStrategy.value = strategyName;
+    stockList.value = [];
+    page.total = 0;
+    return;
+  }
+  const nextStrategyName = String(strategyName);
+  if (String(activeStrategy.value || '') !== nextStrategyName) {
+    updateCurrentStrategyCache(activeStrategy.value);
+    activeStrategy.value = nextStrategyName;
+  }
+  if (preferCache && restoreStrategyCache(nextStrategyName)) {
+    return;
+  }
+  if (resetFilters) {
+    page.pageNo = 1;
+    applySearchParams();
+  }
+  await getStockList(nextStrategyName);
+}
 
 // 初始化股票表单
 const initStockForm = () => {
@@ -211,8 +291,10 @@ const loadStrategies = async () => {
 
       // 默认选中第一个策略
       if (strategies.value.length > 0) {
-        activeStrategy.value = strategies.value[0].name;
-        getStockList();
+        await activateStrategyTab(strategies.value[0].name, {
+          preferCache: true,
+          resetFilters: false,
+        });
       }
     } else {
       ElMessage.error(response?.message || '获取策略列表失败');
@@ -228,11 +310,7 @@ const loadStrategies = async () => {
 // 策略切换处理
 const handleStrategyChange = async (tab) => {
   const tabName = tab?.props?.name || tab?.name;
-  activeStrategy.value = tabName;
-  if (tabName !== 'watch') {
-    page.pageNo = 1;
-    await getStockList(tabName);
-  }
+  await activateStrategyTab(tabName, { preferCache: true });
 };
 
 // 获取股票列表（不走缓存）
@@ -267,6 +345,7 @@ const getStockList = async (
       stockList.value = rows;
       page.total = response.payload?.total || 0;
       calculateInsightsFromList();
+      updateCurrentStrategyCache(currentStrategy);
       tableLoading.value = false;
     } else {
       ElMessage.error(response?.message || '获取股票列表失败');
