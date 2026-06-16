@@ -11,6 +11,7 @@
         :key="strategy.id"
         :label="strategy.name"
         :name="strategy.name"
+        lazy="true"
       >
         <!-- 洞察数据 -->
         <StockInsights :insightsData="insightsData" />
@@ -54,6 +55,7 @@
         label="重点观察"
         name="watch"
         key="watch"
+        lazy="true"
       >
         <template v-if="activeStrategy === 'watch'">
           <WatchList
@@ -187,7 +189,8 @@ function updateCurrentStrategyCache(strategyName = activeStrategy.value) {
 }
 
 function restoreStrategyCache(strategyName = activeStrategy.value) {
-  const cachedState = strategyTabStateCache[getStrategyTabCacheKey(strategyName)];
+  const cachedState =
+    strategyTabStateCache[getStrategyTabCacheKey(strategyName)];
   if (!cachedState) {
     return false;
   }
@@ -205,7 +208,10 @@ function restoreStrategyCache(strategyName = activeStrategy.value) {
 
 async function activateStrategyTab(
   strategyName,
-  { preferCache = !ENABLE_STRATEGY_TAB_SWITCH_REFRESH, resetFilters = true } = {}
+  {
+    preferCache = !ENABLE_STRATEGY_TAB_SWITCH_REFRESH,
+    resetFilters = true,
+  } = {}
 ) {
   if (!strategyName || strategyName === 'watch') {
     activeStrategy.value = strategyName;

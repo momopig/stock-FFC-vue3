@@ -24,6 +24,7 @@
           :key="String(account.id)"
           :label="account.account_name"
           :name="String(account.id)"
+          lazy="true"
         />
       </el-tabs>
 
@@ -246,7 +247,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="买入" name="buy">
+        <el-tab-pane label="买入" name="buy" lazy="true">
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -1184,7 +1185,7 @@
             </div>
 
             <el-tabs v-model="activeQueryTab" class="query-inner-tabs">
-              <el-tab-pane label="当日委托" name="today-orders">
+              <el-tab-pane label="当日委托" name="today-orders" lazy="true">
                 <el-table :data="pagedTodayOrders" border>
                   <el-table-column
                     prop="stock_name"
@@ -1313,7 +1314,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="当日成交" name="today-trades">
+              <el-tab-pane label="当日成交" name="today-trades" lazy="true">
                 <el-table :data="pagedTodayTrades" border>
                   <el-table-column
                     prop="stock_name"
@@ -1445,7 +1446,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史委托" name="history-orders">
+              <el-tab-pane label="历史委托" name="history-orders" lazy="true">
                 <el-table :data="pagedHistoryOrders" border>
                   <el-table-column
                     prop="stock_name"
@@ -1578,7 +1579,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史成交" name="history-trades">
+              <el-tab-pane label="历史成交" name="history-trades" lazy="true">
                 <el-table :data="pagedHistoryTrades" border>
                   <el-table-column
                     prop="stock_name"
@@ -1714,7 +1715,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="资金流水" name="cash-flows">
+              <el-tab-pane label="资金流水" name="cash-flows" lazy="true">
                 <el-table :data="pagedQueryCashFlows" border>
                   <el-table-column
                     prop="stock_name"

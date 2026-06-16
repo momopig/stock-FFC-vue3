@@ -13,7 +13,9 @@
               inactive-text="关闭"
               @change="handleAutomationToggle"
             />
-            <small class="toolbar-automation-status">{{ settings.automation_enabled ? '已开启' : '已关闭' }}</small>
+            <small class="toolbar-automation-status">{{
+              settings.automation_enabled ? '已开启' : '已关闭'
+            }}</small>
           </div>
         </div>
         <div class="toolbar-card muted">
@@ -39,20 +41,35 @@
       </div>
       <el-space>
         <el-button @click="loadAll">刷新</el-button>
-        <el-tooltip content="立即执行一次当前账号已启用的自动化策略，并刷新最近结果与日志。" placement="top">
-          <el-button type="primary" plain :loading="saving" @click="runDebugDispatch">立即调试执行</el-button>
+        <el-tooltip
+          content="立即执行一次当前账号已启用的自动化策略，并刷新最近结果与日志。"
+          placement="top"
+        >
+          <el-button
+            type="primary"
+            plain
+            :loading="saving"
+            @click="runDebugDispatch"
+            >立即调试执行</el-button
+          >
         </el-tooltip>
       </el-space>
     </div>
 
     <el-tabs v-model="activeCategoryTab">
-      <el-tab-pane v-for="group in groupedBindings" :key="group.category" :label="group.label" :name="group.category">
+      <el-tab-pane
+        v-for="group in groupedBindings"
+        :key="group.category"
+        :label="group.label"
+        :name="group.category"
+        lazy="true"
+      >
         <div class="category-header-card">
           <h3>{{ group.label }}</h3>
           <p>{{ group.description }}</p>
         </div>
         <el-tabs v-model="innerTabByCategory[group.category]">
-          <el-tab-pane label="策略配置" name="config">
+          <el-tab-pane label="策略配置" name="config" lazy="true">
             <div class="strategy-groups">
               <el-card shadow="never" class="strategy-group-card">
                 <template #header>
@@ -61,195 +78,382 @@
                       <h3>{{ group.label }}</h3>
                       <p>{{ group.description }}</p>
                     </div>
-                    <el-button type="primary" link @click="openCreateDialog(group.category)">添加策略</el-button>
+                    <el-button
+                      type="primary"
+                      link
+                      @click="openCreateDialog(group.category)"
+                      >添加策略</el-button
+                    >
                   </div>
                 </template>
 
-                <el-empty v-if="!group.items.length" description="当前未绑定策略" />
+                <el-empty
+                  v-if="!group.items.length"
+                  description="当前未绑定策略"
+                />
 
                 <el-table v-else :data="group.items" border>
-              <el-table-column label="策略名称" min-width="180">
-                <template #default="scope">
-                  <el-button
-                    link
-                    type="primary"
-                    class="strategy-name-link"
-                    @click="openStrategyConfigPage(scope.row.strategy)"
-                  >
-                    {{ scope.row.strategy?.strategy_name || '-' }}
-                  </el-button>
-                </template>
-              </el-table-column>
-              <el-table-column prop="strategy.strategy_code" label="编码" min-width="180" />
-              <el-table-column label="类型" width="120">
-                <template #default="scope">
-                  <el-tag size="small" :type="scope.row.strategy.strategy_mode === 'BUILTIN' ? 'success' : 'info'">
-                    {{ getModeLabel(scope.row.strategy.strategy_mode) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="启用" width="90">
-                <template #default="scope">
-                  <el-switch
-                    :model-value="scope.row.enabled"
-                    :loading="savingBindingId === scope.row.id"
-                    @change="(value) => toggleBinding(scope.row, value)"
+                  <el-table-column label="策略名称" min-width="180">
+                    <template #default="scope">
+                      <el-button
+                        link
+                        type="primary"
+                        class="strategy-name-link"
+                        @click="openStrategyConfigPage(scope.row.strategy)"
+                      >
+                        {{ scope.row.strategy?.strategy_name || '-' }}
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    prop="strategy.strategy_code"
+                    label="编码"
+                    min-width="180"
                   />
-                </template>
-              </el-table-column>
-              <el-table-column prop="priority" label="优先级" width="90" />
-              <el-table-column prop="bound_config_version" label="版本" width="80" />
-              <el-table-column prop="last_execute_result" label="最近结果" min-width="180">
-                <template #default="scope">
-                  <div class="bilingual-code-cell">
-                    <span class="bilingual-code-cn">{{ getResultCodeLabel(scope.row.last_execute_result).cn }}</span>
-                    <span class="bilingual-code-en">{{ getResultCodeLabel(scope.row.last_execute_result).en || '-' }}</span>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="风控参数" min-width="220">
-                <template #default="scope">
-                  <div v-if="scope.row.strategy.strategy_code === 'EXEC_ACCOUNT_RISK_BASE'" class="risk-preview-cell">
-                    <span>市场环境：{{ getRiskPreview(scope.row).marketRegimeLabel }}</span>
-                    <span>最大持股：{{ getRiskPreview(scope.row).maxHoldings }}</span>
-                    <span>当前总分块数(M + N)：{{ getRiskPreview(scope.row).totalSlots }}</span>
-                    <span>单份分块金额：{{ getRiskPreview(scope.row).slotAmountText }}</span>
-                    <span>浮亏阈值：{{ getRiskPreview(scope.row).maxFloatingLossPercentText }}</span>
-                  </div>
-                  <span v-else>-</span>
-                </template>
-              </el-table-column>
-              <el-table-column v-if="group.category === 'OPEN_POSITION'" label="股票分组" min-width="220">
-                <template #default="scope">
-                  <div v-if="getBoundGroups(scope.row).length" class="bound-group-cell">
-                    <el-tag
-                      v-for="groupItem in getBoundGroups(scope.row)"
-                      :key="`bound-group-${scope.row.id}-${groupItem.id}`"
-                      size="small"
-                      class="bound-group-tag"
-                      @click="openGroupStocksPage(groupItem)"
-                    >
-                      {{ groupItem.name }}
-                    </el-tag>
-                  </div>
-                  <span v-else>-</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="备注" min-width="180">
-                <template #default="scope">{{ scope.row.strategy.remark || '-' }}</template>
-              </el-table-column>
-              <el-table-column label="操作" width="220" fixed="right">
-                <template #default="scope">
-                  <el-space wrap>
-                    <el-button link type="primary" :disabled="!canMoveUp(group.items, scope.$index)" @click="moveBinding(group.items, scope.$index, 'up')">上移</el-button>
-                    <el-button link type="primary" :disabled="!canMoveDown(group.items, scope.$index)" @click="moveBinding(group.items, scope.$index, 'down')">下移</el-button>
-                    <el-button link type="primary" @click="openEditDialog(scope.row)">编辑</el-button>
-                    <el-button link type="danger" @click="removeBinding(scope.row)">解绑</el-button>
-                  </el-space>
-                </template>
-              </el-table-column>
+                  <el-table-column label="类型" width="120">
+                    <template #default="scope">
+                      <el-tag
+                        size="small"
+                        :type="
+                          scope.row.strategy.strategy_mode === 'BUILTIN'
+                            ? 'success'
+                            : 'info'
+                        "
+                      >
+                        {{ getModeLabel(scope.row.strategy.strategy_mode) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="启用" width="90">
+                    <template #default="scope">
+                      <el-switch
+                        :model-value="scope.row.enabled"
+                        :loading="savingBindingId === scope.row.id"
+                        @change="(value) => toggleBinding(scope.row, value)"
+                      />
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="priority" label="优先级" width="90" />
+                  <el-table-column
+                    prop="bound_config_version"
+                    label="版本"
+                    width="80"
+                  />
+                  <el-table-column
+                    prop="last_execute_result"
+                    label="最近结果"
+                    min-width="180"
+                  >
+                    <template #default="scope">
+                      <div class="bilingual-code-cell">
+                        <span class="bilingual-code-cn">{{
+                          getResultCodeLabel(scope.row.last_execute_result).cn
+                        }}</span>
+                        <span class="bilingual-code-en">{{
+                          getResultCodeLabel(scope.row.last_execute_result)
+                            .en || '-'
+                        }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="风控参数" min-width="220">
+                    <template #default="scope">
+                      <div
+                        v-if="
+                          scope.row.strategy.strategy_code ===
+                          'EXEC_ACCOUNT_RISK_BASE'
+                        "
+                        class="risk-preview-cell"
+                      >
+                        <span
+                          >市场环境：{{
+                            getRiskPreview(scope.row).marketRegimeLabel
+                          }}</span
+                        >
+                        <span
+                          >最大持股：{{
+                            getRiskPreview(scope.row).maxHoldings
+                          }}</span
+                        >
+                        <span
+                          >当前总分块数(M + N)：{{
+                            getRiskPreview(scope.row).totalSlots
+                          }}</span
+                        >
+                        <span
+                          >单份分块金额：{{
+                            getRiskPreview(scope.row).slotAmountText
+                          }}</span
+                        >
+                        <span
+                          >浮亏阈值：{{
+                            getRiskPreview(scope.row).maxFloatingLossPercentText
+                          }}</span
+                        >
+                      </div>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    v-if="group.category === 'OPEN_POSITION'"
+                    label="股票分组"
+                    min-width="220"
+                  >
+                    <template #default="scope">
+                      <div
+                        v-if="getBoundGroups(scope.row).length"
+                        class="bound-group-cell"
+                      >
+                        <el-tag
+                          v-for="groupItem in getBoundGroups(scope.row)"
+                          :key="`bound-group-${scope.row.id}-${groupItem.id}`"
+                          size="small"
+                          class="bound-group-tag"
+                          @click="openGroupStocksPage(groupItem)"
+                        >
+                          {{ groupItem.name }}
+                        </el-tag>
+                      </div>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="备注" min-width="180">
+                    <template #default="scope">{{
+                      scope.row.strategy.remark || '-'
+                    }}</template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="220" fixed="right">
+                    <template #default="scope">
+                      <el-space wrap>
+                        <el-button
+                          link
+                          type="primary"
+                          :disabled="!canMoveUp(group.items, scope.$index)"
+                          @click="moveBinding(group.items, scope.$index, 'up')"
+                          >上移</el-button
+                        >
+                        <el-button
+                          link
+                          type="primary"
+                          :disabled="!canMoveDown(group.items, scope.$index)"
+                          @click="
+                            moveBinding(group.items, scope.$index, 'down')
+                          "
+                          >下移</el-button
+                        >
+                        <el-button
+                          link
+                          type="primary"
+                          @click="openEditDialog(scope.row)"
+                          >编辑</el-button
+                        >
+                        <el-button
+                          link
+                          type="danger"
+                          @click="removeBinding(scope.row)"
+                          >解绑</el-button
+                        >
+                      </el-space>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </el-card>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="策略日志" name="logs">
-        <div class="log-toolbar">
-          <el-input v-model="logFilters.result_code" clearable placeholder="结果码" class="toolbar-input" />
-          <el-input v-model="logFilters.keyword" clearable placeholder="策略名称/股票/原因" class="toolbar-input" />
-          <el-button type="primary" @click="loadLogs">查询</el-button>
-          <el-button @click="resetLogFilters">重置</el-button>
-        </div>
+          <el-tab-pane label="策略日志" name="logs" lazy="true">
+            <div class="log-toolbar">
+              <el-input
+                v-model="logFilters.result_code"
+                clearable
+                placeholder="结果码"
+                class="toolbar-input"
+              />
+              <el-input
+                v-model="logFilters.keyword"
+                clearable
+                placeholder="策略名称/股票/原因"
+                class="toolbar-input"
+              />
+              <el-button type="primary" @click="loadLogs">查询</el-button>
+              <el-button @click="resetLogFilters">重置</el-button>
+            </div>
 
-        <el-table :data="logs.items" border>
-          <el-table-column prop="strategy_name" label="策略名称" min-width="180" />
-          <el-table-column label="股票" min-width="180">
-            <template #default="scope">
-              <span>{{ scope.row.stock_name || scope.row.stock_code || '-' }}</span>
-              <span v-if="scope.row.stock_code" class="muted-inline">{{ ` (${scope.row.stock_code})` }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="分类" width="130">
-            <template #default="scope">{{ getCategoryLabel(scope.row.strategy_category) }}</template>
-          </el-table-column>
-          <el-table-column prop="action_code" label="动作" width="190">
-            <template #default="scope">
-              <div class="bilingual-code-cell">
-                <span class="bilingual-code-cn">{{ getActionCodeLabel(scope.row.action_code).cn }}</span>
-                <span class="bilingual-code-en">{{ getActionCodeLabel(scope.row.action_code).en || '-' }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="result_code" label="结果" width="220">
-            <template #default="scope">
-              <div class="bilingual-code-cell">
-                <span class="bilingual-code-cn">{{ getResultCodeLabel(scope.row.result_code).cn }}</span>
-                <span class="bilingual-code-en">{{ getResultCodeLabel(scope.row.result_code).en || '-' }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="trigger_reason" label="原因" min-width="260">
-            <template #default="scope">
-              <div class="reason-cell">{{ scope.row.trigger_reason || scope.row.system_remark || '-' }}</div>
-            </template>
-          </el-table-column>
-          <el-table-column label="风控协同" min-width="320">
-            <template #default="scope">
-              <div v-if="getCoordinationSummary(scope.row)" class="coordination-cell">
-                <div class="coordination-tags">
-                  <el-tag size="small" :type="getCoordinationStateTagType(getCoordinationSummary(scope.row)?.risk_state)">
-                    {{ getCoordinationStateLabel(getCoordinationSummary(scope.row)?.risk_state) }}
-                  </el-tag>
-                  <el-tag
-                    size="small"
-                    :type="getCoordinationSummary(scope.row)?.allow_open_position ? 'success' : 'warning'"
+            <el-table :data="logs.items" border>
+              <el-table-column
+                prop="strategy_name"
+                label="策略名称"
+                min-width="180"
+              />
+              <el-table-column label="股票" min-width="180">
+                <template #default="scope">
+                  <span>{{
+                    scope.row.stock_name || scope.row.stock_code || '-'
+                  }}</span>
+                  <span v-if="scope.row.stock_code" class="muted-inline">{{
+                    ` (${scope.row.stock_code})`
+                  }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="分类" width="130">
+                <template #default="scope">{{
+                  getCategoryLabel(scope.row.strategy_category)
+                }}</template>
+              </el-table-column>
+              <el-table-column prop="action_code" label="动作" width="190">
+                <template #default="scope">
+                  <div class="bilingual-code-cell">
+                    <span class="bilingual-code-cn">{{
+                      getActionCodeLabel(scope.row.action_code).cn
+                    }}</span>
+                    <span class="bilingual-code-en">{{
+                      getActionCodeLabel(scope.row.action_code).en || '-'
+                    }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="result_code" label="结果" width="220">
+                <template #default="scope">
+                  <div class="bilingual-code-cell">
+                    <span class="bilingual-code-cn">{{
+                      getResultCodeLabel(scope.row.result_code).cn
+                    }}</span>
+                    <span class="bilingual-code-en">{{
+                      getResultCodeLabel(scope.row.result_code).en || '-'
+                    }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="trigger_reason"
+                label="原因"
+                min-width="260"
+              >
+                <template #default="scope">
+                  <div class="reason-cell">
+                    {{
+                      scope.row.trigger_reason || scope.row.system_remark || '-'
+                    }}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="风控协同" min-width="320">
+                <template #default="scope">
+                  <div
+                    v-if="getCoordinationSummary(scope.row)"
+                    class="coordination-cell"
                   >
-                    {{ getCoordinationSummary(scope.row)?.allow_open_position ? '允许开仓' : '禁止开仓' }}
-                  </el-tag>
-                  <el-tag
-                    size="small"
-                    :type="getCoordinationSummary(scope.row)?.allow_intraday_t ? 'success' : 'info'"
-                  >
-                    {{ getCoordinationSummary(scope.row)?.allow_intraday_t ? '允许做T' : '暂停做T' }}
-                  </el-tag>
-                </div>
-                <div class="coordination-metrics">
-                  <span>剩余开仓名额：{{ formatCoordinationValue(getCoordinationSummary(scope.row)?.remaining_open_slots) }}</span>
-                  <span>开仓参考金额：{{ formatCoordinationBudget(getCoordinationSummary(scope.row)?.recommended_open_budget) }}</span>
-                </div>
-                <div v-if="getCoordinationWarnings(scope.row).length" class="coordination-warnings">
-                  {{ getCoordinationWarnings(scope.row).join('；') }}
-                </div>
-              </div>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="时间" min-width="180">
-            <template #default="scope">{{ formatDateTime(scope.row.last_trigger_time || scope.row.created_time) }}</template>
-          </el-table-column>
-        </el-table>
+                    <div class="coordination-tags">
+                      <el-tag
+                        size="small"
+                        :type="
+                          getCoordinationStateTagType(
+                            getCoordinationSummary(scope.row)?.risk_state
+                          )
+                        "
+                      >
+                        {{
+                          getCoordinationStateLabel(
+                            getCoordinationSummary(scope.row)?.risk_state
+                          )
+                        }}
+                      </el-tag>
+                      <el-tag
+                        size="small"
+                        :type="
+                          getCoordinationSummary(scope.row)?.allow_open_position
+                            ? 'success'
+                            : 'warning'
+                        "
+                      >
+                        {{
+                          getCoordinationSummary(scope.row)?.allow_open_position
+                            ? '允许开仓'
+                            : '禁止开仓'
+                        }}
+                      </el-tag>
+                      <el-tag
+                        size="small"
+                        :type="
+                          getCoordinationSummary(scope.row)?.allow_intraday_t
+                            ? 'success'
+                            : 'info'
+                        "
+                      >
+                        {{
+                          getCoordinationSummary(scope.row)?.allow_intraday_t
+                            ? '允许做T'
+                            : '暂停做T'
+                        }}
+                      </el-tag>
+                    </div>
+                    <div class="coordination-metrics">
+                      <span
+                        >剩余开仓名额：{{
+                          formatCoordinationValue(
+                            getCoordinationSummary(scope.row)
+                              ?.remaining_open_slots
+                          )
+                        }}</span
+                      >
+                      <span
+                        >开仓参考金额：{{
+                          formatCoordinationBudget(
+                            getCoordinationSummary(scope.row)
+                              ?.recommended_open_budget
+                          )
+                        }}</span
+                      >
+                    </div>
+                    <div
+                      v-if="getCoordinationWarnings(scope.row).length"
+                      class="coordination-warnings"
+                    >
+                      {{ getCoordinationWarnings(scope.row).join('；') }}
+                    </div>
+                  </div>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="时间" min-width="180">
+                <template #default="scope">{{
+                  formatDateTime(
+                    scope.row.last_trigger_time || scope.row.created_time
+                  )
+                }}</template>
+              </el-table-column>
+            </el-table>
 
-        <div class="table-pagination">
-          <el-pagination
-            v-model:current-page="logPagination.page"
-            v-model:page-size="logPagination.pageSize"
-            background
-            layout="total, sizes, prev, pager, next"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="logs.total || 0"
-            @current-change="loadLogs"
-            @size-change="loadLogs"
-          />
-        </div>
+            <div class="table-pagination">
+              <el-pagination
+                v-model:current-page="logPagination.page"
+                v-model:page-size="logPagination.pageSize"
+                background
+                layout="total, sizes, prev, pager, next"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="logs.total || 0"
+                @current-change="loadLogs"
+                @size-change="loadLogs"
+              />
+            </div>
           </el-tab-pane>
         </el-tabs>
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="bindingDialog.visible" :title="bindingDialog.mode === 'create' ? '新增策略绑定' : '编辑策略绑定'" width="640px">
+    <el-dialog
+      v-model="bindingDialog.visible"
+      :title="bindingDialog.mode === 'create' ? '新增策略绑定' : '编辑策略绑定'"
+      width="640px"
+    >
       <el-form label-width="110px">
         <el-form-item v-if="bindingDialog.mode === 'create'" label="选择策略">
-          <el-select v-model="bindingForm.strategy_id" filterable placeholder="请选择执行策略" class="full-width">
+          <el-select
+            v-model="bindingForm.strategy_id"
+            filterable
+            placeholder="请选择执行策略"
+            class="full-width"
+          >
             <el-option
               v-for="item in selectableStrategies"
               :key="item.id"
@@ -259,12 +463,27 @@
           </el-select>
         </el-form-item>
         <el-form-item label="策略分类">
-          <el-input :model-value="bindingDialog.selectedCategory ? getCategoryLabel(bindingDialog.selectedCategory) : '-'" disabled />
+          <el-input
+            :model-value="
+              bindingDialog.selectedCategory
+                ? getCategoryLabel(bindingDialog.selectedCategory)
+                : '-'
+            "
+            disabled
+          />
         </el-form-item>
         <el-form-item label="启用状态">
-          <el-switch v-model="bindingForm.enabled" inline-prompt active-text="开启" inactive-text="关闭" />
+          <el-switch
+            v-model="bindingForm.enabled"
+            inline-prompt
+            active-text="开启"
+            inactive-text="关闭"
+          />
         </el-form-item>
-        <el-form-item v-if="bindingDialog.selectedCategory === 'OPEN_POSITION'" label="绑定股票分组">
+        <el-form-item
+          v-if="bindingDialog.selectedCategory === 'OPEN_POSITION'"
+          label="绑定股票分组"
+        >
           <el-select
             v-model="bindingForm.group_ids"
             class="full-width"
@@ -283,16 +502,24 @@
             />
           </el-select>
           <div class="field-help-text">
-            2.0 起建仓范围从策略模板中解耦，统一在账号绑定层配置，不再跟随策略模板一起复用。
+            2.0
+            起建仓范围从策略模板中解耦，统一在账号绑定层配置，不再跟随策略模板一起复用。
           </div>
         </el-form-item>
         <el-form-item v-if="showBindingOverrideJson" label="覆盖配置 JSON">
-          <el-input v-model="bindingForm.account_override_json_text" type="textarea" :rows="8" placeholder="可选，填写账号级覆盖配置 JSON" />
+          <el-input
+            v-model="bindingForm.account_override_json_text"
+            type="textarea"
+            :rows="8"
+            placeholder="可选，填写账号级覆盖配置 JSON"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="bindingDialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitBinding">保存</el-button>
+        <el-button type="primary" :loading="saving" @click="submitBinding"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -317,8 +544,10 @@ import {
 } from '@/api/modules/simTradingStrategy';
 import { getUserGroups } from '@/api/modules/stockGroup';
 import { useTabsStore } from '@/composables/useTabsStore';
-import { getStrategyActionLabel, getStrategyResultLabel } from '@/utils/strategyCodeLabels';
-
+import {
+  getStrategyActionLabel,
+  getStrategyResultLabel,
+} from '@/utils/strategyCodeLabels';
 
 const props = defineProps({
   accountId: {
@@ -335,10 +564,26 @@ const router = useRouter();
 const { addTab } = useTabsStore();
 
 const CATEGORY_OPTIONS = [
-  { value: 'ACCOUNT_RISK', label: '账号风控策略', description: '账号级风控门禁，优先于其他执行策略。' },
-  { value: 'OPEN_POSITION', label: '建仓策略', description: '基于分组与买入监控信号执行建仓。' },
-  { value: 'CLOSE_POSITION', label: '清仓策略', description: '围绕止盈、止损和趋势破坏执行清仓。' },
-  { value: 'INTRADAY_T', label: '做T策略', description: '围绕底仓执行盘中高抛低吸。' },
+  {
+    value: 'ACCOUNT_RISK',
+    label: '账号风控策略',
+    description: '账号级风控门禁，优先于其他执行策略。',
+  },
+  {
+    value: 'OPEN_POSITION',
+    label: '建仓策略',
+    description: '基于分组与买入监控信号执行建仓。',
+  },
+  {
+    value: 'CLOSE_POSITION',
+    label: '清仓策略',
+    description: '围绕止盈、止损和趋势破坏执行清仓。',
+  },
+  {
+    value: 'INTRADAY_T',
+    label: '做T策略',
+    description: '围绕底仓执行盘中高抛低吸。',
+  },
 ];
 
 const loading = ref(false);
@@ -382,7 +627,9 @@ const groupedBindings = computed(() =>
   CATEGORY_OPTIONS.map((item) => ({
     ...item,
     category: item.value,
-    items: bindings.value.filter((binding) => binding.strategy_category === item.value),
+    items: bindings.value.filter(
+      (binding) => binding.strategy_category === item.value
+    ),
   }))
 );
 const userGroupNameMap = computed(() => {
@@ -401,7 +648,10 @@ const selectableStrategies = computed(() => {
     if (bindingDialog.mode === 'edit' && bindingDialog.bindingId) {
       return item.strategy_category === bindingDialog.selectedCategory;
     }
-    return item.strategy_category === bindingDialog.selectedCategory && !boundIds.has(item.id);
+    return (
+      item.strategy_category === bindingDialog.selectedCategory &&
+      !boundIds.has(item.id)
+    );
   });
 });
 const accountBoundGroups = computed(() => {
@@ -423,9 +673,14 @@ const accountBoundGroups = computed(() => {
 });
 const currentBindingStrategy = computed(() => {
   if (bindingDialog.mode === 'create') {
-    return availableStrategies.value.find((item) => item.id === bindingForm.strategy_id) || null;
+    return (
+      availableStrategies.value.find(
+        (item) => item.id === bindingForm.strategy_id
+      ) || null
+    );
   }
-  const currentBinding = bindings.value.find((item) => item.id === bindingDialog.bindingId) || null;
+  const currentBinding =
+    bindings.value.find((item) => item.id === bindingDialog.bindingId) || null;
   return currentBinding?.strategy || null;
 });
 const showBindingOverrideJson = computed(() => {
@@ -465,14 +720,17 @@ watch(
   }
 );
 
-watch(() => props.accountId, () => {
-  if (!accountIdNumber.value) {
-    return;
+watch(
+  () => props.accountId,
+  () => {
+    if (!accountIdNumber.value) {
+      return;
+    }
+    if (getActiveInnerTab() === 'logs') {
+      loadLogs();
+    }
   }
-  if (getActiveInnerTab() === 'logs') {
-    loadLogs();
-  }
-});
+);
 
 async function loadAll() {
   if (!accountIdNumber.value) {
@@ -480,12 +738,13 @@ async function loadAll() {
   }
   loading.value = true;
   try {
-    const [settingsRes, bindingsRes, strategiesRes, groupsRes] = await Promise.all([
-      getAccountStrategySettings(accountIdNumber.value),
-      getAccountStrategyBindings(accountIdNumber.value),
-      getExecutionStrategies({ page: 1, page_size: 200 }),
-      getUserGroups().catch(() => ({ payload: [] })),
-    ]);
+    const [settingsRes, bindingsRes, strategiesRes, groupsRes] =
+      await Promise.all([
+        getAccountStrategySettings(accountIdNumber.value),
+        getAccountStrategyBindings(accountIdNumber.value),
+        getExecutionStrategies({ page: 1, page_size: 200 }),
+        getUserGroups().catch(() => ({ payload: [] })),
+      ]);
     Object.assign(settings, settingsRes.payload || {});
     bindings.value = bindingsRes.payload?.items || [];
     availableStrategies.value = strategiesRes.payload?.items || [];
@@ -524,7 +783,9 @@ async function loadLogs() {
 async function handleAutomationToggle(value) {
   saving.value = true;
   try {
-    const res = await toggleAccountStrategySettings(accountIdNumber.value, { automation_enabled: value });
+    const res = await toggleAccountStrategySettings(accountIdNumber.value, {
+      automation_enabled: value,
+    });
     Object.assign(settings, res.payload || {});
     ElMessage.success(value ? '账号自动化已开启' : '账号自动化已关闭');
   } finally {
@@ -551,7 +812,9 @@ function openEditDialog(binding) {
   bindingForm.strategy_id = binding.strategy_id;
   bindingForm.enabled = binding.enabled;
   bindingForm.group_ids = getBindingGroupIds(binding);
-  bindingForm.account_override_json_text = binding.account_override_json ? JSON.stringify(binding.account_override_json, null, 2) : '';
+  bindingForm.account_override_json_text = binding.account_override_json
+    ? JSON.stringify(binding.account_override_json, null, 2)
+    : '';
 }
 
 function parseOverrideJson() {
@@ -574,7 +837,9 @@ function buildBindingOverridePayload() {
     return null;
   }
   const groupIds = Array.isArray(bindingForm.group_ids)
-    ? bindingForm.group_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
+    ? bindingForm.group_ids
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
     : [];
   return {
     open_position_scope: {
@@ -613,10 +878,14 @@ async function submitBinding() {
       });
       ElMessage.success('策略绑定成功');
     } else {
-      await updateAccountStrategyBinding(accountIdNumber.value, bindingDialog.bindingId, {
-        enabled: bindingForm.enabled,
-        account_override_json,
-      });
+      await updateAccountStrategyBinding(
+        accountIdNumber.value,
+        bindingDialog.bindingId,
+        {
+          enabled: bindingForm.enabled,
+          account_override_json,
+        }
+      );
       ElMessage.success('策略绑定已更新');
     }
     bindingDialog.visible = false;
@@ -631,7 +900,9 @@ async function submitBinding() {
 async function toggleBinding(binding, enabled) {
   savingBindingId.value = binding.id;
   try {
-    await updateAccountStrategyBinding(accountIdNumber.value, binding.id, { enabled });
+    await updateAccountStrategyBinding(accountIdNumber.value, binding.id, {
+      enabled,
+    });
     binding.enabled = enabled;
     ElMessage.success(enabled ? '策略已启用' : '策略已停用');
   } finally {
@@ -669,7 +940,9 @@ async function moveBinding(items, index, direction) {
 }
 
 async function removeBinding(binding) {
-  const strategyName = binding?.strategy?.strategy_name || `策略#${binding?.strategy_id || binding?.id || '--'}`;
+  const strategyName =
+    binding?.strategy?.strategy_name ||
+    `策略#${binding?.strategy_id || binding?.id || '--'}`;
   await ElMessageBox.confirm(`确认解绑策略“${strategyName}”吗？`, '解绑确认', {
     type: 'warning',
   });
@@ -716,7 +989,12 @@ function openStrategyConfigPage(strategy) {
     CLOSE_POSITION: '/trading-strategy/execution/close-position',
     INTRADAY_T: '/trading-strategy/execution/intraday-t',
   };
-  const path = categoryPathMap[String(strategy?.strategy_category || '').trim().toUpperCase()] || '/trading-strategy/execution';
+  const path =
+    categoryPathMap[
+      String(strategy?.strategy_category || '')
+        .trim()
+        .toUpperCase()
+    ] || '/trading-strategy/execution';
   const resolved = router.resolve({
     path,
     query: {
@@ -728,14 +1006,17 @@ function openStrategyConfigPage(strategy) {
 }
 
 function getCategoryLabel(category) {
-  return CATEGORY_OPTIONS.find((item) => item.value === category)?.label || category;
+  return (
+    CATEGORY_OPTIONS.find((item) => item.value === category)?.label || category
+  );
 }
 
 function formatDateTime(value) {
   if (!value) {
     return '-';
   }
-  let normalized = typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
+  let normalized =
+    typeof value === 'string' ? value.trim().replace(' ', 'T') : value;
   if (typeof normalized === 'string') {
     const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized);
     if (!hasTimezone && normalized.includes('T')) {
@@ -752,7 +1033,9 @@ function formatDateTime(value) {
 }
 
 function normalizeMarketRegime(value) {
-  const raw = String(value || '').trim().toUpperCase();
+  const raw = String(value || '')
+    .trim()
+    .toUpperCase();
   if (raw === 'BEAR' || raw === '熊市') {
     return { key: 'bear', label: '熊市' };
   }
@@ -797,19 +1080,29 @@ function mergeConfig(baseValue, overrideValue) {
 }
 
 function getBindingEffectiveConfig(binding) {
-  const strategyConfig = isPlainObject(binding?.strategy?.rule_config_json) ? binding.strategy.rule_config_json : {};
-  const overrideConfig = isPlainObject(binding?.account_override_json) ? binding.account_override_json : {};
+  const strategyConfig = isPlainObject(binding?.strategy?.rule_config_json)
+    ? binding.strategy.rule_config_json
+    : {};
+  const overrideConfig = isPlainObject(binding?.account_override_json)
+    ? binding.account_override_json
+    : {};
   return mergeConfig(strategyConfig, overrideConfig);
 }
 
 function getBindingGroupIds(binding) {
-  const scopedGroupIds = binding?.account_override_json?.open_position_scope?.group_ids;
+  const scopedGroupIds =
+    binding?.account_override_json?.open_position_scope?.group_ids;
   if (Array.isArray(scopedGroupIds)) {
-    return scopedGroupIds.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0);
+    return scopedGroupIds
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
   }
-  const legacyGroupIds = binding?.strategy?.rule_config_json?.universe?.group_ids;
+  const legacyGroupIds =
+    binding?.strategy?.rule_config_json?.universe?.group_ids;
   if (Array.isArray(legacyGroupIds)) {
-    return legacyGroupIds.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0);
+    return legacyGroupIds
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
   }
   return [];
 }
@@ -827,7 +1120,8 @@ function getBoundGroups(binding) {
       }
       return {
         id: normalizedId,
-        name: userGroupNameMap.value.get(normalizedId) || `分组#${normalizedId}`,
+        name:
+          userGroupNameMap.value.get(normalizedId) || `分组#${normalizedId}`,
       };
     })
     .filter(Boolean);
@@ -866,7 +1160,8 @@ function getRiskPreview(binding) {
   const reservedTSlotCount = Number(risk.reserved_t_slot_count ?? 0);
   const totalSlots = Math.max(bullMaxHoldings + reservedTSlotCount, 0);
   const totalAsset = Number(props.accountTotalAsset ?? 0);
-  const slotAmount = totalSlots > 0 && Number.isFinite(totalAsset) ? totalAsset / totalSlots : 0;
+  const slotAmount =
+    totalSlots > 0 && Number.isFinite(totalAsset) ? totalAsset / totalSlots : 0;
   return {
     marketRegimeLabel: marketRegime.label,
     maxHoldings,
@@ -877,7 +1172,11 @@ function getRiskPreview(binding) {
 }
 
 function getCoordinationSummary(logRow) {
-  return logRow?.coordination_summary || logRow?.config_snapshot_json?.coordination_summary || null;
+  return (
+    logRow?.coordination_summary ||
+    logRow?.config_snapshot_json?.coordination_summary ||
+    null
+  );
 }
 
 function getCoordinationWarnings(logRow) {
@@ -891,11 +1190,19 @@ function getCoordinationStateLabel(riskState) {
     MAX_HOLDINGS_REACHED: '满仓边界',
     PASSED: '风控通过',
   };
-  return mapping[String(riskState || '').trim().toUpperCase()] || '协同快照';
+  return (
+    mapping[
+      String(riskState || '')
+        .trim()
+        .toUpperCase()
+    ] || '协同快照'
+  );
 }
 
 function getCoordinationStateTagType(riskState) {
-  const normalized = String(riskState || '').trim().toUpperCase();
+  const normalized = String(riskState || '')
+    .trim()
+    .toUpperCase();
   if (normalized === 'FORCE_CLOSE_TRIGGERED') {
     return 'danger';
   }

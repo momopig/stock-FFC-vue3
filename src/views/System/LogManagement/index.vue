@@ -10,12 +10,21 @@
         <div class="hero-meta">
           <span>最近扫描：{{ formatDateTime(overview.last_scan_time) }}</span>
           <span>自动刷新：30 秒</span>
-          <span v-if="overview.management_note">{{ overview.management_note }}</span>
+          <span v-if="overview.management_note">{{
+            overview.management_note
+          }}</span>
         </div>
       </div>
       <div class="hero-actions">
-        <el-button :loading="pageLoading" @click="refreshPage">刷新工作台</el-button>
-        <el-button type="warning" :loading="actionLoading" @click="triggerAutoCleanup">立即巡检</el-button>
+        <el-button :loading="pageLoading" @click="refreshPage"
+          >刷新工作台</el-button
+        >
+        <el-button
+          type="warning"
+          :loading="actionLoading"
+          @click="triggerAutoCleanup"
+          >立即巡检</el-button
+        >
       </div>
     </section>
 
@@ -27,7 +36,10 @@
       </article>
       <article class="metric-card accent-amber">
         <span>风险表数量</span>
-        <strong>{{ overview.warning_count || 0 }} / {{ overview.critical_count || 0 }}</strong>
+        <strong
+          >{{ overview.warning_count || 0 }} /
+          {{ overview.critical_count || 0 }}</strong
+        >
         <small>预警 / 超限</small>
       </article>
       <article class="metric-card accent-green">
@@ -38,7 +50,10 @@
       <article class="metric-card accent-slate">
         <span>磁盘使用率</span>
         <strong>{{ diskUsageRate }}%</strong>
-        <small>{{ formatSize(overview.disk_usage?.used_gb) }} / {{ formatSize(overview.disk_usage?.total_gb) }}</small>
+        <small
+          >{{ formatSize(overview.disk_usage?.used_gb) }} /
+          {{ formatSize(overview.disk_usage?.total_gb) }}</small
+        >
       </article>
     </section>
 
@@ -56,7 +71,10 @@
             :key="item.table_name"
             type="button"
             class="table-card"
-            :class="[`state-${item.status}`, { active: item.table_name === selectedTableName }]"
+            :class="[
+              `state-${item.status}`,
+              { active: item.table_name === selectedTableName },
+            ]"
             @click="selectTable(item.table_name)"
           >
             <div class="table-card-header">
@@ -77,12 +95,23 @@
         <div class="panel-heading wide">
           <div>
             <h3>{{ selectedSummary?.display_name || '请选择日志表' }}</h3>
-            <p>{{ selectedSummary?.table_name || '选择左侧日志表后查看详情' }}</p>
+            <p>
+              {{ selectedSummary?.table_name || '选择左侧日志表后查看详情' }}
+            </p>
           </div>
           <div class="summary-tags" v-if="selectedSummary">
-            <el-tag size="small" effect="plain">{{ categoryLabel(selectedSummary.table_category) }}</el-tag>
-            <el-tag size="small" :type="selectedSummary.auto_cleanup_enabled ? 'success' : 'info'">
-              {{ selectedSummary.auto_cleanup_enabled ? '自动清理已开启' : '自动清理已关闭' }}
+            <el-tag size="small" effect="plain">{{
+              categoryLabel(selectedSummary.table_category)
+            }}</el-tag>
+            <el-tag
+              size="small"
+              :type="selectedSummary.auto_cleanup_enabled ? 'success' : 'info'"
+            >
+              {{
+                selectedSummary.auto_cleanup_enabled
+                  ? '自动清理已开启'
+                  : '自动清理已关闭'
+              }}
             </el-tag>
           </div>
         </div>
@@ -95,18 +124,25 @@
           </div>
           <div class="overview-strip-card">
             <span>使用率</span>
-            <strong>{{ Number(selectedSummary.usage_rate || 0).toFixed(2) }}%</strong>
-            <small>预警阈值 {{ selectedSummary.warning_threshold_percent }}%</small>
+            <strong
+              >{{ Number(selectedSummary.usage_rate || 0).toFixed(2) }}%</strong
+            >
+            <small
+              >预警阈值 {{ selectedSummary.warning_threshold_percent }}%</small
+            >
           </div>
           <div class="overview-strip-card">
             <span>日志条数</span>
             <strong>{{ selectedSummary.row_count || 0 }}</strong>
-            <small>最新时间 {{ formatDateTime(selectedSummary.latest_log_time) }}</small>
+            <small
+              >最新时间
+              {{ formatDateTime(selectedSummary.latest_log_time) }}</small
+            >
           </div>
         </div>
 
         <el-tabs v-model="activeTab" class="workbench-tabs">
-          <el-tab-pane label="日志概览" name="overview">
+          <el-tab-pane label="日志概览" name="overview" lazy="true">
             <div class="toolbar-card">
               <div class="toolbar-left">
                 <el-input
@@ -123,8 +159,17 @@
                   placeholder="状态筛选，如 SUCCESS / failed"
                   @keyup.enter="loadLogs"
                 />
-                <el-select v-model="logPager.page_size" class="toolbar-page-size" @change="handlePageSizeChange">
-                  <el-option v-for="size in [5, 10, 20, 100]" :key="size" :label="`${size} 条/页`" :value="size" />
+                <el-select
+                  v-model="logPager.page_size"
+                  class="toolbar-page-size"
+                  @change="handlePageSizeChange"
+                >
+                  <el-option
+                    v-for="size in [5, 10, 20, 100]"
+                    :key="size"
+                    :label="`${size} 条/页`"
+                    :value="size"
+                  />
                 </el-select>
                 <el-button @click="loadLogs">搜索</el-button>
               </div>
@@ -133,16 +178,45 @@
               </div>
             </div>
 
-            <el-table v-loading="logLoading" :data="logItems" border class="log-table">
-              <el-table-column prop="id" label="日志ID" min-width="110" sortable />
+            <el-table
+              v-loading="logLoading"
+              :data="logItems"
+              border
+              class="log-table"
+            >
+              <el-table-column
+                prop="id"
+                label="日志ID"
+                min-width="110"
+                sortable
+              />
               <el-table-column label="发生时间" min-width="180">
-                <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+                <template #default="scope">{{
+                  formatDateTime(scope.row.created_time)
+                }}</template>
               </el-table-column>
-              <el-table-column prop="related_id" label="关联ID" min-width="120" />
+              <el-table-column
+                prop="related_id"
+                label="关联ID"
+                min-width="120"
+              />
               <el-table-column prop="title" label="标题" min-width="180" />
-              <el-table-column prop="message" label="日志内容" min-width="320" show-overflow-tooltip />
-              <el-table-column prop="stock_code" label="股票代码" min-width="130" />
-              <el-table-column prop="stock_name" label="股票名称" min-width="140" />
+              <el-table-column
+                prop="message"
+                label="日志内容"
+                min-width="320"
+                show-overflow-tooltip
+              />
+              <el-table-column
+                prop="stock_code"
+                label="股票代码"
+                min-width="130"
+              />
+              <el-table-column
+                prop="stock_name"
+                label="股票名称"
+                min-width="140"
+              />
               <el-table-column prop="status" label="执行状态" min-width="120" />
             </el-table>
 
@@ -163,28 +237,76 @@
               <div class="panel-heading wide compact">
                 <div>
                   <h3>清理记录</h3>
-                  <p>保留最近 {{ cleanupRecordTotal }} 条执行记录，用于回溯手动或自动治理动作</p>
+                  <p>
+                    保留最近
+                    {{ cleanupRecordTotal }}
+                    条执行记录，用于回溯手动或自动治理动作
+                  </p>
                 </div>
               </div>
               <el-table v-loading="recordLoading" :data="cleanupRecords" border>
-                <el-table-column prop="display_name" label="日志表" min-width="160" />
-                <el-table-column prop="trigger_mode" label="触发方式" min-width="110" />
-                <el-table-column prop="cleanup_mode" label="清理模式" min-width="140" />
-                <el-table-column prop="deleted_rows" label="删除条数" min-width="110" sortable />
-                <el-table-column prop="before_size_gb" label="清理前(GB)" min-width="120" sortable />
-                <el-table-column prop="after_size_gb" label="清理后(GB)" min-width="120" sortable />
-                <el-table-column prop="estimated_after_size_gb" label="估算剩余(GB)" min-width="130" sortable />
-                <el-table-column prop="duration_ms" label="耗时(ms)" min-width="110" sortable />
+                <el-table-column
+                  prop="display_name"
+                  label="日志表"
+                  min-width="160"
+                />
+                <el-table-column
+                  prop="trigger_mode"
+                  label="触发方式"
+                  min-width="110"
+                />
+                <el-table-column
+                  prop="cleanup_mode"
+                  label="清理模式"
+                  min-width="140"
+                />
+                <el-table-column
+                  prop="deleted_rows"
+                  label="删除条数"
+                  min-width="110"
+                  sortable
+                />
+                <el-table-column
+                  prop="before_size_gb"
+                  label="清理前(GB)"
+                  min-width="120"
+                  sortable
+                />
+                <el-table-column
+                  prop="after_size_gb"
+                  label="清理后(GB)"
+                  min-width="120"
+                  sortable
+                />
+                <el-table-column
+                  prop="estimated_after_size_gb"
+                  label="估算剩余(GB)"
+                  min-width="130"
+                  sortable
+                />
+                <el-table-column
+                  prop="duration_ms"
+                  label="耗时(ms)"
+                  min-width="110"
+                  sortable
+                />
                 <el-table-column prop="status" label="结果" min-width="100" />
-                <el-table-column prop="message" label="说明" min-width="260" show-overflow-tooltip />
+                <el-table-column
+                  prop="message"
+                  label="说明"
+                  min-width="260"
+                  show-overflow-tooltip
+                />
                 <el-table-column label="执行时间" min-width="180">
-                  <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+                  <template #default="scope">{{
+                    formatDateTime(scope.row.created_time)
+                  }}</template>
                 </el-table-column>
               </el-table>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="日志治理" name="governance">
+          <el-tab-pane label="日志治理" name="governance" lazy="true">
             <div class="governance-grid" v-if="selectedSummary">
               <section class="governance-card">
                 <div class="panel-heading compact">
@@ -195,24 +317,49 @@
                 </div>
                 <el-form label-position="top" class="governance-form">
                   <el-form-item label="展示名称">
-                    <el-input v-model="profileForm.display_name" placeholder="例如：策略执行日志" />
+                    <el-input
+                      v-model="profileForm.display_name"
+                      placeholder="例如：策略执行日志"
+                    />
                   </el-form-item>
                   <div class="form-grid">
                     <el-form-item label="最大容量上限(GB)">
-                      <el-input-number v-model="profileForm.max_size_gb" :min="1" :step="0.5" :precision="2" />
+                      <el-input-number
+                        v-model="profileForm.max_size_gb"
+                        :min="1"
+                        :step="0.5"
+                        :precision="2"
+                      />
                     </el-form-item>
                     <el-form-item label="预警阈值(%)">
-                      <el-input-number v-model="profileForm.warning_threshold_percent" :min="10" :max="99" />
+                      <el-input-number
+                        v-model="profileForm.warning_threshold_percent"
+                        :min="10"
+                        :max="99"
+                      />
                     </el-form-item>
                     <el-form-item label="清理目标(%)">
-                      <el-input-number v-model="profileForm.cleanup_target_percent" :min="10" :max="95" />
+                      <el-input-number
+                        v-model="profileForm.cleanup_target_percent"
+                        :min="10"
+                        :max="95"
+                      />
                     </el-form-item>
                   </div>
                   <el-form-item label="自动清理">
-                    <el-switch v-model="profileForm.auto_cleanup_enabled" active-text="开启" inactive-text="关闭" />
+                    <el-switch
+                      v-model="profileForm.auto_cleanup_enabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
                   </el-form-item>
                   <div class="card-actions">
-                    <el-button type="primary" :loading="actionLoading" @click="saveProfile">保存配置</el-button>
+                    <el-button
+                      type="primary"
+                      :loading="actionLoading"
+                      @click="saveProfile"
+                      >保存配置</el-button
+                    >
                     <el-button @click="resetProfileForm">重置</el-button>
                   </div>
                 </el-form>
@@ -228,22 +375,50 @@
                 <el-form label-position="top" class="governance-form">
                   <el-form-item label="清理模式">
                     <el-radio-group v-model="cleanupForm.cleanup_mode">
-                      <el-radio-button label="target_size_gb">清理到指定容量</el-radio-button>
-                      <el-radio-button label="retention_days">清理指定天数前日志</el-radio-button>
+                      <el-radio-button label="target_size_gb"
+                        >清理到指定容量</el-radio-button
+                      >
+                      <el-radio-button label="retention_days"
+                        >清理指定天数前日志</el-radio-button
+                      >
                     </el-radio-group>
                   </el-form-item>
-                  <el-form-item v-if="cleanupForm.cleanup_mode === 'target_size_gb'" label="目标容量(GB)">
-                    <el-input-number v-model="cleanupForm.target_size_gb" :min="0.1" :step="0.5" :precision="2" />
+                  <el-form-item
+                    v-if="cleanupForm.cleanup_mode === 'target_size_gb'"
+                    label="目标容量(GB)"
+                  >
+                    <el-input-number
+                      v-model="cleanupForm.target_size_gb"
+                      :min="0.1"
+                      :step="0.5"
+                      :precision="2"
+                    />
                   </el-form-item>
                   <el-form-item v-else label="保留天数">
-                    <el-input-number v-model="cleanupForm.retention_days" :min="1" :max="3650" />
+                    <el-input-number
+                      v-model="cleanupForm.retention_days"
+                      :min="1"
+                      :max="3650"
+                    />
                   </el-form-item>
                   <div class="cleanup-hint">
-                    <span>当前物理容量：{{ formatSize(selectedSummary.current_size_gb) }}</span>
-                    <span>PostgreSQL 删除后物理体积可能不会即时下降，页面会同时显示估算剩余容量。</span>
+                    <span
+                      >当前物理容量：{{
+                        formatSize(selectedSummary.current_size_gb)
+                      }}</span
+                    >
+                    <span
+                      >PostgreSQL
+                      删除后物理体积可能不会即时下降，页面会同时显示估算剩余容量。</span
+                    >
                   </div>
                   <div class="card-actions">
-                    <el-button type="danger" :loading="actionLoading" @click="runCleanup">执行清理</el-button>
+                    <el-button
+                      type="danger"
+                      :loading="actionLoading"
+                      @click="runCleanup"
+                      >执行清理</el-button
+                    >
                   </div>
                 </el-form>
               </section>
@@ -256,7 +431,14 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
@@ -308,7 +490,12 @@ const cleanupForm = reactive({
 
 let refreshTimer = null;
 
-const selectedSummary = computed(() => tableItems.value.find((item) => item.table_name === selectedTableName.value) || null);
+const selectedSummary = computed(
+  () =>
+    tableItems.value.find(
+      (item) => item.table_name === selectedTableName.value
+    ) || null
+);
 const diskUsageRate = computed(() => {
   const total = Number(overview.disk_usage?.total_gb || 0);
   const used = Number(overview.disk_usage?.used_gb || 0);
@@ -318,7 +505,11 @@ const diskUsageRate = computed(() => {
 
 function normalizeDate(value) {
   if (!value) return null;
-  const date = new Date(typeof value === 'string' && !/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value) ? `${value}Z` : value);
+  const date = new Date(
+    typeof value === 'string' && !/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value)
+      ? `${value}Z`
+      : value
+  );
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -352,10 +543,19 @@ function syncProfileForm() {
   if (!selectedSummary.value) return;
   profileForm.display_name = selectedSummary.value.display_name || '';
   profileForm.max_size_gb = Number(selectedSummary.value.max_size_gb || 10);
-  profileForm.warning_threshold_percent = Number(selectedSummary.value.warning_threshold_percent || 80);
-  profileForm.cleanup_target_percent = Number(selectedSummary.value.cleanup_target_percent || 70);
-  profileForm.auto_cleanup_enabled = Boolean(selectedSummary.value.auto_cleanup_enabled);
-  cleanupForm.target_size_gb = Math.max(Number(selectedSummary.value.max_size_gb || 1) * 0.7, 0.1);
+  profileForm.warning_threshold_percent = Number(
+    selectedSummary.value.warning_threshold_percent || 80
+  );
+  profileForm.cleanup_target_percent = Number(
+    selectedSummary.value.cleanup_target_percent || 70
+  );
+  profileForm.auto_cleanup_enabled = Boolean(
+    selectedSummary.value.auto_cleanup_enabled
+  );
+  cleanupForm.target_size_gb = Math.max(
+    Number(selectedSummary.value.max_size_gb || 1) * 0.7,
+    0.1
+  );
 }
 
 function selectTable(tableName) {
@@ -365,13 +565,23 @@ function selectTable(tableName) {
 async function loadOverviewAndTables() {
   pageLoading.value = true;
   try {
-    const [overviewRes, tablesRes] = await Promise.all([getLogManagementOverview(), getLogManagementTables()]);
+    const [overviewRes, tablesRes] = await Promise.all([
+      getLogManagementOverview(),
+      getLogManagementTables(),
+    ]);
     Object.assign(overview, overviewRes?.payload || {});
-    tableItems.value = tablesRes?.payload?.items || overviewRes?.payload?.tables || [];
+    tableItems.value =
+      tablesRes?.payload?.items || overviewRes?.payload?.tables || [];
     if (!selectedTableName.value && tableItems.value.length) {
       selectedTableName.value = tableItems.value[0].table_name;
     }
-    if (selectedTableName.value && !tableItems.value.some((item) => item.table_name === selectedTableName.value) && tableItems.value.length) {
+    if (
+      selectedTableName.value &&
+      !tableItems.value.some(
+        (item) => item.table_name === selectedTableName.value
+      ) &&
+      tableItems.value.length
+    ) {
       selectedTableName.value = tableItems.value[0].table_name;
     }
     syncProfileForm();
@@ -406,7 +616,9 @@ async function loadCleanupRecords() {
   try {
     const res = await getLogCleanupRecords({ limit: 50 });
     cleanupRecords.value = res?.payload?.items || [];
-    cleanupRecordTotal.value = Number(res?.payload?.total || cleanupRecords.value.length || 0);
+    cleanupRecordTotal.value = Number(
+      res?.payload?.total || cleanupRecords.value.length || 0
+    );
   } catch (error) {
     ElMessage.error(error?.message || '获取清理记录失败');
   } finally {
@@ -447,17 +659,28 @@ function resetProfileForm() {
 
 async function runCleanup() {
   if (!selectedTableName.value) return;
-  const confirmText = cleanupForm.cleanup_mode === 'target_size_gb'
-    ? `确认将 ${selectedSummary.value?.display_name} 清理到 ${Number(cleanupForm.target_size_gb || 0).toFixed(2)}GB 吗？`
-    : `确认删除 ${Number(cleanupForm.retention_days || 0)} 天前的日志吗？`;
-  await ElMessageBox.confirm(`${confirmText} 清理后日志不可恢复。`, '执行日志清理', { type: 'warning' });
+  const confirmText =
+    cleanupForm.cleanup_mode === 'target_size_gb'
+      ? `确认将 ${selectedSummary.value?.display_name} 清理到 ${Number(cleanupForm.target_size_gb || 0).toFixed(2)}GB 吗？`
+      : `确认删除 ${Number(cleanupForm.retention_days || 0)} 天前的日志吗？`;
+  await ElMessageBox.confirm(
+    `${confirmText} 清理后日志不可恢复。`,
+    '执行日志清理',
+    { type: 'warning' }
+  );
   actionLoading.value = true;
   try {
     const payload = {
       table_names: [selectedTableName.value],
       cleanup_mode: cleanupForm.cleanup_mode,
-      target_size_gb: cleanupForm.cleanup_mode === 'target_size_gb' ? cleanupForm.target_size_gb : undefined,
-      retention_days: cleanupForm.cleanup_mode === 'retention_days' ? cleanupForm.retention_days : undefined,
+      target_size_gb:
+        cleanupForm.cleanup_mode === 'target_size_gb'
+          ? cleanupForm.target_size_gb
+          : undefined,
+      retention_days:
+        cleanupForm.cleanup_mode === 'retention_days'
+          ? cleanupForm.retention_days
+          : undefined,
     };
     const res = await runManualLogCleanup(payload);
     const result = res?.payload?.items?.[0];
@@ -477,7 +700,11 @@ async function triggerAutoCleanup() {
   try {
     const res = await runAutoLogCleanup();
     const count = Number(res?.payload?.items?.length || 0);
-    ElMessage.success(count ? `自动巡检完成，处理 ${count} 张表` : '自动巡检完成，当前无超限日志表');
+    ElMessage.success(
+      count
+        ? `自动巡检完成，处理 ${count} 张表`
+        : '自动巡检完成，当前无超限日志表'
+    );
     await refreshPage();
   } catch (error) {
     ElMessage.error(error?.message || '自动巡检失败');
@@ -533,8 +760,16 @@ onBeforeUnmount(() => {
   padding: 18px;
   color: var(--text-main);
   background:
-    radial-gradient(circle at top left, rgba(29, 92, 122, 0.16), transparent 32%),
-    radial-gradient(circle at right 20%, rgba(187, 107, 37, 0.16), transparent 28%),
+    radial-gradient(
+      circle at top left,
+      rgba(29, 92, 122, 0.16),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at right 20%,
+      rgba(187, 107, 37, 0.16),
+      transparent 28%
+    ),
     linear-gradient(180deg, #f7f4ee 0%, #f2efe7 100%);
 }
 
@@ -638,10 +873,18 @@ onBeforeUnmount(() => {
   opacity: 0.14;
 }
 
-.accent-blue::after { background: var(--accent-blue); }
-.accent-amber::after { background: var(--accent-amber); }
-.accent-green::after { background: var(--accent-green); }
-.accent-slate::after { background: var(--accent-slate); }
+.accent-blue::after {
+  background: var(--accent-blue);
+}
+.accent-amber::after {
+  background: var(--accent-amber);
+}
+.accent-green::after {
+  background: var(--accent-green);
+}
+.accent-slate::after {
+  background: var(--accent-slate);
+}
 
 .metric-card span,
 .overview-strip-card span {
@@ -703,7 +946,10 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .table-card:hover,
@@ -717,11 +963,19 @@ onBeforeUnmount(() => {
 }
 
 .table-card.state-critical {
-  background: linear-gradient(180deg, rgba(255, 239, 237, 0.92), rgba(255, 255, 255, 0.8));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 239, 237, 0.92),
+    rgba(255, 255, 255, 0.8)
+  );
 }
 
 .table-card.state-warning {
-  background: linear-gradient(180deg, rgba(255, 245, 228, 0.92), rgba(255, 255, 255, 0.8));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 245, 228, 0.92),
+    rgba(255, 255, 255, 0.8)
+  );
 }
 
 .table-card-header,

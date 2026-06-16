@@ -11,7 +11,7 @@
     </div>
 
     <el-tabs v-model="activeTab" class="content-tabs">
-      <el-tab-pane label="模板管理" name="templates">
+      <el-tab-pane label="模板管理" name="templates" lazy="true">
         <el-card shadow="never" class="filter-card">
           <div class="filter-row">
             <el-select
@@ -97,7 +97,7 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="实例管理" name="instances">
+      <el-tab-pane label="实例管理" name="instances" lazy="true">
         <el-card shadow="never" class="filter-card">
           <div class="filter-row filter-row-wrap">
             <el-input
@@ -679,7 +679,9 @@
                           :precision="
                             field.component === 'number' ? field.precision : 0
                           "
-                          @update:model-value="setParamValue(field.path, $event)"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
                         />
                         <el-switch
                           v-else-if="field.component === 'boolean'"
@@ -689,16 +691,22 @@
                           inline-prompt
                           active-text="是"
                           inactive-text="否"
-                          @update:model-value="setParamValue(field.path, $event)"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
                         />
                         <el-select
                           v-else-if="field.component === 'multi-select'"
-                          :model-value="instanceForm.params_value[field.path] || []"
+                          :model-value="
+                            instanceForm.params_value[field.path] || []
+                          "
                           multiple
                           collapse-tags
                           collapse-tags-tooltip
                           class="full-width"
-                          @update:model-value="setParamValue(field.path, $event)"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
                         >
                           <el-option
                             v-for="option in field.options || []"
@@ -711,7 +719,9 @@
                           v-else-if="field.component === 'select'"
                           :model-value="instanceForm.params_value[field.path]"
                           class="full-width"
-                          @update:model-value="setParamValue(field.path, $event)"
+                          @update:model-value="
+                            setParamValue(field.path, $event)
+                          "
                         >
                           <el-option
                             v-for="option in field.options || []"
@@ -741,8 +751,12 @@
                               ? 3
                               : undefined
                           "
-                          :placeholder="field.placeholder || field.description || ''"
-                          @input="setParamValue(field.path, $event, field.component)"
+                          :placeholder="
+                            field.placeholder || field.description || ''
+                          "
+                          @input="
+                            setParamValue(field.path, $event, field.component)
+                          "
                         />
                         <div v-if="field.description" class="field-help-text">
                           {{ field.description }}
@@ -2202,7 +2216,10 @@ function formatParamPreviewValue(template, path, value) {
 function buildParamPreviewSections(row) {
   const paramsValue = row?.params_value || {};
   const template = resolveTemplateByCode(row?.template_code);
-  if (!isIntradayLowSuctionTemplate(row || template) && hasTemplateFieldGroups(template)) {
+  if (
+    !isIntradayLowSuctionTemplate(row || template) &&
+    hasTemplateFieldGroups(template)
+  ) {
     return buildGroupedTemplateSections(template)
       .map((section) => ({
         key: section.key,
@@ -2243,7 +2260,11 @@ function buildParamPreviewSections(row) {
   groupedSections.forEach((section) => {
     const items = section.fields.map((field) => ({
       label: field.label,
-      value: formatParamPreviewValue(template, field.path, paramsValue[field.path]),
+      value: formatParamPreviewValue(
+        template,
+        field.path,
+        paramsValue[field.path]
+      ),
     }));
     const factorGroups = (section.factorGroups || []).map((factorGroup) => ({
       code: factorGroup.code,
@@ -2251,7 +2272,11 @@ function buildParamPreviewSections(row) {
       description: factorGroup.description,
       items: factorGroup.fields.map((field) => ({
         label: field.label,
-        value: formatParamPreviewValue(template, field.path, paramsValue[field.path]),
+        value: formatParamPreviewValue(
+          template,
+          field.path,
+          paramsValue[field.path]
+        ),
       })),
     }));
     if (items.length || factorGroups.length) {

@@ -17,6 +17,7 @@
               :key="tab.tabId"
               :name="tab.tabId"
               :closable="!isBuiltInGroup(tab)"
+              lazy="true"
             >
               <template #label>
                 <span
@@ -335,8 +336,8 @@ const displayTabs = computed(() => {
   }));
 });
 
-const allGroup = computed(() =>
-  groups.value.find((group) => isAllGroup(group)) || null
+const allGroup = computed(
+  () => groups.value.find((group) => isAllGroup(group)) || null
 );
 
 const allGroupId = computed(() => String(allGroup.value?.id || ''));
@@ -349,8 +350,8 @@ const assignableGroups = computed(() =>
   sortGroupsForDisplay(groups.value).filter((group) => !isAllGroup(group))
 );
 
-const firstBuiltinTabId = computed(
-  () => String(displayTabs.value[0]?.tabId || '')
+const firstBuiltinTabId = computed(() =>
+  String(displayTabs.value[0]?.tabId || '')
 );
 
 function findDisplayTabById(tabId) {
@@ -363,8 +364,7 @@ function findDisplayTabById(tabId) {
 
 function isEditingTab(tab) {
   return (
-    String(editingTabId.value || '') ===
-    String(tab?.tabId || tab?.id || '')
+    String(editingTabId.value || '') === String(tab?.tabId || tab?.id || '')
   );
 }
 
@@ -753,7 +753,9 @@ const initSortable = () => {
         nextTick(() => tabRef.value?.tabNavRef?.scrollToActiveTab?.());
         return;
       }
-      const customGroups = groups.value.filter((group) => !isBuiltInGroup(group));
+      const customGroups = groups.value.filter(
+        (group) => !isBuiltInGroup(group)
+      );
       const oldGroupIndex = customGroups.findIndex(
         (group) => Number(group.id) === Number(movedTab.id)
       );
@@ -770,7 +772,9 @@ const initSortable = () => {
 // 处理分组顺序变更
 const handleReorderGroups = async (oldIndex, newIndex) => {
   // 仅允许调整自建分组顺序，内置分组保持固定展示顺序。
-  const reorderedGroups = groups.value.filter((group) => !isBuiltInGroup(group));
+  const reorderedGroups = groups.value.filter(
+    (group) => !isBuiltInGroup(group)
+  );
 
   // 重新排序分组数组
   const movedGroup = reorderedGroups[oldIndex];
@@ -1006,10 +1010,9 @@ const getStockList = async (additionalSearchParams = {}) => {
   tableLoading.value = true;
 
   try {
-    const response =
-      isAllGroup(findDisplayTabById(activeGroupId.value))
-        ? await getGroupStocksByGroups([], params)
-        : await getGroupStocks(Number(activeGroupId.value), params);
+    const response = isAllGroup(findDisplayTabById(activeGroupId.value))
+      ? await getGroupStocksByGroups([], params)
+      : await getGroupStocks(Number(activeGroupId.value), params);
     if (response?.success) {
       const rows = (response.payload?.items || []).map(flattenGroupStockData);
       stockList.value = rows;
