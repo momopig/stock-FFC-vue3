@@ -130,6 +130,7 @@ import { getStrategyResultLabel } from '@/utils/strategyCodeLabels';
 const route = useRoute();
 const router = useRouter();
 const { addTab } = useTabsStore();
+const pageRoutePath = String(route.path || '');
 
 const loading = ref(false);
 const strategy = reactive({});
@@ -180,6 +181,9 @@ const boundSignalStrategies = computed(() => {
 watch(
   () => route.query.strategyId,
   async (value, oldValue) => {
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     strategyId.value = String(value || '');
     if (!value || value === oldValue) {
       return;

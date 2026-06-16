@@ -379,6 +379,7 @@ import { useTabsStore } from '@/composables/useTabsStore';
 const route = useRoute();
 const router = useRouter();
 const { addTab } = useTabsStore();
+const pageRoutePath = String(route.path || '');
 
 const CATEGORY_OPTIONS = [
   { value: 'ACCOUNT_RISK', label: '账号风控' },
@@ -724,6 +725,10 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
+    // keep-alive 下旧页面实例仍会响应路由变化，需限制为当前页面自身路由。
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     applyRoutePreset();
   }
 );

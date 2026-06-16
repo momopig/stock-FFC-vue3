@@ -168,6 +168,7 @@ import { useAddToGroupDialogFlow } from '../composables/useAddToGroupDialogFlow'
 
 const route = useRoute();
 const router = useRouter();
+const pageRoutePath = String(route.path || '');
 
 // 分组相关数据
 const BUILTIN_GROUP_CREATE_TYPES = Object.freeze([
@@ -533,6 +534,9 @@ watch(activeGroupId, () => {
 watch(
   () => route.query?.groupId,
   async () => {
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     const targetGroupId = getTargetGroupIdFromRoute();
     if (groups.value.length > 0 && targetGroupId && targetGroupId !== 'add') {
       await activateGroupTab(targetGroupId, { preferCache: true });

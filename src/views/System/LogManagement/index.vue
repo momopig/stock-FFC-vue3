@@ -433,13 +433,16 @@
 <script setup>
 import {
   computed,
+  onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   reactive,
   ref,
   watch,
 } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRoute } from 'vue-router';
 
 import {
   getLogCleanupRecords,
@@ -452,6 +455,8 @@ import {
 } from '@/api/modules/logManagement';
 
 const REFRESH_INTERVAL_MS = 30000;
+const route = useRoute();
+const pageRoutePath = String(route.path || '');
 
 const pageLoading = ref(false);
 const logLoading = ref(false);
@@ -730,18 +735,44 @@ watch(selectedTableName, async () => {
   await loadLogs();
 });
 
-onMounted(async () => {
-  await refreshPage();
-  refreshTimer = window.setInterval(() => {
-    refreshPage();
-  }, REFRESH_INTERVAL_MS);
-});
-
-onBeforeUnmount(() => {
+function startRefreshTimer() {
   if (refreshTimer) {
     window.clearInterval(refreshTimer);
     refreshTimer = null;
   }
+  refreshTimer = window.setInterval(() => {
+    if (route.path !== pageRoutePath) {
+      return;
+    }
+    refreshPage();
+  }, REFRESH_INTERVAL_MS);
+}
+
+function stopRefreshTimer() {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+onMounted(async () => {
+  await refreshPage();
+  startRefreshTimer();
+});
+
+onActivated(() => {
+  if (route.path !== pageRoutePath) {
+    return;
+  }
+  startRefreshTimer();
+});
+
+onDeactivated(() => {
+  stopRefreshTimer();
+});
+
+onBeforeUnmount(() => {
+  stopRefreshTimer();
 });
 </script>
 

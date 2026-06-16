@@ -340,8 +340,17 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  reactive,
+  ref,
+} from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRoute } from 'vue-router';
 
 import {
   ensureFutuSubscriptionTargets,
@@ -380,6 +389,8 @@ const logLoading = ref(false);
 const actionLoading = ref(false);
 const logDrawerVisible = ref(false);
 let overviewRefreshTimer = null;
+const route = useRoute();
+const pageRoutePath = String(route.path || '');
 const overview = reactive({
   realtime_quota: {},
   history_kline_quota: {},
@@ -661,6 +672,7 @@ function startOverviewRefresh() {
   }
   overviewRefreshTimer = window.setInterval(() => {
     if (
+      route.path !== pageRoutePath ||
       document.visibilityState !== 'visible' ||
       overviewLoading.value ||
       actionLoading.value
@@ -671,16 +683,31 @@ function startOverviewRefresh() {
   }, 10000);
 }
 
+function stopOverviewRefresh() {
+  if (overviewRefreshTimer) {
+    window.clearInterval(overviewRefreshTimer);
+    overviewRefreshTimer = null;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadOverview(), loadList()]);
   startOverviewRefresh();
 });
 
-onBeforeUnmount(() => {
-  if (overviewRefreshTimer) {
-    window.clearInterval(overviewRefreshTimer);
-    overviewRefreshTimer = null;
+onActivated(() => {
+  if (route.path !== pageRoutePath) {
+    return;
   }
+  startOverviewRefresh();
+});
+
+onDeactivated(() => {
+  stopOverviewRefresh();
+});
+
+onBeforeUnmount(() => {
+  stopOverviewRefresh();
 });
 </script>
 

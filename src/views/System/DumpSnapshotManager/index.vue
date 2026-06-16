@@ -628,8 +628,17 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  reactive,
+  ref,
+} from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRoute } from 'vue-router';
 import { removeToken } from '@/utils/auth';
 import { UserStore } from '@/state/user';
 
@@ -649,6 +658,8 @@ import {
 
 const POLL_INTERVAL_MS = 5000;
 const userStore = UserStore();
+const route = useRoute();
+const pageRoutePath = String(route.path || '');
 
 const pageLoading = ref(false);
 const taskLoading = ref(false);
@@ -906,10 +917,20 @@ function ensurePolling() {
     pollTimer = null;
   }
   pollTimer = window.setInterval(() => {
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     if (activeTaskCount.value > 0) {
       loadPage();
     }
   }, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 function handleCurrentChange(row) {
@@ -1256,11 +1277,19 @@ onMounted(async () => {
   ensurePolling();
 });
 
-onBeforeUnmount(() => {
-  if (pollTimer) {
-    window.clearInterval(pollTimer);
-    pollTimer = null;
+onActivated(() => {
+  if (route.path !== pageRoutePath) {
+    return;
   }
+  ensurePolling();
+});
+
+onDeactivated(() => {
+  stopPolling();
+});
+
+onBeforeUnmount(() => {
+  stopPolling();
 });
 </script>
 

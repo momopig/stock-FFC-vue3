@@ -1617,6 +1617,7 @@ import {
 } from '@/api/modules/signalStrategy';
 
 const route = useRoute();
+const pageRoutePath = String(route.path || '');
 const activeTab = ref('templates');
 const templateLoading = ref(false);
 const instanceLoading = ref(false);
@@ -1864,6 +1865,10 @@ onMounted(async () => {
 watch(
   () => route.fullPath,
   () => {
+    // keep-alive 下旧页面实例仍会响应路由变化，需限制为当前页面自身路由。
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     applyRoutePreset();
   }
 );

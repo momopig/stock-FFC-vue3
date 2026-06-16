@@ -1831,6 +1831,8 @@
 import {
   computed,
   nextTick,
+  onActivated,
+  onDeactivated,
   onMounted,
   onUnmounted,
   reactive,
@@ -1869,6 +1871,7 @@ import { useTabsStore } from '@/composables/useTabsStore';
 const route = useRoute();
 const router = useRouter();
 const { updateTabTitle } = useTabsStore();
+const pageRoutePath = String(route.path || '');
 
 const pageLoading = ref(false);
 const actionLoading = ref(false);
@@ -4208,7 +4211,11 @@ async function refreshWorkspace(options = {}) {
 function startAutoRefresh() {
   stopAutoRefresh();
   autoRefreshTimer = window.setInterval(() => {
-    if (!activeAccountId.value || document.visibilityState !== 'visible') {
+    if (
+      route.path !== pageRoutePath ||
+      !activeAccountId.value ||
+      document.visibilityState !== 'visible'
+    ) {
       return;
     }
     refreshWorkspace({ silent: true });
@@ -4219,6 +4226,7 @@ function startPositionQuoteRefresh() {
   stopPositionQuoteRefresh();
   positionQuoteRefreshTimer = window.setInterval(() => {
     if (
+      route.path !== pageRoutePath ||
       !activeAccountId.value ||
       document.visibilityState !== 'visible' ||
       positionRefreshLoading.value ||
@@ -4289,6 +4297,9 @@ async function handleGenerateChipPrices() {
 }
 
 watch(activeTab, (value) => {
+  if (route.path !== pageRoutePath) {
+    return;
+  }
   const nextQuery = {
     ...route.query,
     accountId: activeAccountId.value,
@@ -4380,6 +4391,9 @@ watch(
 watch(
   () => route.query,
   (query) => {
+    if (route.path !== pageRoutePath) {
+      return;
+    }
     const routeTab = query.tab ? String(query.tab) : '';
     if (routeTab && isAccountDetailTabAvailable(routeTab)) {
       activeTab.value = routeTab;
@@ -4436,6 +4450,19 @@ onMounted(async () => {
   await refreshWorkspace();
   startAutoRefresh();
   startPositionQuoteRefresh();
+});
+
+onActivated(() => {
+  if (route.path !== pageRoutePath) {
+    return;
+  }
+  startAutoRefresh();
+  startPositionQuoteRefresh();
+});
+
+onDeactivated(() => {
+  stopAutoRefresh();
+  stopPositionQuoteRefresh();
 });
 
 onUnmounted(() => {
