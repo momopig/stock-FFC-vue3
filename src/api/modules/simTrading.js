@@ -1,6 +1,7 @@
 import qs from 'qs';
 
 import request from '../common';
+import { buildStockSearchParams } from '@/utils/stockSearchSource';
 
 const API_PREFIX = '/stock-api/api/sim-trading';
 
@@ -234,7 +235,6 @@ export async function getSimTradingTrades(params = {}) {
 }
 
 export async function searchSimTradingStocks(search, onlyA = false) {
-  return await request.get(
-    `/stock-api/api/stock/search?query=${encodeURIComponent(search)}&only_a=${onlyA}&limit=20`
-  );
+  const query = qs.stringify(buildStockSearchParams(search, onlyA, 20));
+  return await request.get(`/stock-api/api/stock/search?${query}`);
 }

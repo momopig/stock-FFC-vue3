@@ -79,7 +79,9 @@
               >
               </el-option>
             </el-select>
-            <el-button @click="refreshStock" :disabled="isEditMode">刷新</el-button>
+            <el-button @click="refreshStock" :disabled="isEditMode"
+              >刷新</el-button
+            >
           </div>
         </el-form-item>
 
@@ -125,7 +127,11 @@
       </template>
 
       <!-- 新增模式下显示分组选择 -->
-      <el-form-item v-if="!isEditMode && !isViewMode" label="选择分组" prop="group_ids">
+      <el-form-item
+        v-if="!isEditMode && !isViewMode"
+        label="选择分组"
+        prop="group_ids"
+      >
         <el-select
           v-model="formData.group_ids"
           multiple
@@ -143,10 +149,10 @@
           <el-option
             label="+ 新增分组"
             value="__create_new__"
-            style="color: #409eff; font-weight: bold;"
+            style="color: #409eff; font-weight: bold"
           >
-            <span style="color: #409eff; font-weight: bold;">
-              <el-icon style="margin-right: 4px;"><Plus /></el-icon>
+            <span style="color: #409eff; font-weight: bold">
+              <el-icon style="margin-right: 4px"><Plus /></el-icon>
               新增分组
             </span>
           </el-option>
@@ -262,10 +268,16 @@
       <!-- 查看模式或编辑模式时显示额外信息 -->
       <template v-if="(isViewMode || isEditMode) && formData.id">
         <el-form-item label="加入时间">
-          <span>{{ formData.add_time ? formatDateTime(formData.add_time) : '--' }}</span>
+          <span>{{
+            formData.add_time ? formatDateTime(formData.add_time) : '--'
+          }}</span>
         </el-form-item>
         <el-form-item label="加入天数">
-          <span>{{ formData.days_added !== null && formData.days_added !== undefined ? `${formData.days_added} 天` : '--' }}</span>
+          <span>{{
+            formData.days_added !== null && formData.days_added !== undefined
+              ? `${formData.days_added} 天`
+              : '--'
+          }}</span>
         </el-form-item>
       </template>
     </el-form>
@@ -287,65 +299,65 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { UserStore } from '@/state/user'
-import { formatDateTime } from '@/utils/time'
-import { getStock } from '@/api/modules/stockPool'
-import { createGroup } from '@/api/modules/stockGroup'
+import { ref, computed, watch, nextTick } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { UserStore } from '@/state/user';
+import { formatDateTime } from '@/utils/time';
+import { getStock } from '@/api/modules/stockPool';
+import { createGroup } from '@/api/modules/stockGroup';
 
 const props = defineProps({
   visible: {
     type: Boolean,
-    default: false
+    default: false,
   },
   formData: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   isViewMode: {
     type: Boolean,
-    default: false
+    default: false,
   },
   isEditMode: {
     type: Boolean,
-    default: false
+    default: false,
   },
   groups: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   activeGroupId: {
     type: [String, Number],
-    default: ''
-  }
-})
+    default: '',
+  },
+});
 
-const emit = defineEmits(['update:visible', 'submit', 'group-created'])
+const emit = defineEmits(['update:visible', 'submit', 'group-created']);
 
-const formRef = ref()
-const loading = ref(false)
+const formRef = ref();
+const loading = ref(false);
 
 // 添加方式：single 单个添加，batch 批量添加
-const addMode = ref('single')
+const addMode = ref('single');
 
 // 股票搜索相关
-const selectedStockOption = ref(null)
-const stockSelectOptions = ref([])
-const stockSearchLoading = ref(false)
+const selectedStockOption = ref(null);
+const stockSelectOptions = ref([]);
+const stockSearchLoading = ref(false);
 
 // 批量添加相关
-const batchStockInput = ref('')
-const batchMatchedStocks = ref([])
-const batchMatchLoading = ref(false)
+const batchStockInput = ref('');
+const batchMatchedStocks = ref([]);
+const batchMatchLoading = ref(false);
 
 // 对话框标题
 const dialogTitle = computed(() => {
-  if (props.isViewMode) return '查看股票'
-  if (props.isEditMode) return '编辑股票'
-  return '添加股票'
-})
+  if (props.isViewMode) return '查看股票';
+  if (props.isEditMode) return '编辑股票';
+  return '添加股票';
+});
 
 // 交易所代码映射（API 返回的 exchange 可能为 SSE/SZSE 等）
 const EXCHANGE_MAP = {
@@ -356,8 +368,8 @@ const EXCHANGE_MAP = {
   SSE: 'SH',
   SZSE: 'SZ',
   hk: 'HK',
-  us: 'US'
-}
+  us: 'US',
+};
 
 // 将 API 返回的股票转换为统一格式
 const normalizeStockFromApi = (stock) => {
@@ -366,287 +378,319 @@ const normalizeStockFromApi = (stock) => {
     EXCHANGE_MAP[stock?.exchange] ||
     stock?.exchange_code ||
     stock?.exchange ||
-    ''
+    '';
   return {
     ...stock,
     exchange_code: exchangeCode,
     code: stock?.code || stock?.stock_code || '',
     name: stock?.name || stock?.stock_name || '',
-    initialPrice: Number(stock?.price) || 0
-  }
-}
+    initialPrice: Number(stock?.price) || 0,
+  };
+};
 
 const getStockSearchItems = (result) => {
-  return result?.payload?.items || []
-}
+  return result?.payload?.items || [];
+};
 
-const hasStockSearchError = (result) => result?.success === false
+const hasStockSearchError = (result) => result?.success === false;
 
 const getStockSearchErrorMessage = (result) => {
   if (result?.code === 429) {
-    return result?.message || '百度股票搜索触发了限制，请稍后重试'
+    return result?.message || '股票搜索触发了限制，请稍后重试';
   }
-  return result?.message || '股票搜索暂不可用，请稍后重试'
-}
+  return result?.message || '股票搜索暂不可用，请稍后重试';
+};
 
 // 解析批量输入：支持逗号、空格分隔
 const parseBatchStockInput = (input) => {
-  if (!input?.trim()) return []
+  if (!input?.trim()) return [];
   return input
     .split(/[,，\s]+/)
     .map((s) => s?.trim())
-    .filter(Boolean)
-}
+    .filter(Boolean);
+};
 
 // 批量匹配：对每个输入项模糊搜索，取第一个匹配结果
 const handleBatchMatch = async () => {
-  const tokens = parseBatchStockInput(batchStockInput.value)
+  const tokens = parseBatchStockInput(batchStockInput.value);
   if (tokens.length === 0) {
-    ElMessage.warning('请输入至少一个股票名称或代码')
-    return
+    ElMessage.warning('请输入至少一个股票名称或代码');
+    return;
   }
 
-  batchMatchLoading.value = true
-  batchMatchedStocks.value = []
+  batchMatchLoading.value = true;
+  batchMatchedStocks.value = [];
 
   try {
-    const matched = []
-    const failed = []
+    const matched = [];
+    const failed = [];
 
     for (const token of tokens) {
-      const result = await getStock(token, false)
+      const result = await getStock(token, false);
       if (hasStockSearchError(result)) {
-        throw new Error(getStockSearchErrorMessage(result))
+        throw new Error(getStockSearchErrorMessage(result));
       }
-      const stockOptions = getStockSearchItems(result).map(normalizeStockFromApi)
+      const stockOptions = getStockSearchItems(result).map(
+        normalizeStockFromApi
+      );
 
       if (stockOptions?.length > 0) {
-        const first = stockOptions[0]
+        const first = stockOptions[0];
         matched.push({
           stock_code: `${first?.code || ''}.${first?.exchange_code || ''}`,
           stock_name: first?.name || '',
           exchange_code: first?.exchange_code || '',
-          initial_price: first?.initialPrice ?? 0
-        })
+          initial_price: first?.initialPrice ?? 0,
+        });
       } else {
-        failed.push(token)
+        failed.push(token);
       }
     }
 
-    batchMatchedStocks.value = matched
+    batchMatchedStocks.value = matched;
 
     if (failed.length > 0) {
-      ElMessage.warning(`以下项未匹配到股票：${failed.join('、')}`)
+      ElMessage.warning(`以下项未匹配到股票：${failed.join('、')}`);
     }
     if (matched.length > 0) {
-      ElMessage.success(`成功匹配 ${matched.length} 只股票`)
+      ElMessage.success(`成功匹配 ${matched.length} 只股票`);
     }
   } catch (error) {
-    console.error('批量匹配失败:', error)
-    ElMessage.error(error?.message || '批量匹配失败，请稍后重试')
+    console.error('批量匹配失败:', error);
+    ElMessage.error(error?.message || '批量匹配失败，请稍后重试');
   } finally {
-    batchMatchLoading.value = false
+    batchMatchLoading.value = false;
   }
-}
+};
 
 // 表单验证规则
 const formRules = computed(() => {
   const rules = {
     stock_code: [
-      { required: true, message: '请输入股票代码', trigger: 'blur' }
+      { required: true, message: '请输入股票代码', trigger: 'blur' },
     ],
     stock_name: [
       { required: true, message: '请输入股票名称', trigger: 'blur' },
-      { min: 1, max: 50, message: '股票名称长度在1-50个字符', trigger: 'blur' }
+      { min: 1, max: 50, message: '股票名称长度在1-50个字符', trigger: 'blur' },
     ],
     add_reason: [
       { required: true, message: '请输入加入原因', trigger: 'blur' },
-      { min: 1, max: 500, message: '加入原因长度在1-500个字符', trigger: 'blur' }
-    ]
-  }
+      {
+        min: 1,
+        max: 500,
+        message: '加入原因长度在1-500个字符',
+        trigger: 'blur',
+      },
+    ],
+  };
 
   // 新增模式下需要验证股票搜索和交易所
   if (!props.isEditMode && !props.isViewMode) {
     rules.stockSearch = [
-      { required: true, message: '请搜索并选择股票', trigger: 'change' }
-    ]
+      { required: true, message: '请搜索并选择股票', trigger: 'change' },
+    ];
     rules.exchange_code = [
-      { required: true, message: '请选择交易所', trigger: 'change' }
-    ]
+      { required: true, message: '请选择交易所', trigger: 'change' },
+    ];
     rules.initial_price = [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
-    ]
+      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' },
+    ];
     rules.group_ids = [
       { required: true, message: '请至少选择一个分组', trigger: 'change' },
-      { type: 'array', min: 1, message: '请至少选择一个分组', trigger: 'change' }
-    ]
+      {
+        type: 'array',
+        min: 1,
+        message: '请至少选择一个分组',
+        trigger: 'change',
+      },
+    ];
   } else if (!props.isViewMode) {
     // 编辑模式下需要验证初始价格
     rules.initial_price = [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' }
-    ]
+      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' },
+    ];
   }
 
-  return rules
-})
+  return rules;
+});
 
 // 股票搜索方法
 const suggestStocks = async (query) => {
   if (query !== '') {
-    stockSearchLoading.value = true
+    stockSearchLoading.value = true;
     try {
-      const result = await getStock(query, false)
+      const result = await getStock(query, false);
       if (hasStockSearchError(result)) {
-        stockSelectOptions.value = []
-        ElMessage.error(getStockSearchErrorMessage(result))
-        return
+        stockSelectOptions.value = [];
+        ElMessage.error(getStockSearchErrorMessage(result));
+        return;
       }
-      stockSelectOptions.value = getStockSearchItems(result)
-        .map((stock) => {
-          const normalized = normalizeStockFromApi(stock)
-          return {
-            ...normalized,
-            label: `${stock?.name}: ${normalized?.exchange_code || ''}${stock?.code || ''}`,
-            key: `${normalized?.exchange_code || ''}_${stock?.code || ''}`
-          }
-        })
+      stockSelectOptions.value = getStockSearchItems(result).map((stock) => {
+        const normalized = normalizeStockFromApi(stock);
+        return {
+          ...normalized,
+          label: `${stock?.name}: ${normalized?.exchange_code || ''}${stock?.code || ''}`,
+          key: `${normalized?.exchange_code || ''}_${stock?.code || ''}`,
+        };
+      });
     } catch (error) {
-      console.error('搜索股票失败:', error)
-      ElMessage.error(error?.message || '搜索股票失败，请稍后重试')
-      stockSelectOptions.value = []
+      console.error('搜索股票失败:', error);
+      ElMessage.error(error?.message || '搜索股票失败，请稍后重试');
+      stockSelectOptions.value = [];
     } finally {
-      stockSearchLoading.value = false
+      stockSearchLoading.value = false;
     }
   } else {
-    stockSelectOptions.value = []
+    stockSelectOptions.value = [];
   }
-}
+};
 
 // 选择股票后填充表单
 const onChangeStock = (stock) => {
   if (stock) {
     // 填充股票代码和名称
-    props.formData.stock_name = stock.name || ''
-    props.formData.initial_price = stock.initialPrice || 0
+    props.formData.stock_name = stock.name || '';
+    props.formData.initial_price = stock.initialPrice || 0;
     // 填充交易所代码（如果接口返回了 exchange_code，优先使用）
     if (stock.exchange_code) {
-      props.formData.exchange_code = stock.exchange_code
+      props.formData.exchange_code = stock.exchange_code;
     } else if (stock.exchange) {
       // 映射交易所代码
       const exchangeMap = {
-        'SH': 'SH',
-        'SZ': 'SZ',
-        'HK': 'HK',
-        'US': 'US',
-        'SSE': 'SH',
-        'SZSE': 'SZ',
-        'hk': 'HK',
-        'us': 'US'
-      }
-      props.formData.exchange_code = exchangeMap[stock.exchange] || stock.exchange
+        SH: 'SH',
+        SZ: 'SZ',
+        HK: 'HK',
+        US: 'US',
+        SSE: 'SH',
+        SZSE: 'SZ',
+        hk: 'HK',
+        us: 'US',
+      };
+      props.formData.exchange_code =
+        exchangeMap[stock.exchange] || stock.exchange;
     }
-    props.formData.stock_code = stock.code + '.' + stock.exchange_code || ''
+    props.formData.stock_code = stock.code + '.' + stock.exchange_code || '';
     // 设置 stockSearch 字段，用于表单验证
-    props.formData.stockSearch = stock.key || `${stock.exchange_code}_${stock.code}` || ''
+    props.formData.stockSearch =
+      stock.key || `${stock.exchange_code}_${stock.code}` || '';
 
     // 清除验证错误
     nextTick(() => {
-      formRef.value?.clearValidate(['stock_code', 'stock_name', 'exchange_code', 'stockSearch'])
-    })
+      formRef.value?.clearValidate([
+        'stock_code',
+        'stock_name',
+        'exchange_code',
+        'stockSearch',
+      ]);
+    });
   } else {
     // 清空选择时，也清空 stockSearch 字段
-    props.formData.stockSearch = ''
+    props.formData.stockSearch = '';
   }
-}
+};
 
 // 刷新股票搜索
 const refreshStock = () => {
   if (selectedStockOption.value) {
-    const currentQuery = selectedStockOption.value.name || selectedStockOption.value.code || ''
+    const currentQuery =
+      selectedStockOption.value.name || selectedStockOption.value.code || '';
     if (currentQuery) {
-      suggestStocks(currentQuery)
+      suggestStocks(currentQuery);
     }
   } else {
-    ElMessage.info('请先选择股票')
+    ElMessage.info('请先选择股票');
   }
-}
+};
 
 // 监听对话框显示状态
-watch(() => props.visible, async (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      formRef.value?.clearValidate()
-    })
+watch(
+  () => props.visible,
+  async (newVal) => {
+    if (newVal) {
+      nextTick(() => {
+        formRef.value?.clearValidate();
+      });
 
-    // 重置股票搜索选项列表
-    stockSelectOptions.value = []
+      // 重置股票搜索选项列表
+      stockSelectOptions.value = [];
 
-    // 编辑/查看模式时强制为单个添加
-    if (props.isEditMode || props.isViewMode) {
-      addMode.value = 'single'
-    }
-
-    // 新建股票时，重置选中项并自动填充创建人和默认值
-    if (!props.isEditMode && !props.isViewMode) {
-      // 重置批量添加相关状态
-      batchStockInput.value = ''
-      batchMatchedStocks.value = []
-      selectedStockOption.value = null
-      props.formData.stockSearch = ''
-      const userStore = UserStore()
-      const username = userStore?.userInfo?.username || userStore?.userInfo?.name || '当前用户'
-      if (!props.formData.created_by) {
-        props.formData.created_by = username
+      // 编辑/查看模式时强制为单个添加
+      if (props.isEditMode || props.isViewMode) {
+        addMode.value = 'single';
       }
-      // 如果没有分组ID，默认使用当前激活的分组
-      if (!props.formData.group_ids || props.formData.group_ids.length === 0) {
-        if (props.activeGroupId && props.activeGroupId !== 'add') {
-          props.formData.group_ids = [Number(props.activeGroupId)]
+
+      // 新建股票时，重置选中项并自动填充创建人和默认值
+      if (!props.isEditMode && !props.isViewMode) {
+        // 重置批量添加相关状态
+        batchStockInput.value = '';
+        batchMatchedStocks.value = [];
+        selectedStockOption.value = null;
+        props.formData.stockSearch = '';
+        const userStore = UserStore();
+        const username =
+          userStore?.userInfo?.username ||
+          userStore?.userInfo?.name ||
+          '当前用户';
+        if (!props.formData.created_by) {
+          props.formData.created_by = username;
         }
+        // 如果没有分组ID，默认使用当前激活的分组
+        if (
+          !props.formData.group_ids ||
+          props.formData.group_ids.length === 0
+        ) {
+          if (props.activeGroupId && props.activeGroupId !== 'add') {
+            props.formData.group_ids = [Number(props.activeGroupId)];
+          }
+        }
+      } else if (props.formData.stock_code && props.formData.stock_name) {
+        // 编辑模式时，如果有股票信息，设置选中项以便显示
+        const stockKey = `${props.formData.exchange_code || ''}_${props.formData.stock_code}`;
+        selectedStockOption.value = {
+          code: props.formData.stock_code,
+          name: props.formData.stock_name,
+          exchange_code: props.formData.exchange_code,
+          label: `${props.formData.stock_name}: ${props.formData.exchange_code || ''}${props.formData.stock_code}`,
+          key: stockKey,
+        };
+        // 设置 stockSearch 字段，用于表单验证
+        props.formData.stockSearch = stockKey;
+      } else {
+        // 没有股票信息时，重置选中项
+        selectedStockOption.value = null;
+        props.formData.stockSearch = '';
       }
-    } else if (props.formData.stock_code && props.formData.stock_name) {
-      // 编辑模式时，如果有股票信息，设置选中项以便显示
-      const stockKey = `${props.formData.exchange_code || ''}_${props.formData.stock_code}`
-      selectedStockOption.value = {
-        code: props.formData.stock_code,
-        name: props.formData.stock_name,
-        exchange_code: props.formData.exchange_code,
-        label: `${props.formData.stock_name}: ${props.formData.exchange_code || ''}${props.formData.stock_code}`,
-        key: stockKey,
-      }
-      // 设置 stockSearch 字段，用于表单验证
-      props.formData.stockSearch = stockKey
-    } else {
-      // 没有股票信息时，重置选中项
-      selectedStockOption.value = null
-      props.formData.stockSearch = ''
     }
   }
-})
+);
 
 // 处理分组选择变化
 const handleGroupChange = (value) => {
   // 如果选择了"新增分组"选项，触发创建分组
   if (Array.isArray(value) && value.includes('__create_new__')) {
     // 移除特殊值
-    props.formData.group_ids = value.filter(id => id !== '__create_new__')
-    handleCreateGroup()
+    props.formData.group_ids = value.filter((id) => id !== '__create_new__');
+    handleCreateGroup();
   }
-}
+};
 
 // 创建新分组
 const handleCreateGroup = async () => {
   try {
-    const { value: groupName } = await ElMessageBox.prompt('请输入分组名称', '新建分组', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /^.{1,20}$/,
-      inputErrorMessage: '分组名称长度为1-20个字符'
-    })
+    const { value: groupName } = await ElMessageBox.prompt(
+      '请输入分组名称',
+      '新建分组',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPattern: /^.{1,20}$/,
+        inputErrorMessage: '分组名称长度为1-20个字符',
+      }
+    );
 
-    if (!groupName) return
+    if (!groupName) return;
 
     try {
       const result = await createGroup({
@@ -654,38 +698,38 @@ const handleCreateGroup = async () => {
         is_hidden: false,
         display_order: props.groups?.length || 0,
         remark: '',
-        create_type: 'custom'
-      })
+        create_type: 'custom',
+      });
 
       if (result?.success) {
-        ElMessage.success('创建分组成功')
+        ElMessage.success('创建分组成功');
         // 通知父组件刷新分组列表
-        emit('group-created', result.payload)
+        emit('group-created', result.payload);
         // 自动选中新创建的分组
         if (result.payload?.id) {
           const currentGroupIds = Array.isArray(props.formData.group_ids)
             ? props.formData.group_ids
-            : []
-          props.formData.group_ids = [...currentGroupIds, result.payload.id]
+            : [];
+          props.formData.group_ids = [...currentGroupIds, result.payload.id];
         }
       } else {
-        ElMessage.error(result?.message || '创建分组失败')
+        ElMessage.error(result?.message || '创建分组失败');
       }
     } catch (error) {
-      console.error('创建分组失败:', error)
-      ElMessage.error('创建分组失败，请稍后重试')
+      console.error('创建分组失败:', error);
+      ElMessage.error('创建分组失败，请稍后重试');
     }
   } catch (error) {
     // 用户取消输入
   }
-}
+};
 
 // 关闭对话框
 const handleClose = () => {
-  batchStockInput.value = ''
-  addMode.value = 'single'
-  emit('update:visible', false)
-}
+  batchStockInput.value = '';
+  addMode.value = 'single';
+  emit('update:visible', false);
+};
 
 // 提交表单
 const handleSubmit = async () => {
@@ -693,62 +737,68 @@ const handleSubmit = async () => {
     // 批量模式：校验匹配结果
     if (addMode.value === 'batch') {
       if (batchMatchedStocks.value?.length === 0) {
-        ElMessage.warning('请先点击「匹配」按钮进行股票匹配')
-        return
+        ElMessage.warning('请先点击「匹配」按钮进行股票匹配');
+        return;
       }
       const groupIds = Array.isArray(props.formData.group_ids)
         ? props.formData.group_ids.filter((id) => id !== '__create_new__')
-        : []
+        : [];
       if (groupIds.length === 0) {
-        ElMessage.error('请至少选择一个分组')
-        return
+        ElMessage.error('请至少选择一个分组');
+        return;
       }
       if (!props.formData.add_reason?.trim()) {
-        ElMessage.warning('请输入加入原因')
-        return
+        ElMessage.warning('请输入加入原因');
+        return;
       }
 
-      loading.value = true
+      loading.value = true;
       emit('submit', {
         batchMode: true,
         stocks: batchMatchedStocks.value,
         group_ids: groupIds,
         add_reason: props.formData.add_reason || '',
-        notes: props.formData.notes || ''
-      })
-      return
+        notes: props.formData.notes || '',
+      });
+      return;
     }
 
-    await formRef.value.validate()
+    await formRef.value.validate();
 
-    loading.value = true
+    loading.value = true;
 
     // 准备提交数据（确保过滤掉特殊值）
     const groupIds = Array.isArray(props.formData.group_ids)
       ? props.formData.group_ids.filter((id) => id !== '__create_new__')
-      : []
+      : [];
 
     const submitData = {
       ...props.formData,
       add_method: 'manual',
-      group_ids: groupIds
-    }
+      group_ids: groupIds,
+    };
 
     // 确保数值类型正确
-    if (submitData.initial_price !== null && submitData.initial_price !== undefined) {
-      submitData.initial_price = Number(submitData.initial_price)
+    if (
+      submitData.initial_price !== null &&
+      submitData.initial_price !== undefined
+    ) {
+      submitData.initial_price = Number(submitData.initial_price);
     }
-    if (submitData.priority_level !== null && submitData.priority_level !== undefined) {
-      submitData.priority_level = Number(submitData.priority_level)
+    if (
+      submitData.priority_level !== null &&
+      submitData.priority_level !== undefined
+    ) {
+      submitData.priority_level = Number(submitData.priority_level);
     }
 
-    emit('submit', submitData)
+    emit('submit', submitData);
   } catch (error) {
-    console.log('表单验证失败:', error)
+    console.log('表单验证失败:', error);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
@@ -781,4 +831,3 @@ const handleSubmit = async () => {
   color: var(--el-color-success);
 }
 </style>
-

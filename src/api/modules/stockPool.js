@@ -1,6 +1,7 @@
 import request from '../common';
 import qs from 'qs';
 import { createWebSocket } from '@/utils/websocket';
+import { buildStockSearchParams } from '@/utils/stockSearchSource';
 
 /**
  * Mock数据开关
@@ -444,7 +445,6 @@ export const getBuySignals = async (params = {}) => {
  * @returns {Promise}
  */
 export const getStock = async (search, onlyA = false) => {
-  return await request.get(
-    `/stock-api/api/stock/search?query=${encodeURIComponent(search)}&only_a=${onlyA}&limit=20`
-  );
+  const query = qs.stringify(buildStockSearchParams(search, onlyA, 20));
+  return await request.get(`/stock-api/api/stock/search?${query}`);
 };

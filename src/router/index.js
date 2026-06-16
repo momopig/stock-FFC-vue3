@@ -32,6 +32,13 @@ const routes = [
     ),
     meta: { permissions: ['is_superuser'] },
   },
+  {
+    path: '/system/stock-search-settings',
+    component: lazy(
+      () => import('@/views/System/StockSearchSettings/index.vue')
+    ),
+    meta: { permissions: ['is_superuser'] },
+  },
   { path: '/home', component: lazy(() => import('@/App.vue')) },
   {
     path: '/futu-opend-subscriptions',

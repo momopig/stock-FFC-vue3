@@ -211,6 +211,13 @@ export const menuList = [
     permissions: ['is_superuser'],
   },
   {
+    name: '股票搜索设置',
+    foldName: '搜索设置',
+    icon: 'Setting',
+    path: '/system/stock-search-settings',
+    permissions: ['is_superuser'],
+  },
+  {
     name: '富途openD订阅管理',
     foldName: '富途openD订阅管理',
     icon: 'DataAnalysis',
