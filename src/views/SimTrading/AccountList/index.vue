@@ -46,9 +46,16 @@
       </el-table-column>
       <el-table-column label="持仓盈亏" width="150">
         <template #default="scope">
-          <span :class="profitClass(scope.row.summary?.position_pnl_amount)">
-            {{ formatMoney(scope.row.summary?.position_pnl_amount) }}
-          </span>
+          <div class="profit-cell">
+            <span :class="profitClass(scope.row.summary?.position_pnl_amount)">
+              {{ formatMoney(scope.row.summary?.position_pnl_amount) }}
+            </span>
+            <span
+              :class="profitClass(getPositionProfitRatio(scope.row.summary))"
+            >
+              {{ formatPercent(getPositionProfitRatio(scope.row.summary)) }}
+            </span>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="状态" width="120">
@@ -278,6 +285,11 @@ function formatMoney(value) {
   });
 }
 
+function formatPercent(value) {
+  const num = Number(value || 0);
+  return `${num.toFixed(2)}%`;
+}
+
 function normalizeDate(value) {
   if (!value) return null;
   if (value instanceof Date)
@@ -306,6 +318,19 @@ function profitClass(value) {
   if (num > 0) return 'profit-up';
   if (num < 0) return 'profit-down';
   return '';
+}
+
+// 根据持仓市值和持仓盈亏反推持仓成本，再计算当前持仓收益率。
+function getPositionProfitRatio(summary = {}) {
+  const positionMarketValue = Number(summary?.position_market_value || 0);
+  const positionPnlAmount = Number(summary?.position_pnl_amount || 0);
+  const costAmount = positionMarketValue - positionPnlAmount;
+
+  if (!Number.isFinite(costAmount) || Math.abs(costAmount) < 0.000001) {
+    return 0;
+  }
+
+  return (positionPnlAmount / costAmount) * 100;
 }
 
 function getCurrencyLabel(currency) {
@@ -666,6 +691,16 @@ onMounted(() => {
   color: #7a8da2;
   font-size: 12px;
   line-height: 1.6;
+}
+
+.profit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .profit-up {
