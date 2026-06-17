@@ -3121,6 +3121,12 @@ function getActiveRiskPayload() {
   };
 }
 
+function getActivePositionsForRisk() {
+  return positions.value.filter(
+    (item) => Number(item?.total_quantity || 0) > 0
+  );
+}
+
 function buildAccountRiskOverview() {
   const riskPayload = getActiveRiskPayload();
   if (!riskPayload) {
@@ -3128,7 +3134,8 @@ function buildAccountRiskOverview() {
   }
   const totalAsset = decimalValue(summary.value?.current_total_asset);
   const availableCash = decimalValue(summary.value?.available_cash);
-  const currentHoldingCount = positions.value.length;
+  const activePositions = getActivePositionsForRisk();
+  const currentHoldingCount = activePositions.length;
   const totalSlots = Math.max(
     riskPayload.bullMaxHoldings + riskPayload.reservedTSlotCount,
     0
@@ -3142,7 +3149,7 @@ function buildAccountRiskOverview() {
     riskPayload.maxHoldings - currentHoldingCount,
     0
   );
-  const triggeredRiskPositionCount = positions.value.filter((item) => {
+  const triggeredRiskPositionCount = activePositions.filter((item) => {
     const pnlAmount = Number(item?.unrealized_pnl || 0);
     if (!(totalAsset > 0) || !(pnlAmount < 0)) {
       return false;
@@ -3260,7 +3267,7 @@ function buildBuyRiskSummary() {
     riskPayload.bullMaxHoldings + riskPayload.reservedTSlotCount,
     0
   );
-  const currentHoldingCount = positions.value.length;
+  const currentHoldingCount = getActivePositionsForRisk().length;
   const remainingOpenSlots = Math.max(
     riskPayload.maxHoldings - currentHoldingCount,
     0
