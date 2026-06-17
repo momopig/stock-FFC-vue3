@@ -355,6 +355,21 @@
                       {{ scope.row.trigger_reason }}
                     </div>
                     <div
+                      v-if="getForceMarketSwitchFlag(scope.row) !== null"
+                      class="reason-switch-tag"
+                    >
+                      <el-tag
+                        size="small"
+                        :type="
+                          getForceMarketSwitchFlag(scope.row) ? 'success' : 'warning'
+                        "
+                      >
+                        QMT限价自动转市价：{{
+                          getForceMarketSwitchFlag(scope.row) ? '开启' : '关闭'
+                        }}
+                      </el-tag>
+                    </div>
+                    <div
                       v-if="scope.row.signal_instance_name"
                       class="reason-instance-name"
                     >
@@ -1273,6 +1288,23 @@ function getActionCodeLabel(code) {
 function getResultCodeLabel(code) {
   return getStrategyResultLabel(code);
 }
+
+function getForceMarketSwitchFlag(logRow) {
+  const textParts = [logRow?.trigger_reason, logRow?.system_remark]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+  if (!textParts.length) {
+    return null;
+  }
+  const mergedText = textParts.join('\n');
+  const matched = mergedText.match(
+    /QMT限价自动转市价\(force_market_for_qmt\)[：:]\s*(true|false)/i
+  );
+  if (!matched) {
+    return null;
+  }
+  return String(matched[1]).toLowerCase() === 'true';
+}
 </script>
 
 <style scoped>
@@ -1389,6 +1421,10 @@ function getResultCodeLabel(code) {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
+}
+
+.reason-switch-tag {
+  margin-top: 6px;
 }
 
 .bilingual-code-cell {
