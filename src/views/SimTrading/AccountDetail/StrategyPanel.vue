@@ -263,12 +263,32 @@
 
           <el-tab-pane label="策略日志" name="logs" lazy="true">
             <div class="log-toolbar">
-              <el-input
+              <el-select
                 v-model="logFilters.result_code"
                 clearable
-                placeholder="结果码"
-                class="toolbar-input"
-              />
+                placeholder="选择结果码"
+                class="toolbar-select"
+              >
+                <el-option
+                  v-for="(label, code) in STRATEGY_RESULT_CODE_LABELS"
+                  :key="code"
+                  :value="code"
+                  :label="label"
+                />
+              </el-select>
+              <el-select
+                v-model="logFilters.action_code"
+                clearable
+                placeholder="选择动作"
+                class="toolbar-select"
+              >
+                <el-option
+                  v-for="(label, code) in STRATEGY_ACTION_CODE_LABELS"
+                  :key="code"
+                  :value="code"
+                  :label="label"
+                />
+              </el-select>
               <el-input
                 v-model="logFilters.keyword"
                 clearable
@@ -327,13 +347,26 @@
               <el-table-column
                 prop="trigger_reason"
                 label="原因"
-                min-width="260"
+                min-width="300"
               >
                 <template #default="scope">
                   <div class="reason-cell">
-                    {{
-                      scope.row.trigger_reason || scope.row.system_remark || '-'
-                    }}
+                    <div v-if="scope.row.trigger_reason" class="reason-text">
+                      {{ scope.row.trigger_reason }}
+                    </div>
+                    <div
+                      v-if="scope.row.signal_instance_name"
+                      class="reason-instance-name"
+                    >
+                      策略实例：{{ scope.row.signal_instance_name }}
+                    </div>
+                    <div
+                      v-else-if="scope.row.system_remark"
+                      class="reason-text"
+                    >
+                      {{ scope.row.system_remark }}
+                    </div>
+                    <div v-else class="reason-text">-</div>
                   </div>
                 </template>
               </el-table-column>
@@ -547,6 +580,8 @@ import { useTabsStore } from '@/composables/useTabsStore';
 import {
   getStrategyActionLabel,
   getStrategyResultLabel,
+  STRATEGY_ACTION_CODE_LABELS,
+  STRATEGY_RESULT_CODE_LABELS,
 } from '@/utils/strategyCodeLabels';
 
 const props = defineProps({
@@ -605,7 +640,7 @@ const settings = reactive({
   last_dispatch_time: '',
 });
 const logs = reactive({ total: 0, items: [] });
-const logFilters = reactive({ result_code: '', keyword: '' });
+const logFilters = reactive({ result_code: '', action_code: '', keyword: '' });
 const logPagination = reactive({ page: 1, pageSize: 10 });
 
 const bindingDialog = reactive({
@@ -967,6 +1002,7 @@ async function runDebugDispatch() {
 
 function resetLogFilters() {
   logFilters.result_code = '';
+  logFilters.action_code = '';
   logFilters.keyword = '';
   logPagination.page = 1;
   loadLogs();
