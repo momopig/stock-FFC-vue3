@@ -892,7 +892,7 @@
             <el-table-column
               prop="stock_name"
               label="股票名称"
-              min-width="140"
+              min-width="100"
             />
             <el-table-column prop="stock_code" label="代码" width="120" />
             <el-table-column label="方向" width="90">
@@ -1064,7 +1064,7 @@
             <el-table-column
               prop="stock_name"
               label="股票名称"
-              min-width="140"
+              min-width="100"
             />
             <el-table-column prop="stock_code" label="代码" width="120" />
             <el-table-column label="类型" width="140">
@@ -1188,9 +1188,14 @@
               <el-tab-pane label="当日委托" name="today-orders" lazy="true">
                 <el-table :data="pagedTodayOrders" border>
                   <el-table-column
+                    prop="order_no"
+                    label="订单号"
+                    min-width="100"
+                  />
+                  <el-table-column
                     prop="stock_name"
                     label="股票名称"
-                    min-width="140"
+                    min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
                   <el-table-column label="方向" width="90">
@@ -1214,6 +1219,15 @@
                     label="委托数量"
                     width="100"
                   />
+                  <el-table-column
+                    prop="order_price"
+                    label="委托价格"
+                    width="100"
+                  >
+                    <template #default="scope">{{
+                      formatMoney(scope.row.order_price)
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="已成交金额" width="140">
                     <template #default="scope">{{
                       formatMoney(scope.row.filled_amount)
@@ -1317,9 +1331,14 @@
               <el-tab-pane label="当日成交" name="today-trades" lazy="true">
                 <el-table :data="pagedTodayTrades" border>
                   <el-table-column
+                    prop="trade_no"
+                    label="交易号"
+                    min-width="100"
+                  />
+                  <el-table-column
                     prop="stock_name"
                     label="股票名称"
-                    min-width="140"
+                    min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
                   <el-table-column label="方向" width="90">
@@ -1449,9 +1468,14 @@
               <el-tab-pane label="历史委托" name="history-orders" lazy="true">
                 <el-table :data="pagedHistoryOrders" border>
                   <el-table-column
+                    prop="order_no"
+                    label="订单号"
+                    min-width="100"
+                  />
+                  <el-table-column
                     prop="stock_name"
                     label="股票名称"
-                    min-width="140"
+                    min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
                   <el-table-column label="方向" width="90">
@@ -1475,6 +1499,15 @@
                     label="委托数量"
                     width="100"
                   />
+                  <el-table-column
+                    prop="order_price"
+                    label="委托价格"
+                    width="100"
+                  >
+                    <template #default="scope">{{
+                      formatMoney(scope.row.order_price)
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="已成交金额" width="140">
                     <template #default="scope">{{
                       formatMoney(scope.row.filled_amount)
@@ -1582,9 +1615,14 @@
               <el-tab-pane label="历史成交" name="history-trades" lazy="true">
                 <el-table :data="pagedHistoryTrades" border>
                   <el-table-column
+                    prop="trade_no"
+                    label="交易号"
+                    min-width="100"
+                  />
+                  <el-table-column
                     prop="stock_name"
                     label="股票名称"
-                    min-width="140"
+                    min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
                   <el-table-column label="方向" width="90">
@@ -1720,7 +1758,7 @@
                   <el-table-column
                     prop="stock_name"
                     label="股票名称"
-                    min-width="140"
+                    min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
                   <el-table-column label="类型" width="140">
