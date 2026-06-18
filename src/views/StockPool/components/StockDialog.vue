@@ -379,12 +379,16 @@ const normalizeStockFromApi = (stock) => {
     stock?.exchange_code ||
     stock?.exchange ||
     '';
+  const rawPrice = Number(stock?.price);
+  const normalizedPrice = Number.isFinite(rawPrice) && rawPrice > 0
+    ? rawPrice
+    : null;
   return {
     ...stock,
     exchange_code: exchangeCode,
     code: stock?.code || stock?.stock_code || '',
     name: stock?.name || stock?.stock_name || '',
-    initialPrice: Number(stock?.price) || 0,
+    initialPrice: normalizedPrice,
   };
 };
 
@@ -440,7 +444,7 @@ const handleBatchMatch = async () => {
           stock_code: `${first?.code || ''}.${first?.exchange_code || ''}`,
           stock_name: first?.name || '',
           exchange_code: first?.exchange_code || '',
-          initial_price: first?.initialPrice ?? 0,
+          initial_price: first?.initialPrice ?? null,
         });
       } else {
         failed.push(token);
@@ -494,7 +498,7 @@ const formRules = computed(() => {
     ];
     rules.initial_price = [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' },
+      { type: 'number', min: 0.0001, message: '初始价格必须大于0', trigger: 'blur' },
     ];
     rules.group_ids = [
       { required: true, message: '请至少选择一个分组', trigger: 'change' },
@@ -509,7 +513,7 @@ const formRules = computed(() => {
     // 编辑模式下需要验证初始价格
     rules.initial_price = [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于0', trigger: 'blur' },
+      { type: 'number', min: 0.0001, message: '初始价格必须大于0', trigger: 'blur' },
     ];
   }
 
@@ -552,7 +556,7 @@ const onChangeStock = (stock) => {
   if (stock) {
     // 填充股票代码和名称
     props.formData.stock_name = stock.name || '';
-    props.formData.initial_price = stock.initialPrice || 0;
+    props.formData.initial_price = stock.initialPrice ?? null;
     // 填充交易所代码（如果接口返回了 exchange_code，优先使用）
     if (stock.exchange_code) {
       props.formData.exchange_code = stock.exchange_code;
