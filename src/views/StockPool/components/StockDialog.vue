@@ -405,6 +405,9 @@ const getStockSearchErrorMessage = (result) => {
   return result?.message || '股票搜索暂不可用，请稍后重试';
 };
 
+// 批量匹配并发度：并发过高可能触发后端限流，建议保持中等并发。
+const BATCH_MATCH_CONCURRENCY = 6;
+
 // 解析批量输入：支持逗号、空格分隔
 const parseBatchStockInput = (input) => {
   if (!input?.trim()) return [];
@@ -414,7 +417,65 @@ const parseBatchStockInput = (input) => {
     .filter(Boolean);
 };
 
-// 批量匹配：对每个输入项模糊搜索，取第一个匹配结果
+// 通用并发池：按给定并发上限执行异步任务，并保持结果顺序。
+const runWithConcurrency = async (items, concurrency, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  const limit = Math.max(1, Number(concurrency) || 1);
+  const results = new Array(list.length);
+  let nextIndex = 0;
+
+  const runner = async () => {
+    while (nextIndex < list.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await worker(list[currentIndex], currentIndex);
+    }
+  };
+
+  const workerCount = Math.min(limit, list.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runner()));
+  return results;
+};
+
+const matchSingleStockToken = async (token) => {
+  try {
+    const result = await getStock(token, false);
+    if (hasStockSearchError(result)) {
+      return {
+        token,
+        matched: false,
+        error: getStockSearchErrorMessage(result),
+      };
+    }
+
+    const stockOptions = getStockSearchItems(result).map(normalizeStockFromApi);
+    if (!stockOptions?.length) {
+      return { token, matched: false };
+    }
+
+    const first = stockOptions[0];
+    const stockCode = `${first?.code || ''}.${first?.exchange_code || ''}`;
+    return {
+      token,
+      matched: true,
+      stock: {
+        key: stockCode,
+        stock_code: stockCode,
+        stock_name: first?.name || '',
+        exchange_code: first?.exchange_code || '',
+        initial_price: first?.initialPrice ?? null,
+      },
+    };
+  } catch (error) {
+    return {
+      token,
+      matched: false,
+      error: error?.message || '请求失败',
+    };
+  }
+};
+
+// 批量匹配：并发执行模糊搜索，对每个输入项取第一个匹配结果
 const handleBatchMatch = async () => {
   const tokens = parseBatchStockInput(batchStockInput.value);
   if (tokens.length === 0) {
@@ -422,32 +483,31 @@ const handleBatchMatch = async () => {
     return;
   }
 
+  // 去重后再匹配，减少重复请求。
+  const uniqueTokens = [...new Set(tokens)];
+
   batchMatchLoading.value = true;
   batchMatchedStocks.value = [];
 
   try {
     const matched = [];
     const failed = [];
+    const errors = [];
 
-    for (const token of tokens) {
-      const result = await getStock(token, false);
-      if (hasStockSearchError(result)) {
-        throw new Error(getStockSearchErrorMessage(result));
-      }
-      const stockOptions = getStockSearchItems(result).map(
-        normalizeStockFromApi
-      );
+    const matchResults = await runWithConcurrency(
+      uniqueTokens,
+      BATCH_MATCH_CONCURRENCY,
+      matchSingleStockToken
+    );
 
-      if (stockOptions?.length > 0) {
-        const first = stockOptions[0];
-        matched.push({
-          stock_code: `${first?.code || ''}.${first?.exchange_code || ''}`,
-          stock_name: first?.name || '',
-          exchange_code: first?.exchange_code || '',
-          initial_price: first?.initialPrice ?? null,
-        });
+    for (const item of matchResults) {
+      if (item?.matched && item?.stock) {
+        matched.push(item.stock);
       } else {
-        failed.push(token);
+        failed.push(item?.token);
+        if (item?.error) {
+          errors.push(`${item.token}: ${item.error}`);
+        }
       }
     }
 
@@ -455,6 +515,9 @@ const handleBatchMatch = async () => {
 
     if (failed.length > 0) {
       ElMessage.warning(`以下项未匹配到股票：${failed.join('、')}`);
+    }
+    if (errors.length > 0) {
+      console.warn('批量匹配部分失败:', errors);
     }
     if (matched.length > 0) {
       ElMessage.success(`成功匹配 ${matched.length} 只股票`);

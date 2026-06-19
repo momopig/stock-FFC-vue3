@@ -1,9 +1,15 @@
 import { getLocalString, setLocal } from '@/utils/storage';
 
 export const STOCK_SEARCH_SOURCE_STORAGE_KEY = 'stock-search-source';
-export const DEFAULT_STOCK_SEARCH_SOURCE = 'auto';
+export const DEFAULT_STOCK_SEARCH_SOURCE = 'local_index';
 
 export const STOCK_SEARCH_SOURCE_OPTIONS = [
+  {
+    value: 'local_index',
+    label: '本地查找表',
+    badge: '极速',
+    description: '优先使用本地数据库查找表搜索，响应更快、稳定性更高。',
+  },
   {
     value: 'auto',
     label: '自动切换',

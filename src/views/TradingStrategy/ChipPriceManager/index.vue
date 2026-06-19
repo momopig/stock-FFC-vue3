@@ -37,7 +37,7 @@
           remote
           reserve-keyword
           clearable
-          placeholder="股票搜索（名称/代码/拼音）"
+          placeholder="股票搜索（名称/代码/拼音首字母）"
           class="filter-item filter-keyword"
           :remote-method="searchStocks"
           :loading="stockSearchLoading"
@@ -222,7 +222,7 @@
             remote
             reserve-keyword
             clearable
-            placeholder="查询（名称/代码/拼音）"
+            placeholder="查询（名称/代码/拼音首字母）"
             class="dialog-full-width"
             :remote-method="searchStocks"
             :loading="stockSearchLoading"

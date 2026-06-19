@@ -211,10 +211,17 @@ export const menuList = [
     permissions: ['is_superuser'],
   },
   {
-    name: '股票搜索设置',
-    foldName: '搜索设置',
+    name: '模糊搜索源设置',
+    foldName: '搜索源设置',
     icon: 'Setting',
     path: '/system/stock-search-settings',
+    permissions: ['is_superuser'],
+  },
+  {
+    name: '股票本地查找表管理',
+    foldName: '本地查找表',
+    icon: 'DataBoard',
+    path: '/system/stock-search-index-management',
     permissions: ['is_superuser'],
   },
   {

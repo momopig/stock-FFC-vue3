@@ -268,7 +268,7 @@
                       filterable
                       remote
                       reserve-keyword
-                      placeholder="查询（名称/代码/拼音）"
+                      placeholder="查询（名称/代码/拼音首字母）"
                       :remote-method="searchBuyStocks"
                       :loading="stockSearchLoading"
                       class="full-width"
@@ -479,7 +479,7 @@
                       filterable
                       remote
                       reserve-keyword
-                      placeholder="查询（名称/代码/拼音）"
+                      placeholder="查询（名称/代码/拼音首字母）"
                       :remote-method="searchSellStocks"
                       :loading="stockSearchLoading"
                       class="full-width"
@@ -702,7 +702,7 @@
                       filterable
                       remote
                       reserve-keyword
-                      placeholder="查询（名称/代码/拼音）"
+                      placeholder="查询（名称/代码/拼音首字母）"
                       :remote-method="searchConditionStocks"
                       :loading="stockSearchLoading"
                       class="full-width"
