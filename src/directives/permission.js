@@ -1,6 +1,6 @@
 import { watch } from 'vue';
 import { UserStore } from '@/state/user';
-import { usePermissions } from '@/composables/usePermissions';
+import router from '@/router';
 
 // 存储元素与权限配置的映射，用于响应式更新
 const elementPermissionMap = new WeakMap();
@@ -57,7 +57,13 @@ export const permission = {
 function checkPermission(el, binding) {
   const { value, modifiers } = binding;
   const userStore = UserStore();
-  const perms = usePermissions();
+
+  // 页面级默认放开策略：当路由本身可访问时，页面DOM默认可见。
+  // 这样可避免“路由可见但页面元素全空”的体验问题。
+  if (isCurrentRouteAccessible(userStore)) {
+    restoreElement(el, modifiers);
+    return;
+  }
 
   if (!value) {
     return;
@@ -91,14 +97,7 @@ function checkPermission(el, binding) {
       el.style.display = 'none';
     }
   } else {
-    // 有权限时恢复元素
-    if (modifiers.disabled) {
-      el.disabled = false;
-      el.style.opacity = '';
-      el.style.cursor = '';
-    } else {
-      el.style.display = '';
-    }
+    restoreElement(el, modifiers);
   }
 
   // // 兜底：如果权限常量还未初始化，触发初始化并二次检查
@@ -109,4 +108,32 @@ function checkPermission(el, binding) {
   //     checkPermission(el, binding);
   //   });
   // }
+}
+
+function isCurrentRouteAccessible(userStore) {
+  const currentRoute = router?.currentRoute?.value;
+  if (!currentRoute) {
+    return false;
+  }
+
+  if (currentRoute.meta?.requiresAuth === false) {
+    return false;
+  }
+
+  const routePermissionCodes = currentRoute.meta?.permissionCodes;
+  if (!Array.isArray(routePermissionCodes) || routePermissionCodes.length === 0) {
+    return true;
+  }
+
+  return userStore.hasAnyPermission(routePermissionCodes);
+}
+
+function restoreElement(el, modifiers) {
+  if (modifiers.disabled) {
+    el.disabled = false;
+    el.style.opacity = '';
+    el.style.cursor = '';
+  } else {
+    el.style.display = '';
+  }
 }

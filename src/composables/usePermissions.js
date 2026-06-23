@@ -49,39 +49,13 @@ export const usePermissions = () => {
   const hasAllPermissions = (permissions) => userStore.hasAllPermissions(permissions);
 
   /**
-   * 检查菜单权限（支持新旧权限格式）
+   * 检查菜单权限（permissionCodes 为唯一授权来源）
    */
   const checkMenuPermission = (menu) => {
-    if (!menu.permissions && !menu.permissionCodes) {
+    if (!menu.permissionCodes) {
       return true;
     }
-    if (menu.permissionCodes) {
-      return hasAnyPermission(menu.permissionCodes);
-    }
-    if (menu.permissions) {
-      return checkLegacyRolePermission(menu.permissions);
-    }
-    return true;
-  };
-
-  /**
-   * 检查传统角色权限（向后兼容）
-   */
-  const checkLegacyRolePermission = (rolePermissions) => {
-    if (!Array.isArray(rolePermissions)) return false;
-    const userInfo = userStore.userInfo || {};
-    return rolePermissions.some(permission => {
-      switch (permission) {
-        case 'is_superuser':
-          return !!userInfo.is_superuser;
-        case 'isWarehouseManager':
-          return !!userInfo.isWarehouseManager;
-        case 'isShopOperator':
-          return !!userInfo.isShopOperator;
-        default:
-          return false;
-      }
-    });
+    return hasAnyPermission(menu.permissionCodes);
   };
 
   // 权限常量与配置（来自模块级缓存）
@@ -128,7 +102,6 @@ export const usePermissions = () => {
     hasAnyPermission,
     hasAllPermissions,
     checkMenuPermission,
-    checkLegacyRolePermission,
     clearCache,
     getPermissionsSync,
   };

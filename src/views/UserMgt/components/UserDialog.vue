@@ -82,13 +82,21 @@
         />
       </el-form-item>
 
-      <!-- 超级管理员（编辑时显示） -->
-      <el-form-item v-if="isEditMode && !isViewMode" label="超级管理员">
-        <el-switch
-          v-model="formData.is_superuser"
-          active-text="是"
-          inactive-text="否"
-        />
+      <el-form-item v-if="!isViewMode" label="角色" prop="role_keys">
+        <el-select
+          v-model="formData.role_keys"
+          multiple
+          clearable
+          placeholder="请选择角色"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="role in roleOptions"
+            :key="role.role_key"
+            :label="role.role_name"
+            :value="role.role_key"
+          />
+        </el-select>
       </el-form-item>
     </el-form>
 
@@ -128,6 +136,10 @@ const props = defineProps({
   isEditMode: {
     type: Boolean,
     default: false
+  },
+  roleOptions: {
+    type: Array,
+    default: () => []
   }
 })
 

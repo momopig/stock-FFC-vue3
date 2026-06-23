@@ -286,7 +286,8 @@ const displayName = computed(() => {
 
 const userRole = computed(() => {
   const info = userStore?.userInfo || {};
-  return info.is_superuser ? '超级管理员' : '';
+  const roles = Array.isArray(info.roles) ? info.roles : [];
+  return roles.includes('builtin_super_admin') ? '超级管理员' : '';
 });
 
 // 退出登录处理

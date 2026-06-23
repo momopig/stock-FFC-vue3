@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { lazy } from '@/utils/lazy';
 import { getLocal, setLocal } from '@/utils/storage';
 import permissionGuard from '@/utils/permission-guard';
+import { PermissionCodes } from '@/config/permissionCodes';
 
 const routes = [
   { path: '/', redirect: '/home' },
@@ -18,33 +19,38 @@ const routes = [
   {
     path: '/user-mgt',
     component: lazy(() => import('@/views/UserMgt/index.vue')),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_USER_READ] },
+  },
+  {
+    path: '/account-mgt/roles',
+    component: lazy(() => import('@/views/RoleMgt/index.vue')),
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_ROLE_READ] },
   },
   {
     path: '/system/log-management',
     component: lazy(() => import('@/views/System/LogManagement/index.vue')),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_LOG_READ] },
   },
   {
     path: '/system/dump-snapshots',
     component: lazy(
       () => import('@/views/System/DumpSnapshotManager/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_DUMP_READ] },
   },
   {
     path: '/system/stock-search-settings',
     component: lazy(
       () => import('@/views/System/StockSearchSettings/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_STOCK_SEARCH_SOURCE_READ] },
   },
   {
     path: '/system/stock-search-index-management',
     component: lazy(
       () => import('@/views/System/StockSearchIndexManagement/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_STOCK_SEARCH_INDEX_READ] },
   },
   { path: '/home', component: lazy(() => import('@/App.vue')) },
   {
@@ -52,7 +58,7 @@ const routes = [
     component: lazy(
       () => import('@/views/StockPool/FutuSubscription/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_FUTU_SUBSCRIPTION_READ] },
   },
   {
     path: '/stock-pool/futu-subscriptions',
@@ -83,7 +89,7 @@ const routes = [
       () => import('@/views/TradingStrategy/StrategyList/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ],
       strategyCategoryPreset: 'ACCOUNT_RISK',
       executionMenuTitle: '仓位风控策略',
     },
@@ -94,7 +100,7 @@ const routes = [
       () => import('@/views/TradingStrategy/StrategyList/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ],
       strategyCategoryPreset: 'OPEN_POSITION',
       executionMenuTitle: '建仓策略',
     },
@@ -105,7 +111,7 @@ const routes = [
       () => import('@/views/TradingStrategy/StrategyList/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ],
       strategyCategoryPreset: 'CLOSE_POSITION',
       executionMenuTitle: '清仓策略',
     },
@@ -116,7 +122,7 @@ const routes = [
       () => import('@/views/TradingStrategy/StrategyList/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ],
       strategyCategoryPreset: 'INTRADAY_T',
       executionMenuTitle: '做T策略',
     },
@@ -126,7 +132,7 @@ const routes = [
     component: lazy(
       () => import('@/views/TradingStrategy/StrategyList/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ] },
   },
   {
     path: '/trading-strategy/signal-strategies/buy',
@@ -134,7 +140,7 @@ const routes = [
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ],
       signalUsageScopePreset: 'buy',
       signalMenuTitle: '买点策略',
     },
@@ -145,7 +151,7 @@ const routes = [
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ],
       signalUsageScopePreset: 'sell',
       signalMenuTitle: '卖点策略',
     },
@@ -156,7 +162,7 @@ const routes = [
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ],
       signalUsageScopePreset: 'both',
       signalMenuTitle: '买卖通用策略',
     },
@@ -167,7 +173,7 @@ const routes = [
       () => import('@/views/TradingStrategy/ChipPriceManager/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ],
       signalMenuTitle: '筹码集中价管理',
     },
   },
@@ -177,7 +183,7 @@ const routes = [
       () => import('@/views/TradingStrategy/KeyPriceManager/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ],
       signalMenuTitle: '关键价格管理',
     },
   },
@@ -187,7 +193,7 @@ const routes = [
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_INTRADAY_CONSTRAINT_READ],
       signalUsageScopePreset: 'buy',
       signalBusinessCategoryPreset: 'BUY_RISK_BLOCK',
       signalMenuTitle: '买入风控约束策略',
@@ -199,7 +205,7 @@ const routes = [
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
     meta: {
-      permissions: ['is_superuser'],
+      permissionCodes: [PermissionCodes.STRATEGY_INTRADAY_CONSTRAINT_READ],
       signalUsageScopePreset: 'sell',
       signalBusinessCategoryPreset: 'SELL_TREND_GUARD',
       signalMenuTitle: '卖出趋势保护策略',
@@ -210,24 +216,24 @@ const routes = [
     component: lazy(
       () => import('@/views/TradingStrategy/SignalStrategy/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.STRATEGY_SIGNAL_READ] },
   },
   {
     path: '/trading-strategy/execution/usage',
     component: lazy(
       () => import('@/views/TradingStrategy/StrategyUsage/index.vue')
     ),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.STRATEGY_EXECUTION_READ] },
   },
   {
     path: '/sim-trading/accounts',
     component: lazy(() => import('@/views/SimTrading/AccountList/index.vue')),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SIM_TRADING_ACCOUNT_READ] },
   },
   {
     path: '/sim-trading/account-detail',
     component: lazy(() => import('@/views/SimTrading/AccountDetail/index.vue')),
-    meta: { permissions: ['is_superuser'] },
+    meta: { permissionCodes: [PermissionCodes.SIM_TRADING_ACCOUNT_READ] },
   },
 ];
 

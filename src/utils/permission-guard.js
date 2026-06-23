@@ -143,7 +143,7 @@ export function checkRoutePermission(route, userStore) {
   }
 
   // 如果没有权限要求，默认通过
-  if (!meta?.permissionCodes && !meta?.permissions) {
+  if (!meta?.permissionCodes) {
     return { hasPermission: true, reason: 'no_permission_required' };
   }
 
@@ -162,20 +162,6 @@ export function checkRoutePermission(route, userStore) {
     }
   }
 
-  // 检查传统角色权限（向后兼容）
-  if (meta.permissions) {
-    const perms = usePermissions();
-    const hasPermission = perms.checkLegacyRolePermission(meta.permissions);
-    if (!hasPermission) {
-      return {
-        hasPermission: false,
-        reason: 'insufficient_role_permissions',
-        requiredRoles: meta.permissions,
-        redirectTo: '/home' // 重定向到首页
-      };
-    }
-  }
-
   return { hasPermission: true, reason: 'permission_granted' };
 }
 
@@ -185,15 +171,13 @@ export function checkRoutePermission(route, userStore) {
  * @returns {string} 错误信息
  */
 export function getPermissionErrorMessage(checkResult) {
-  const { reason, requiredPermissions, requiredRoles } = checkResult;
+  const { reason, requiredPermissions } = checkResult;
 
   switch (reason) {
     case 'not_logged_in':
       return '请先登录后再访问此页面';
     case 'insufficient_permissions':
       return `您没有访问此页面的权限。需要权限：${requiredPermissions?.join(', ') || '未知'}`;
-    case 'insufficient_role_permissions':
-      return `您没有访问此页面的权限。需要角色：${requiredRoles?.join(', ') || '未知'}`;
     default:
       return '权限检查失败';
   }
@@ -214,7 +198,6 @@ export function logPermissionFailure(route, checkResult, userStore) {
     userRole: userStore.role,
     userPermissions: userStore.permissions,
     requiredPermissions: checkResult.requiredPermissions,
-    requiredRoles: checkResult.requiredRoles,
     userAgent: navigator.userAgent,
     referrer: document.referrer
   };
@@ -287,12 +270,11 @@ export async function permissionGuard(to, from, next) {
       // 重定向到指定页面
       if (checkResult.redirectTo) {
         // 如果是权限不足，重定向到无权限页面并传递相关信息
-        if (checkResult.reason === 'insufficient_permissions' || checkResult.reason === 'insufficient_role_permissions') {
+        if (checkResult.reason === 'insufficient_permissions') {
           next({
             path: '/permission-denied',
             query: {
               requiredPermissions: checkResult.requiredPermissions?.join(','),
-              requiredRoles: checkResult.requiredRoles?.join(','),
               currentRole: userStore.role,
               reason: checkResult.reason,
               from: to.path

@@ -46,7 +46,7 @@ export const getUserList = async (params) => {
  * @param {string} body.full_name - 全名
  * @param {string} body.password - 密码
  * @param {boolean} body.is_active - 是否激活
- * @param {boolean} body.is_superuser - 是否超级管理员
+ * @param {string[]} [body.role_keys] - 角色标识列表
  * @returns {Promise} 返回创建的用户信息
  */
 export const createUser = async (body) => {
@@ -94,7 +94,7 @@ export const getUserDetail = async (userId) => {
  * @param {string} [body.full_name] - 全名
  * @param {string} [body.password] - 密码
  * @param {boolean} [body.is_active] - 是否激活
- * @param {boolean} [body.is_superuser] - 是否超级管理员
+ * @param {string[]} [body.role_keys] - 角色标识列表
  * @returns {Promise} 返回更新后的用户信息
  */
 export const updateUser = async (userId, body) => {
@@ -146,8 +146,10 @@ export const getCurrentUserInfo = async () => {
 
   if (res?.success && userInfo) {
     const userStore = getUserStore();
-    // 设置用户基础信息（简化处理，移除复杂的权限、角色、主账号等逻辑）
+    // 设置用户基础信息与权限快照
     userStore.setUserInfo(userInfo)
+    userStore.setPermissions(userInfo.permission_codes || [])
+    userStore.setAvailableRoles(userInfo.roles || [])
   }
 
   return res

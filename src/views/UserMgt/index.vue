@@ -14,7 +14,7 @@
         class="new-user"
         type="primary"
         @click="addUserFn"
-        v-permission="permissions.USER_CREATE"
+        v-permission="'system:user:create'"
       >
         新建用户
       </el-button>
@@ -54,10 +54,17 @@
               {{ row.is_active ? '启用' : '禁用' }}
             </el-tag>
           </span>
-          <span v-else-if="item.key === 'isSuperuser'">
-            <el-tag :type="row.is_superuser ? 'warning' : 'info'">
-              {{ row.is_superuser ? '超级管理员' : '普通用户' }}
-            </el-tag>
+          <span v-else-if="item.key === 'roles'">
+            <el-space wrap>
+              <el-tag
+                v-for="roleKey in (row.roles || [])"
+                :key="`${row.id}-${roleKey}`"
+                size="small"
+              >
+                {{ roleNameMap[roleKey] || roleKey }}
+              </el-tag>
+              <span v-if="!(row.roles || []).length">--</span>
+            </el-space>
           </span>
           <span v-else class="ellipsis" :title="row[item.prop] || '--'">
             {{ row[item.prop] || '--' }}
@@ -71,7 +78,7 @@
             link
             type="primary"
             @click="operateHandler('view', scope.row.id)"
-            v-permission="permissions.USER_VIEW"
+            v-permission="'system:user:read'"
           >
             查看
           </el-button>
@@ -79,12 +86,12 @@
             link
             type="primary"
             @click="operateHandler('edit', scope.row.id)"
-            v-permission="permissions.USER_EDIT"
+            v-permission="'system:user:update'"
           >
             编辑
           </el-button>
           <el-popconfirm
-            v-permission="permissions.USER_DELETE"
+            v-permission="'system:user:delete'"
             title="确定要删除该用户吗？"
             confirm-button-text="确定"
             cancel-button-text="取消"
@@ -111,6 +118,7 @@
     <UserDialog
       v-model:visible="dialogVisible"
       :form-data="userForm"
+      :role-options="roleOptions"
       :is-view-mode="isViewMode"
       :is-edit-mode="isEditMode"
       @submit="submitUser"
@@ -128,13 +136,10 @@ import {
   getUserDetail,
   deleteUser
 } from '@/api/modules/customerUser'
+import { assignUserRoles, getRoleList } from '@/api/modules/role'
 import UserDialog from './components/UserDialog.vue'
 import { formatDateTime } from '@/utils/time'
 // import { jsonToExcel } from '@/utils/excel'
-import { usePermissions } from '@/composables/usePermissions'
-
-// 权限相关
-const { permissions, isMainAccount } = usePermissions()
 
 // 响应式数据
 const searchQuery = ref('')
@@ -143,6 +148,8 @@ const tableLoading = ref(false)
 const dialogVisible = ref(false)
 const isViewMode = ref(false)
 const isEditMode = ref(false)
+const roleOptions = ref([])
+const roleNameMap = ref({})
 
 // 分页参数
 const page = reactive({
@@ -185,9 +192,9 @@ const columns = reactive([
     prop: 'is_active',
   },
   {
-    key: 'isSuperuser',
-    label: '类型',
-    prop: 'is_superuser',
+    key: 'roles',
+    label: '角色',
+    prop: 'roles',
   },
   {
     key: 'createdAt',
@@ -206,7 +213,8 @@ const initUserForm = () => {
     full_name: '',
     password: '',
     is_active: true,
-    is_superuser: false
+    role_keys: [],
+    roles: []
   }
 }
 
@@ -214,8 +222,25 @@ const userForm = ref(initUserForm())
 
 // 页面加载时获取用户列表
 onMounted(() => {
+  loadRoleOptions()
   searchHandler()
 })
+
+const loadRoleOptions = async () => {
+  try {
+    const result = await getRoleList()
+    const items = result?.payload?.items || []
+    roleOptions.value = items
+    roleNameMap.value = items.reduce((acc, role) => {
+      acc[role.role_key] = role.role_name
+      return acc
+    }, {})
+  } catch (error) {
+    console.error('加载角色列表失败:', error)
+    roleOptions.value = []
+    roleNameMap.value = {}
+  }
+}
 
 // 获取用户列表
 const getUserList = async () => {
@@ -296,7 +321,11 @@ const operateHandler = async (type, id) => {
         // 统一格式处理（注释）：如果返回 {success, payload: {data: {...}}, ...}
         // const data = res?.success ? res?.payload?.data : res?.result || res?.data
         const data = res?.result || res?.data || {}
-        userForm.value = { ...data }
+        userForm.value = {
+          ...initUserForm(),
+          ...data,
+          role_keys: [...(data.roles || [])],
+        }
         isViewMode.value = type === 'view'
         isEditMode.value = type === 'edit'
         dialogVisible.value = true
@@ -332,12 +361,29 @@ const addUserFn = () => {
 const submitUser = async (formData) => {
   try {
     let result
+    const submitPayload = {
+      username: formData.username,
+      email: formData.email,
+      full_name: formData.full_name,
+      password: formData.password,
+      is_active: formData.is_active,
+    }
+
+    if (!submitPayload.password) {
+      delete submitPayload.password
+    }
+
     if (formData.id) {
       // 更新用户
-      result = await updateUser(formData.id, formData)
+      result = await updateUser(formData.id, submitPayload)
+      await assignUserRoles(formData.id, formData.role_keys || [])
     } else {
       // 创建新用户
-      result = await createUser(formData)
+      result = await createUser(submitPayload)
+      const createdUserId = result?.data?.id || result?.result?.id || result?.payload?.id
+      if (createdUserId) {
+        await assignUserRoles(createdUserId, formData.role_keys || [])
+      }
     }
 
     // 当前格式处理：直接返回用户对象
@@ -384,8 +430,6 @@ const submitUser = async (formData) => {
 //   }
 // }
 
-// 权限常量供模板使用
-// 由于在script setup中定义，可以直接在模板中使用
 </script>
 
 <style scoped lang="less">

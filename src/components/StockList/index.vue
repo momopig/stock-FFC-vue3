@@ -216,7 +216,7 @@
                   <el-button
                     v-if="
                       showAddToWatchButton &&
-                      userStore.userInfo?.is_superuser &&
+                      isBuiltinAdmin &&
                       !row.is_self_selected
                     "
                     link
@@ -557,7 +557,7 @@
           fixed="right"
           label="操作"
           :width="100"
-          v-if="showActionColumn && userStore.userInfo?.is_superuser"
+          v-if="showActionColumn && isBuiltinAdmin"
         >
           <template v-slot="scope">
             <!-- <el-button link type="primary" @click="$emit('view-stock', scope.row.id)">
@@ -608,7 +608,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue';
+import { computed, ref, reactive, watch, nextTick } from 'vue';
 import { formatDateTime } from '@/utils/time';
 import FullscreenContainer from '@/components/FullscreenContainer/index.vue';
 import { FullScreen, Aim, CirclePlus, Remove } from '@element-plus/icons-vue';
@@ -700,6 +700,10 @@ const props = defineProps({
   },
 });
 const userStore = UserStore();
+const isBuiltinAdmin = computed(() => {
+  const roles = userStore?.userInfo?.roles;
+  return Array.isArray(roles) && roles.includes('builtin_super_admin');
+});
 // Emits 定义
 const emit = defineEmits([
   'page-change',
