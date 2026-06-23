@@ -11,7 +11,7 @@
     </div>
 
     <el-tabs v-model="activeTab" class="content-tabs">
-      <el-tab-pane label="模板管理" name="templates" lazy="true">
+      <el-tab-pane label="模板管理" name="templates" lazy>
         <el-card shadow="never" class="filter-card">
           <div class="filter-row">
             <el-select
@@ -97,7 +97,7 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="实例管理" name="instances" lazy="true">
+      <el-tab-pane label="实例管理" name="instances" lazy>
         <el-card shadow="never" class="filter-card">
           <div class="filter-row filter-row-wrap">
             <el-input

@@ -11,7 +11,7 @@
         :key="strategy.id"
         :label="strategy.name"
         :name="strategy.name"
-        lazy="true"
+        lazy
       >
         <!-- 洞察数据 -->
         <StockInsights :insightsData="insightsData" />
@@ -55,7 +55,7 @@
         label="重点观察"
         name="watch"
         key="watch"
-        lazy="true"
+        lazy
       >
         <template v-if="activeStrategy === 'watch'">
           <WatchList

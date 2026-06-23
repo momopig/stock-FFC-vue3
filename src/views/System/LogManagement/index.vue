@@ -142,7 +142,7 @@
         </div>
 
         <el-tabs v-model="activeTab" class="workbench-tabs">
-          <el-tab-pane label="日志概览" name="overview" lazy="true">
+          <el-tab-pane label="日志概览" name="overview" lazy>
             <div class="toolbar-card">
               <div class="toolbar-left">
                 <el-input
@@ -306,7 +306,7 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="日志治理" name="governance" lazy="true">
+          <el-tab-pane label="日志治理" name="governance" lazy>
             <div class="governance-grid" v-if="selectedSummary">
               <section class="governance-card">
                 <div class="panel-heading compact">

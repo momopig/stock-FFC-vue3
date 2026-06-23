@@ -17,7 +17,7 @@
               :key="tab.tabId"
               :name="tab.tabId"
               :closable="!isBuiltInGroup(tab)"
-              lazy="true"
+              lazy
             >
               <template #label>
                 <span

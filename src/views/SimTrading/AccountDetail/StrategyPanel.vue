@@ -62,14 +62,14 @@
         :key="group.category"
         :label="group.label"
         :name="group.category"
-        lazy="true"
+        lazy
       >
         <div class="category-header-card">
           <h3>{{ group.label }}</h3>
           <p>{{ group.description }}</p>
         </div>
         <el-tabs v-model="innerTabByCategory[group.category]">
-          <el-tab-pane label="策略配置" name="config" lazy="true">
+          <el-tab-pane label="策略配置" name="config" lazy>
             <div class="strategy-groups">
               <el-card shadow="never" class="strategy-group-card">
                 <template #header>
@@ -261,7 +261,7 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="策略日志" name="logs" lazy="true">
+          <el-tab-pane label="策略日志" name="logs" lazy>
             <div class="log-toolbar">
               <el-select
                 v-model="logFilters.result_code"

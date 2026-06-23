@@ -1,7 +1,7 @@
 <template>
   <div class="profit-analysis-panel">
     <el-tabs v-model="activePanelTab">
-      <el-tab-pane label="盈亏概览" name="overview" lazy="true">
+      <el-tab-pane label="盈亏概览" name="overview" lazy>
         <div class="profit-toolbar">
           <el-tabs
             v-model="overviewRangeType"
@@ -13,7 +13,7 @@
               :key="item.value"
               :label="item.label"
               :name="item.value"
-              lazy="true"
+              lazy
             />
           </el-tabs>
           <div class="profit-toolbar__actions">
@@ -253,15 +253,15 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="盈亏日历" name="calendar" lazy="true">
+      <el-tab-pane label="盈亏日历" name="calendar" lazy>
         <div class="profit-toolbar calendar-toolbar">
           <el-tabs
             v-model="calendarType"
             class="profit-range-tabs"
             @tab-change="handleCalendarTypeChange"
           >
-            <el-tab-pane label="月" name="month" lazy="true" />
-            <el-tab-pane label="年" name="year" lazy="true" />
+            <el-tab-pane label="月" name="month" lazy />
+            <el-tab-pane label="年" name="year" lazy />
           </el-tabs>
           <div class="profit-toolbar__actions">
             <el-button @click="navigateCalendar('prev')"

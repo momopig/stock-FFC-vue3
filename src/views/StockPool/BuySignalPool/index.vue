@@ -97,7 +97,7 @@
 
     <div class="page-card">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-        <el-tab-pane label="监控配置" name="configs" lazy="true">
+        <el-tab-pane label="监控配置" name="configs" lazy>
           <div class="toolbar-row">
             <div class="toolbar-left">
               <el-input
@@ -252,7 +252,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="监控信号" name="signals" lazy="true">
+        <el-tab-pane label="监控信号" name="signals" lazy>
           <div class="toolbar-row">
             <div class="toolbar-left toolbar-wrap">
               <el-select
@@ -476,7 +476,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="统计分析" name="analytics" lazy="true">
+        <el-tab-pane label="统计分析" name="analytics" lazy>
           <div class="toolbar-row">
             <div class="toolbar-left toolbar-wrap">
               <el-select

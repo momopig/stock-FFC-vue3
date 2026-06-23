@@ -24,7 +24,7 @@
           :key="String(account.id)"
           :label="account.account_name"
           :name="String(account.id)"
-          lazy="true"
+          lazy
         />
       </el-tabs>
 
@@ -172,7 +172,7 @@
       </div>
 
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="持仓" name="position" lazy="true">
+        <el-tab-pane label="持仓" name="position" lazy>
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -224,7 +224,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="自动化策略" name="strategy" lazy="true">
+        <el-tab-pane label="自动化策略" name="strategy" lazy>
           <StrategyPanel
             v-if="currentAccount && supportsStrategyAutomation"
             :account-id="activeAccountId"
@@ -239,7 +239,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="T仓监控" name="t-position-monitor" lazy="true">
+        <el-tab-pane label="T仓监控" name="t-position-monitor" lazy>
           <TPositionMonitorPanel
             v-if="currentAccount"
             :account-id="Number(activeAccountId)"
@@ -247,7 +247,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="买入" name="buy" lazy="true">
+        <el-tab-pane label="买入" name="buy" lazy>
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -458,7 +458,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="卖出" name="sell" lazy="true">
+        <el-tab-pane label="卖出" name="sell" lazy>
           <div class="tab-toolbar">
             <el-space>
               <el-button
@@ -684,7 +684,7 @@
           v-if="supportsConditionOrder"
           label="条件单"
           name="condition"
-          lazy="true"
+          lazy
         >
           <div class="tab-toolbar">
             <el-space>
@@ -869,7 +869,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="撤单" name="cancel" lazy="true">
+        <el-tab-pane label="撤单" name="cancel" lazy>
           <div class="tab-toolbar">
             <el-space>
               <el-button @click="loadOrders(true)">刷新未完成委托</el-button>
@@ -1001,7 +1001,7 @@
           v-if="showTransferTab"
           label="转账"
           name="transfer"
-          lazy="true"
+          lazy
         >
           <div class="transfer-grid">
             <div class="form-panel">
@@ -1106,7 +1106,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="查询" name="query" lazy="true">
+        <el-tab-pane label="查询" name="query" lazy>
           <div class="query-shell">
             <el-alert
               v-if="queryCapabilityNotice"
@@ -1185,7 +1185,7 @@
             </div>
 
             <el-tabs v-model="activeQueryTab" class="query-inner-tabs">
-              <el-tab-pane label="当日委托" name="today-orders" lazy="true">
+              <el-tab-pane label="当日委托" name="today-orders" lazy>
                 <el-table :data="pagedTodayOrders" border>
                   <el-table-column
                     prop="order_no"
@@ -1328,7 +1328,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="当日成交" name="today-trades" lazy="true">
+              <el-tab-pane label="当日成交" name="today-trades" lazy>
                 <el-table :data="pagedTodayTrades" border>
                   <el-table-column
                     prop="trade_no"
@@ -1465,7 +1465,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史委托" name="history-orders" lazy="true">
+              <el-tab-pane label="历史委托" name="history-orders" lazy>
                 <el-table :data="pagedHistoryOrders" border>
                   <el-table-column
                     prop="order_no"
@@ -1612,7 +1612,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史成交" name="history-trades" lazy="true">
+              <el-tab-pane label="历史成交" name="history-trades" lazy>
                 <el-table :data="pagedHistoryTrades" border>
                   <el-table-column
                     prop="trade_no"
@@ -1753,7 +1753,7 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="资金流水" name="cash-flows" lazy="true">
+              <el-tab-pane label="资金流水" name="cash-flows" lazy>
                 <el-table :data="pagedQueryCashFlows" border>
                   <el-table-column
                     prop="stock_name"
@@ -1803,7 +1803,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="盈亏分析" name="profit-analysis" lazy="true">
+        <el-tab-pane label="盈亏分析" name="profit-analysis" lazy>
           <el-alert
             v-if="profitAnalysisCapabilityNotice && !supportsProfitAnalysis"
             :title="profitAnalysisCapabilityNotice"
