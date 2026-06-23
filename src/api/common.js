@@ -65,6 +65,11 @@ request.interceptors.response.use(
     }
 
     const res = response.data;
+    const unifiedStatus = typeof res?.status === 'string' ? res.status.toLowerCase() : undefined;
+    const normalizedSuccess =
+      typeof res?.success === 'boolean'
+        ? res.success
+        : (unifiedStatus ? unifiedStatus === 'success' : undefined);
     const errorMsg = res.error_msg || res.errorMsg;
     if (res.error_code === 401 || res.error_code === 403) {
       clearFrontendLoginState();
@@ -82,10 +87,23 @@ request.interceptors.response.use(
         type: 'error',
       });
     }
-    if (!res?.payload && res?.success === undefined) {
+    if (normalizedSuccess === false) {
+      ElMessage({
+        message: res?.message || errorMsg || '请求失败',
+        type: 'error',
+      });
+    }
+
+    if (!res?.payload && normalizedSuccess === undefined) {
       return {
         success: true,
         payload: res,
+      };
+    }
+    if (normalizedSuccess !== undefined && typeof res?.success !== 'boolean') {
+      return {
+        ...res,
+        success: normalizedSuccess,
       };
     }
     // 对响应数据做点什么
