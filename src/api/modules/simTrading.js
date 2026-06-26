@@ -21,6 +21,14 @@ export async function getSimTradingAccountDetail(accountId) {
   return await request.get(`${API_PREFIX}/accounts/${accountId}`);
 }
 
+export async function getSimTradingRuntimeHealth(accountId) {
+  return await request.get(`${API_PREFIX}/accounts/${accountId}/runtime-health`);
+}
+
+export async function recoverSimTradingRuntime(accountId, data = {}) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/runtime-recover`, data);
+}
+
 export async function generateSimTradingAccountChipPrices(accountId) {
   return await request.post(
     `${API_PREFIX}/accounts/${accountId}/chip-prices/generate`

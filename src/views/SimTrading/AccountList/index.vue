@@ -65,9 +65,10 @@
           }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" fixed="right" width="380">
+      <el-table-column label="操作" fixed="right" width="620">
         <template #default="scope">
-          <el-space>
+          <div class="operation-cell-scroll">
+            <el-space class="operation-cell-actions" wrap="false">
             <el-button link type="primary" @click="openDetail(scope.row)"
               >查看详情</el-button
             >
@@ -82,6 +83,19 @@
               >转出</el-button
             >
             <el-button
+              v-if="scope.row.account_type === 'QMT'"
+              link
+              @click="showRuntimeHealth(scope.row)"
+              >运行状态</el-button
+            >
+            <el-button
+              v-if="scope.row.account_type === 'QMT'"
+              link
+              type="warning"
+              @click="recoverRuntime(scope.row)"
+              >恢复连接</el-button
+            >
+            <el-button
               v-if="scope.row.account_type === 'SIMULATED'"
               link
               type="danger"
@@ -91,7 +105,8 @@
             <el-button link type="danger" @click="deleteAccount(scope.row)"
               >删除</el-button
             >
-          </el-space>
+            </el-space>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -237,6 +252,8 @@ import {
   createSimTradingAccount,
   deleteSimTradingAccount,
   getSimTradingAccounts,
+  getSimTradingRuntimeHealth,
+  recoverSimTradingRuntime,
   resetSimTradingAccount,
   updateSimTradingAccount,
 } from '@/api/modules/simTrading';
@@ -474,6 +491,63 @@ async function loadAccounts() {
   }
 }
 
+async function showRuntimeHealth(row) {
+  loading.value = true;
+  try {
+    const res = await getSimTradingRuntimeHealth(row.id);
+    if (!res?.success) {
+      ElMessage.error(res?.message || '获取运行状态失败');
+      return;
+    }
+    const payload = res.payload || {};
+    await ElMessageBox.alert(
+      `账号ID: ${payload.account_id || '--'}\n缓存会话: ${payload.cached_session_active ? '是' : '否'}\n缓存总数: ${Number(payload.total_cached_sessions || 0)}\n写队列超限恢复次数: ${Number(payload.writer_limit_recovery_count || 0)}\n自动重启: ${payload.auto_restart_enabled ? '已启用' : '未启用'}\n会话TTL(秒): ${Number(payload.session_ttl_seconds || 0)}\n候选会话上限: ${Number(payload.session_candidate_limit || 0)}`,
+      `QMT 运行状态 - ${row.account_name}`,
+      {
+        confirmButtonText: '我知道了',
+      }
+    );
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '获取运行状态失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function recoverRuntime(row) {
+  try {
+    await ElMessageBox.confirm(
+      `将为账号“${row.account_name}”执行运行时恢复：清理缓存会话并尝试重连。是否继续？`,
+      '确认恢复连接',
+      {
+        type: 'warning',
+        confirmButtonText: '确认恢复',
+        cancelButtonText: '取消',
+      }
+    );
+  } catch {
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const res = await recoverSimTradingRuntime(row.id, { reconnect: true });
+    if (!res?.success) {
+      ElMessage.error(res?.message || '恢复连接失败');
+      return;
+    }
+    const reconnectSuccess = Boolean(res.payload?.reconnect_success);
+    ElMessage.success(reconnectSuccess ? '恢复完成，已重连成功' : '恢复已执行，请稍后重试连接');
+    await loadAccounts();
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '恢复连接失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
 async function resetAccount(row) {
   const confirmText = `RESET ${row.account_name}`;
   try {
@@ -676,6 +750,19 @@ onMounted(() => {
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
+}
+
+.operation-cell-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+
+.operation-cell-actions {
+  display: inline-flex;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
 .full-width {
