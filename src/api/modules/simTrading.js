@@ -29,6 +29,61 @@ export async function recoverSimTradingRuntime(accountId, data = {}) {
   return await request.post(`${API_PREFIX}/accounts/${accountId}/runtime-recover`, data);
 }
 
+export async function getSimTradingTradeExecutorConfig(accountId) {
+  return await request.get(`${API_PREFIX}/accounts/${accountId}/trade-executor/config`);
+}
+
+export async function saveSimTradingTradeExecutorConfig(accountId, data) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/config`, data);
+}
+
+export async function resetSimTradingTradeExecutorConfig(accountId) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/reset-default`);
+}
+
+export async function copySimTradingTradeExecutorConfig(accountId, data) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/copy`, data);
+}
+
+export async function getSimTradingTradeExecutorLogs(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/logs${query ? `?${query}` : ''}`
+  );
+}
+
+export async function getSimTradingTradeExecutorBatches(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/batches${query ? `?${query}` : ''}`
+  );
+}
+
+export async function getSimTradingTradeExecutorBatchChildren(accountId, batchId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/batches/${batchId}/children${query ? `?${query}` : ''}`
+  );
+}
+
+export async function syncSimTradingTradeExecutorBatchStatus(accountId, batchId, data = {}) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/batches/${batchId}/sync-status`,
+    data
+  );
+}
+
+export async function syncSimTradingTradeExecutorActiveBatches(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/sync-active-batches${query ? `?${query}` : ''}`
+  );
+}
+
+export async function replaySimTradingTradeExecutorConfig(accountId, data = {}) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/replay`, data);
+}
+
 export async function generateSimTradingAccountChipPrices(accountId) {
   return await request.post(
     `${API_PREFIX}/accounts/${accountId}/chip-prices/generate`

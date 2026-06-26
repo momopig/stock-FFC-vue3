@@ -254,6 +254,19 @@
           />
         </el-tab-pane>
 
+        <el-tab-pane
+          v-if="supportsTradeExecutorTab"
+          label="交易执行器"
+          name="trade-executor"
+          lazy
+        >
+          <TradeExecutorPanel
+            :account-id="activeAccountId"
+            :accounts="accounts"
+            :current-account="currentAccount"
+          />
+        </el-tab-pane>
+
         <el-tab-pane label="T仓监控" name="t-position-monitor" lazy>
           <TPositionMonitorPanel
             v-if="currentAccount"
@@ -1897,6 +1910,7 @@ import { useRoute, useRouter } from 'vue-router';
 import PositionTable from './PositionTable.vue';
 import ProfitAnalysisPanel from './ProfitAnalysisPanel.vue';
 import StrategyPanel from './StrategyPanel.vue';
+import TradeExecutorPanel from './TradeExecutorPanel.vue';
 import TPositionMonitorPanel from './TPositionMonitorPanel.vue';
 
 import {
@@ -2074,6 +2088,14 @@ const isSimulatedAccount = computed(
 const isQmtAccount = computed(
   () => String(detailAccount.value?.account_type || '').toUpperCase() === 'QMT'
 );
+const isRealAccount = computed(() => {
+  const accountType = String(detailAccount.value?.account_type || '').toUpperCase();
+  if (!accountType) {
+    return false;
+  }
+  return accountType !== 'SIMULATED';
+});
+const supportsTradeExecutorTab = computed(() => isRealAccount.value);
 const showTransferTab = computed(() => !isQmtAccount.value);
 const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
@@ -2129,6 +2151,9 @@ const detailPageDescription = computed(() =>
 function isAccountDetailTabAvailable(tab) {
   if (!VALID_ACCOUNT_DETAIL_TABS.includes(tab)) {
     return false;
+  }
+  if (tab === 'trade-executor') {
+    return supportsTradeExecutorTab.value;
   }
   if (tab === 'transfer') {
     return showTransferTab.value;
