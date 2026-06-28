@@ -4,9 +4,13 @@ import request from '../common';
 import { buildStockSearchParams } from '@/utils/stockSearchSource';
 
 const API_PREFIX = '/stock-api/api/sim-trading';
+// 交易工作台首屏/切换账户的关键请求必须可超时返回，避免后端通道阻塞时前端长期loading。
+const SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS = 15000;
 
 export async function getSimTradingAccounts() {
-  return await request.get(`${API_PREFIX}/accounts`);
+  return await request.get(`${API_PREFIX}/accounts`, {
+    timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+  });
 }
 
 export async function createSimTradingAccount(data) {
@@ -18,7 +22,9 @@ export async function updateSimTradingAccount(accountId, data) {
 }
 
 export async function getSimTradingAccountDetail(accountId) {
-  return await request.get(`${API_PREFIX}/accounts/${accountId}`);
+  return await request.get(`${API_PREFIX}/accounts/${accountId}`, {
+    timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+  });
 }
 
 export async function getSimTradingRuntimeHealth(accountId) {
@@ -117,14 +123,20 @@ export async function deleteSimTradingAccount(accountId, data) {
 export async function getSimTradingCashFlows(accountId, params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
-    `${API_PREFIX}/accounts/${accountId}/cash-flows${query ? `?${query}` : ''}`
+    `${API_PREFIX}/accounts/${accountId}/cash-flows${query ? `?${query}` : ''}`,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
   );
 }
 
 export async function getSimTradingAccountActivity(accountId, params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
-    `${API_PREFIX}/accounts/${accountId}/activity${query ? `?${query}` : ''}`
+    `${API_PREFIX}/accounts/${accountId}/activity${query ? `?${query}` : ''}`,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
   );
 }
 

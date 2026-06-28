@@ -1,6 +1,8 @@
 import request from '../common'
 import qs from 'qs'
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000
+
 /**
  * 用户登录
  * @param {Object} body - 登录参数
@@ -19,7 +21,8 @@ export const login = async (body) => {
   const res = await request.post(`/stock-api/api/auth/login`, formData, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
   })
 
   return res
@@ -30,7 +33,9 @@ export const login = async (body) => {
  * @returns {Promise} 返回当前用户信息
  */
 export const getCurrentUser = async () => {
-  const res = await request.get(`/stock-api/api/auth/me`)
+  const res = await request.get(`/stock-api/api/auth/me`, {
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
+  })
 
   return res
 }

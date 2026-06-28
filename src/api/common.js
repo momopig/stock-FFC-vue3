@@ -112,16 +112,24 @@ request.interceptors.response.use(
   (error) => {
     const responseData = error?.response?.data || {};
     const statusCode = Number(error?.response?.status || 0);
+    const errorCode = String(error?.code || '').toUpperCase();
+    const rawMessage = String(error?.message || '');
     const detail = responseData?.detail;
     const payloadMessage =
       responseData?.message ||
       responseData?.error_msg ||
       responseData?.errorMsg;
-    const normalizedMessage =
+    let normalizedMessage =
       (typeof detail === 'string' && detail) ||
       payloadMessage ||
-      error?.message ||
+      rawMessage ||
       '请求失败';
+
+    if (errorCode === 'ECONNABORTED') {
+      normalizedMessage = '请求超时，请检查后端服务或网络连接';
+    } else if (!statusCode && /network error/i.test(rawMessage)) {
+      normalizedMessage = '网络连接失败，请确认后端服务已启动';
+    }
 
     if (statusCode === 401 || statusCode === 403) {
       clearFrontendLoginState();
