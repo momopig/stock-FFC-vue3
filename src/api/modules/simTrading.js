@@ -6,6 +6,41 @@ import { buildStockSearchParams } from '@/utils/stockSearchSource';
 const API_PREFIX = '/stock-api/api/sim-trading';
 // 交易工作台首屏/切换账户的关键请求必须可超时返回，避免后端通道阻塞时前端长期loading。
 const SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS = 15000;
+const SIM_TRADING_HOT_CACHE_TTL_MS = 3000;
+const inFlightRequestMap = new Map();
+const hotResponseCacheMap = new Map();
+
+function withInFlightRequest(cacheKey, requestFactory) {
+  if (inFlightRequestMap.has(cacheKey)) {
+    return inFlightRequestMap.get(cacheKey);
+  }
+  const promise = Promise.resolve()
+    .then(requestFactory)
+    .finally(() => {
+      inFlightRequestMap.delete(cacheKey);
+    });
+  inFlightRequestMap.set(cacheKey, promise);
+  return promise;
+}
+
+function readHotCache(cacheKey) {
+  const cached = hotResponseCacheMap.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  if (Date.now() > Number(cached.expiresAt || 0)) {
+    hotResponseCacheMap.delete(cacheKey);
+    return null;
+  }
+  return cached.value;
+}
+
+function writeHotCache(cacheKey, value, ttlMs = SIM_TRADING_HOT_CACHE_TTL_MS) {
+  hotResponseCacheMap.set(cacheKey, {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  });
+}
 
 export async function getSimTradingAccounts() {
   return await request.get(`${API_PREFIX}/accounts`, {
@@ -21,9 +56,24 @@ export async function updateSimTradingAccount(accountId, data) {
   return await request.patch(`${API_PREFIX}/accounts/${accountId}`, data);
 }
 
+export async function reorderSimTradingAccounts(accountIds = []) {
+  return await request.post(`${API_PREFIX}/accounts/reorder`, {
+    account_ids: accountIds,
+  });
+}
+
 export async function getSimTradingAccountDetail(accountId) {
-  return await request.get(`${API_PREFIX}/accounts/${accountId}`, {
-    timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+  const cacheKey = `account-detail:${Number(accountId)}`;
+  const cached = readHotCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  return await withInFlightRequest(cacheKey, async () => {
+    const result = await request.get(`${API_PREFIX}/accounts/${accountId}`, {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    });
+    writeHotCache(cacheKey, result);
+    return result;
   });
 }
 
@@ -145,9 +195,21 @@ export async function getSimTradingProfitAnalysisOverview(
   params = {}
 ) {
   const query = qs.stringify(params, { skipNulls: true });
-  return await request.get(
-    `${API_PREFIX}/accounts/${accountId}/profit-analysis/overview${query ? `?${query}` : ''}`
-  );
+  const cacheKey = `profit-overview:${Number(accountId)}:${query}`;
+  const cached = readHotCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  return await withInFlightRequest(cacheKey, async () => {
+    const result = await request.get(
+      `${API_PREFIX}/accounts/${accountId}/profit-analysis/overview${query ? `?${query}` : ''}`,
+      {
+        timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+      }
+    );
+    writeHotCache(cacheKey, result);
+    return result;
+  });
 }
 
 export async function getSimTradingProfitAnalysisCalendar(
@@ -155,9 +217,21 @@ export async function getSimTradingProfitAnalysisCalendar(
   params = {}
 ) {
   const query = qs.stringify(params, { skipNulls: true });
-  return await request.get(
-    `${API_PREFIX}/accounts/${accountId}/profit-analysis/calendar${query ? `?${query}` : ''}`
-  );
+  const cacheKey = `profit-calendar:${Number(accountId)}:${query}`;
+  const cached = readHotCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  return await withInFlightRequest(cacheKey, async () => {
+    const result = await request.get(
+      `${API_PREFIX}/accounts/${accountId}/profit-analysis/calendar${query ? `?${query}` : ''}`,
+      {
+        timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+      }
+    );
+    writeHotCache(cacheKey, result);
+    return result;
+  });
 }
 
 export async function createSimTradingOrder(data) {

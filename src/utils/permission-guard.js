@@ -1,6 +1,7 @@
 import { UserStore } from '@/state/user';
 import { usePermissions } from '@/composables/usePermissions';
 import { getCurrentUserInfo } from '@/api/modules/customerUser';
+import { getToken } from '@/utils/auth';
 // import { exchangeRateApi } from '@/api/modules/exchangeRate.js'
 
 // 全局初始化状态管理，避免多个路由同时触发初始化
@@ -224,6 +225,18 @@ export async function permissionGuard(to, from, next) {
     // 如果路由不需要认证，直接通过
     if (to.meta?.requiresAuth === false) {
       next();
+      return;
+    }
+
+    // 所有需要登录的路由都先做 token 短路校验，避免无效初始化请求。
+    const token = getToken();
+    if (!token) {
+      next({
+        path: '/login',
+        query: {
+          next: to.fullPath || to.path || '/home',
+        },
+      });
       return;
     }
 

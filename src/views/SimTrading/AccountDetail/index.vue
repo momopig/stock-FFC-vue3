@@ -30,7 +30,9 @@
 
     <template v-else>
       <el-tabs
+        ref="accountTabsRef"
         v-model="activeAccountId"
+        class="account-switch-tabs"
         type="card"
         @tab-change="handleAccountChange"
       >
@@ -1905,6 +1907,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import Sortable from 'sortablejs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import PositionTable from './PositionTable.vue';
@@ -1928,6 +1931,7 @@ import {
   getSimTradingConditionOrders,
   getSimTradingOrders,
   recoverSimTradingRuntime,
+  reorderSimTradingAccounts,
   updateSimTradingAccount,
   updateSimTradingPosition,
   getSimTradingTrades,
@@ -1941,10 +1945,12 @@ const route = useRoute();
 const router = useRouter();
 const { updateTabTitle } = useTabsStore();
 const pageRoutePath = String(route.path || '');
+const ACCOUNTS_CACHE_TTL_MS = 60 * 1000;
 
 const pageLoading = ref(false);
 const actionLoading = ref(false);
 const accounts = ref([]);
+const accountTabsRef = ref(null);
 const activeAccountId = ref('');
 const activeTab = ref('position');
 const detailPayload = ref(null);
@@ -1970,13 +1976,16 @@ const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
 const chipPriceGenerateLoading = ref(false);
 const runtimeActionLoading = ref(false);
+const accountOrderSaving = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 const POSITION_QUOTE_REFRESH_INTERVAL_MS = 5000;
 const ACTIVITY_PAGE_SIZE = 200;
 let autoRefreshTimer = null;
 let positionQuoteRefreshTimer = null;
+let accountTabsSortable = null;
 let silentRefreshRunning = false;
 let syncingWorkspace = false;
+const accountsLastLoadedAt = ref(0);
 const activityLoadedAccountId = ref('');
 const cashFlowLoadedAccountId = ref('');
 const queryForm = reactive({
@@ -3991,17 +4000,108 @@ async function handleDebugModeSwitch(nextValue) {
   }
 }
 
-async function loadAccounts() {
+async function persistAccountOrder(nextAccounts = [], previousAccounts = []) {
+  if (accountOrderSaving.value) {
+    return;
+  }
+  accountOrderSaving.value = true;
+  try {
+    const res = await reorderSimTradingAccounts(
+      nextAccounts.map((item) => Number(item.id)).filter(Boolean)
+    );
+    if (!res?.success) {
+      throw new Error(res?.message || '保存账号顺序失败');
+    }
+    const serverItems = Array.isArray(res?.payload?.items)
+      ? res.payload.items
+      : [];
+    if (serverItems.length) {
+      accounts.value = serverItems;
+      accountsLastLoadedAt.value = Date.now();
+    }
+    ElMessage.success('账号顺序已保存');
+  } catch (error) {
+    console.error(error);
+    accounts.value = previousAccounts;
+    ElMessage.error(error?.message || '保存账号顺序失败，已恢复原顺序');
+  } finally {
+    accountOrderSaving.value = false;
+    nextTick(() => accountTabsRef.value?.tabNavRef?.scrollToActiveTab?.());
+  }
+}
+
+function destroyAccountTabsSortable() {
+  if (accountTabsSortable) {
+    accountTabsSortable.destroy();
+    accountTabsSortable = null;
+  }
+}
+
+function initAccountTabsSortable() {
+  destroyAccountTabsSortable();
+  const tabListRef = accountTabsRef.value?.tabNavRef?.tabListRef;
+  if (!tabListRef) {
+    return;
+  }
+  accountTabsSortable = new Sortable(tabListRef, {
+    animation: 150,
+    draggable: '.el-tabs__item',
+    onEnd: (event) => {
+      const { oldDraggableIndex, newDraggableIndex } = event;
+      if (
+        oldDraggableIndex == null ||
+        newDraggableIndex == null ||
+        oldDraggableIndex === newDraggableIndex
+      ) {
+        return;
+      }
+      const previousAccounts = [...accounts.value];
+      const nextAccounts = [...accounts.value];
+      const moved = nextAccounts.splice(oldDraggableIndex, 1)[0];
+      if (!moved) {
+        return;
+      }
+      nextAccounts.splice(newDraggableIndex, 0, moved);
+      accounts.value = nextAccounts;
+      persistAccountOrder(nextAccounts, previousAccounts);
+    },
+  });
+}
+
+async function loadAccounts(options = {}) {
+  const { force = false } = options;
+  const now = Date.now();
+  const routeAccountId = route.query.accountId
+    ? String(route.query.accountId)
+    : '';
+
+  if (
+    !force &&
+    accounts.value.length &&
+    now - Number(accountsLastLoadedAt.value || 0) < ACCOUNTS_CACHE_TTL_MS
+  ) {
+    if (!activeAccountId.value) {
+      activeAccountId.value =
+        routeAccountId || (accounts.value[0] ? String(accounts.value[0].id) : '');
+    }
+    return;
+  }
+
   const res = await getSimTradingAccounts();
   if (!res?.success) {
     throw new Error(res?.message || '获取账户失败');
   }
-  accounts.value = res.payload?.items || [];
-  const routeAccountId = route.query.accountId
-    ? String(route.query.accountId)
-    : '';
-  activeAccountId.value =
-    routeAccountId || (accounts.value[0] ? String(accounts.value[0].id) : '');
+  const fetchedAccounts = res.payload?.items || [];
+  accounts.value = fetchedAccounts;
+  accountsLastLoadedAt.value = now;
+  const currentActiveExists = fetchedAccounts.some(
+    (item) => String(item.id) === String(activeAccountId.value)
+  );
+  activeAccountId.value = currentActiveExists
+    ? String(activeAccountId.value)
+    : routeAccountId || (fetchedAccounts[0] ? String(fetchedAccounts[0].id) : '');
+  await nextTick();
+  initAccountTabsSortable();
 }
 
 function clearAccountScopedState() {
@@ -4317,7 +4417,7 @@ async function ensureActiveTabData(options = {}) {
 }
 
 async function refreshWorkspace(options = {}) {
-  const { silent = false } = options;
+  const { silent = false, refreshAccounts = false } = options;
   if (silent) {
     if (
       silentRefreshRunning ||
@@ -4333,7 +4433,9 @@ async function refreshWorkspace(options = {}) {
   }
   try {
     syncingWorkspace = true;
-    await Promise.all([loadAccounts()]);
+    await loadAccounts({
+      force: refreshAccounts || !accounts.value.length,
+    });
     await Promise.all([
       loadAccountDetail(activeAccountId.value),
       loadAccountStrategyBindings(activeAccountId.value),
@@ -4596,7 +4698,7 @@ watch(activeAccountId, async (value, oldValue) => {
 });
 
 onMounted(async () => {
-  await refreshWorkspace();
+  await refreshWorkspace({ refreshAccounts: true });
   startAutoRefresh();
   startPositionQuoteRefresh();
 });
@@ -4617,6 +4719,7 @@ onDeactivated(() => {
 onUnmounted(() => {
   stopAutoRefresh();
   stopPositionQuoteRefresh();
+  destroyAccountTabsSortable();
 });
 </script>
 
@@ -4645,6 +4748,10 @@ onUnmounted(() => {
 .detail-header p {
   margin: 6px 0 0;
   color: #5e7186;
+}
+
+.account-switch-tabs :deep(.el-tabs__item) {
+  cursor: move;
 }
 
 .overview-grid {
