@@ -85,6 +85,7 @@
       :showBulkDeleteButton="true"
       :showBulkAddToGroupButton="true"
       :showBulkAddToRecycleButton="true"
+      :showCopyAllStockNamesButton="true"
       @page-change="handlePageChange"
       @size-change="handlePageSizeChange"
       @search="handleSearchEvent"
@@ -102,6 +103,7 @@
       @bulk-delete="handleBulkDelete"
       @bulk-add-to-group="handleBulkAddToGroup"
       @bulk-add-to-recycle="handleBulkAddToRecycle"
+      @copy-all-stock-names="handleCopyAllStockNames"
     />
 
     <!-- 股票添加/编辑对话框 -->
@@ -159,6 +161,7 @@ import StockList from '@/components/StockList/index.vue';
 import GroupSearchPopover from '../components/GroupSearchPopover.vue';
 import StockDialog from '../components/StockDialog.vue';
 import AddToGroupDialog from '../components/AddToGroupDialog.vue';
+import { copyToClipboard } from '@/utils/copy';
 import { calculateDaysAdded } from '@/utils/time';
 import { mapQuoteToFlatRowFields } from '../utils/stockQuoteFields';
 import { buildStockListRequestParams } from '../composables/useStockListRequestCache';
@@ -1185,6 +1188,67 @@ const handleOpenGroup = (group) => {
 
 const handleSelectionChange = (rows) => {
   selectedRows.value = Array.isArray(rows) ? rows : [];
+};
+
+const handleCopyAllStockNames = async () => {
+  if (!activeGroupId.value || activeGroupId.value === 'add') {
+    ElMessage.warning('请先选择分组');
+    return;
+  }
+
+  const requestPageSize = 200;
+  const allNames = [];
+  const fixedSearch = createDefaultSearchParams();
+  let currentPage = 1;
+  let total = 0;
+
+  try {
+    tableLoading.value = true;
+
+    do {
+      const params = buildStockListRequestParams(
+        {
+          pageNo: currentPage,
+          pageSize: requestPageSize,
+        },
+        fixedSearch,
+        {}
+      );
+
+      const response = isAllGroup(findDisplayTabById(activeGroupId.value))
+        ? await getGroupStocksByGroups([], params)
+        : await getGroupStocks(Number(activeGroupId.value), params);
+
+      if (!response?.success) {
+        throw new Error(response?.message || '获取分组全量股票失败');
+      }
+
+      const payload = response.payload || {};
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      total = Number(payload.total || 0);
+      items.forEach((item) => {
+        const stockName = String(item?.stock_name || '').trim();
+        if (stockName) {
+          allNames.push(stockName);
+        }
+      });
+
+      currentPage += 1;
+    } while ((currentPage - 1) * requestPageSize < total);
+
+    const uniqueNames = Array.from(new Set(allNames));
+    if (!uniqueNames.length) {
+      ElMessage.warning('当前分组没有可复制的股票名称');
+      return;
+    }
+
+    copyToClipboard(uniqueNames.join(' '));
+  } catch (error) {
+    console.error('复制分组全部股票名称失败:', error);
+    ElMessage.error(error?.message || '复制分组全部股票名称失败，请稍后重试');
+  } finally {
+    tableLoading.value = false;
+  }
 };
 
 const removeRowLocally = (rowId) => {

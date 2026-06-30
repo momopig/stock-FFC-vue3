@@ -118,6 +118,13 @@
           <el-button link type="primary" @click="copySinglePageStockNames"
             >复制单页股票名称</el-button
           >
+          <el-button
+            v-if="showCopyAllStockNamesButton"
+            link
+            type="primary"
+            @click="emit('copy-all-stock-names')"
+            >复制分组所有股票名称</el-button
+          >
         </div>
         <el-button class="fullscreen-btn" @click="toggleFullscreen">
           <el-icon>
@@ -698,6 +705,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showCopyAllStockNamesButton: {
+    type: Boolean,
+    default: false,
+  },
 });
 const userStore = UserStore();
 const isBuiltinAdmin = computed(() => {
@@ -726,6 +737,7 @@ const emit = defineEmits([
   'bulk-add-to-watch',
   'bulk-add-to-recycle',
   'open-group',
+  'copy-all-stock-names',
 ]);
 
 // 本地搜索和筛选状态
