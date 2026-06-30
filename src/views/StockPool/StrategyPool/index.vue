@@ -30,6 +30,7 @@
           :showBulkDeleteButton="true"
           :showBulkAddToGroupButton="true"
           :showBulkAddToWatchButton="userStore.userInfo?.is_superuser"
+          :showCopyAllStockNamesButton="true"
           @page-change="handlePageChange"
           @size-change="handlePageSizeChange"
           @search="handleSearchEvent"
@@ -46,6 +47,7 @@
           @bulk-delete="handleBulkDelete"
           @bulk-add-to-group="handleBulkAddToGroup"
           @bulk-add-to-watch="handleBulkAddToWatch"
+          @copy-all-stock-names="handleCopyAllStockNames"
         />
       </el-tab-pane>
 
@@ -94,6 +96,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { copyToClipboard } from '@/utils/copy';
 import { getStrategyList } from '@/api/modules/strategy';
 import {
   getStockPoolList,
@@ -383,6 +386,60 @@ const {
 
 const handleSelectionChange = (rows) => {
   selectedRows.value = Array.isArray(rows) ? rows : [];
+};
+
+const handleCopyAllStockNames = async () => {
+  if (!activeStrategy.value || activeStrategy.value === 'watch') {
+    ElMessage.warning('请先选择策略分组');
+    return;
+  }
+
+  const requestPageSize = 200;
+  let currentPage = 1;
+  let total = 0;
+  const allNames = [];
+
+  try {
+    tableLoading.value = true;
+    do {
+      const params = buildStockListRequestParams(
+        {
+          pageNo: currentPage,
+          pageSize: requestPageSize,
+        },
+        createDefaultSearchParams(),
+        {},
+        { strategy_name: activeStrategy.value }
+      );
+      const response = await getStockPoolList(params);
+      if (!response?.success) {
+        throw new Error(response?.message || '获取策略分组全量股票失败');
+      }
+
+      const payload = response.payload || {};
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      total = Number(payload.total || 0);
+      items.forEach((item) => {
+        const stockName = String(item?.stock_name || '').trim();
+        if (stockName) {
+          allNames.push(stockName);
+        }
+      });
+      currentPage += 1;
+    } while ((currentPage - 1) * requestPageSize < total);
+
+    const uniqueNames = Array.from(new Set(allNames));
+    if (!uniqueNames.length) {
+      ElMessage.warning('当前策略分组没有可复制的股票名称');
+      return;
+    }
+    copyToClipboard(uniqueNames.join(' '));
+  } catch (error) {
+    console.error('复制策略分组全部股票名称失败:', error);
+    ElMessage.error(error?.message || '复制策略分组全部股票名称失败，请稍后重试');
+  } finally {
+    tableLoading.value = false;
+  }
 };
 
 const handleBulkDelete = async (rows) => {

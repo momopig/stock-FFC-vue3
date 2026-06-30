@@ -240,7 +240,7 @@
           type="textarea"
           :rows="3"
           placeholder="请输入加入原因"
-          maxlength="500"
+          maxlength="2000"
           show-word-limit
         />
       </el-form-item>
@@ -252,7 +252,7 @@
           type="textarea"
           :rows="3"
           placeholder="请输入备注信息"
-          maxlength="500"
+          maxlength="2000"
           show-word-limit
         />
       </el-form-item>
@@ -544,8 +544,8 @@ const formRules = computed(() => {
       { required: true, message: '请输入加入原因', trigger: 'blur' },
       {
         min: 1,
-        max: 500,
-        message: '加入原因长度在1-500个字符',
+        max: 2000,
+        message: '加入原因长度在1-2000个字符',
         trigger: 'blur',
       },
     ],
