@@ -264,7 +264,7 @@
           <el-tab-pane label="策略日志" name="logs" lazy>
             <div class="log-toolbar">
               <el-select
-                v-model="logFilters.result_code"
+                v-model="currentLogState.filters.result_code"
                 clearable
                 placeholder="选择结果码"
                 class="toolbar-select"
@@ -277,7 +277,7 @@
                 />
               </el-select>
               <el-select
-                v-model="logFilters.action_code"
+                v-model="currentLogState.filters.action_code"
                 clearable
                 placeholder="选择动作"
                 class="toolbar-select"
@@ -289,17 +289,29 @@
                   :label="label"
                 />
               </el-select>
+              <el-date-picker
+                v-model="currentLogState.filters.time_range"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="开始时间"
+                end-placeholder="结束时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                date-format="YYYY-MM-DD"
+                time-format="HH:mm:ss"
+                class="toolbar-datetime-range"
+              />
               <el-input
-                v-model="logFilters.keyword"
+                v-model="currentLogState.filters.keyword"
                 clearable
                 placeholder="策略名称/股票/原因"
                 class="toolbar-input"
               />
-              <el-button type="primary" @click="loadLogs">查询</el-button>
+              <el-button type="primary" @click="handleLogSearch">查询</el-button>
               <el-button @click="resetLogFilters">重置</el-button>
             </div>
 
-            <el-table :data="logs.items" border>
+            <el-table :data="currentLogState.items" border>
+              <el-table-column prop="id" label="日志id" width="110" sortable />
               <el-table-column
                 prop="strategy_name"
                 label="策略名称"
@@ -474,14 +486,14 @@
 
             <div class="table-pagination">
               <el-pagination
-                v-model:current-page="logPagination.page"
-                v-model:page-size="logPagination.pageSize"
+                v-model:current-page="currentLogState.pagination.page"
+                v-model:page-size="currentLogState.pagination.pageSize"
                 background
                 layout="total, sizes, prev, pager, next"
                 :page-sizes="[10, 20, 50, 100]"
-                :total="logs.total || 0"
-                @current-change="loadLogs"
-                @size-change="loadLogs"
+                :total="currentLogState.total || 0"
+                @current-change="handleLogPageChange"
+                @size-change="handleLogPageChange"
               />
             </div>
           </el-tab-pane>
@@ -654,9 +666,32 @@ const settings = reactive({
   last_dispatch_status: '',
   last_dispatch_time: '',
 });
-const logs = reactive({ total: 0, items: [] });
-const logFilters = reactive({ result_code: '', action_code: '', keyword: '' });
-const logPagination = reactive({ page: 1, pageSize: 10 });
+
+function createCategoryLogState() {
+  return {
+    loaded: false,
+    total: 0,
+    items: [],
+    filters: {
+      result_code: '',
+      action_code: '',
+      keyword: '',
+      time_range: [],
+    },
+    pagination: {
+      page: 1,
+      pageSize: 10,
+    },
+  };
+}
+
+// 每个策略分类维护独立的日志筛选/分页/数据状态，切换 tab 时保留原有交互上下文。
+const logStateByCategory = reactive({
+  ACCOUNT_RISK: createCategoryLogState(),
+  OPEN_POSITION: createCategoryLogState(),
+  CLOSE_POSITION: createCategoryLogState(),
+  INTRADAY_T: createCategoryLogState(),
+});
 
 const bindingDialog = reactive({
   visible: false,
@@ -739,6 +774,11 @@ const showBindingOverrideJson = computed(() => {
   }
   return currentBindingStrategy.value?.strategy_code !== 'TAIL_BREAK_MA_SELL';
 });
+const currentLogState = computed(
+  () =>
+    logStateByCategory[activeCategoryTab.value] ||
+    logStateByCategory.ACCOUNT_RISK
+);
 
 watch(
   () => props.accountId,
@@ -804,27 +844,67 @@ async function loadAll() {
         ? groupsRes.payload
         : [];
     if (getActiveInnerTab() === 'logs') {
-      await loadLogs();
+      await loadLogs({ force: true });
     }
   } finally {
     loading.value = false;
   }
 }
 
-async function loadLogs() {
+function getCategoryLogState(category) {
+  return (
+    logStateByCategory[category] || logStateByCategory.ACCOUNT_RISK
+  );
+}
+
+function markAllLogStatesDirty() {
+  Object.values(logStateByCategory).forEach((state) => {
+    state.loaded = false;
+  });
+}
+
+function resetAllLogStates() {
+  Object.values(logStateByCategory).forEach((state) => {
+    state.loaded = false;
+    state.total = 0;
+    state.items = [];
+    state.pagination.page = 1;
+  });
+}
+
+function buildLogTimeParams(logState) {
+  const [startTime, endTime] = Array.isArray(logState.filters.time_range)
+    ? logState.filters.time_range
+    : [];
+  return {
+    start_time: startTime || undefined,
+    end_time: endTime || undefined,
+  };
+}
+
+async function loadLogs(options = {}) {
+  const { force = false, category = activeCategoryTab.value } = options;
   if (!accountIdNumber.value) {
+    return;
+  }
+  const logState = getCategoryLogState(category);
+  if (!force && logState.loaded) {
     return;
   }
   loading.value = true;
   try {
     const res = await getAccountStrategyLogs(accountIdNumber.value, {
-      strategy_category: activeCategoryTab.value,
-      ...logFilters,
-      page: logPagination.page,
-      page_size: logPagination.pageSize,
+      strategy_category: category,
+      result_code: logState.filters.result_code || undefined,
+      action_code: logState.filters.action_code || undefined,
+      keyword: logState.filters.keyword || undefined,
+      ...buildLogTimeParams(logState),
+      page: logState.pagination.page,
+      page_size: logState.pagination.pageSize,
     });
-    logs.total = res.payload?.total || 0;
-    logs.items = res.payload?.items || [];
+    logState.total = res.payload?.total || 0;
+    logState.items = res.payload?.items || [];
+    logState.loaded = true;
   } finally {
     loading.value = false;
   }
@@ -939,6 +1019,7 @@ async function submitBinding() {
       ElMessage.success('策略绑定已更新');
     }
     bindingDialog.visible = false;
+    markAllLogStatesDirty();
     await loadAll();
   } catch (error) {
     ElMessage.error(error?.message || '保存策略绑定失败');
@@ -983,6 +1064,7 @@ async function moveBinding(items, index, direction) {
       reordered.map((item) => ({ id: item.id }))
     );
     ElMessage.success('策略优先级已更新');
+    markAllLogStatesDirty();
     await loadAll();
   } finally {
     saving.value = false;
@@ -998,6 +1080,7 @@ async function removeBinding(binding) {
   });
   await deleteAccountStrategyBinding(accountIdNumber.value, binding.id);
   ElMessage.success('策略已解绑');
+  markAllLogStatesDirty();
   await loadAll();
 }
 
@@ -1006,9 +1089,10 @@ async function runDebugDispatch() {
   try {
     const res = await debugRunAccountStrategy(accountIdNumber.value);
     ElMessage.success(res.payload?.message || '调试触发完成');
+    markAllLogStatesDirty();
     await loadAll();
     if (getActiveInnerTab() === 'logs') {
-      await loadLogs();
+      await loadLogs({ force: true });
     }
   } finally {
     saving.value = false;
@@ -1016,11 +1100,27 @@ async function runDebugDispatch() {
 }
 
 function resetLogFilters() {
-  logFilters.result_code = '';
-  logFilters.action_code = '';
-  logFilters.keyword = '';
-  logPagination.page = 1;
-  loadLogs();
+  const logState = currentLogState.value;
+  logState.filters.result_code = '';
+  logState.filters.action_code = '';
+  logState.filters.keyword = '';
+  logState.filters.time_range = [];
+  logState.pagination.page = 1;
+  logState.loaded = false;
+  loadLogs({ force: true });
+}
+
+function handleLogSearch() {
+  const logState = currentLogState.value;
+  logState.pagination.page = 1;
+  logState.loaded = false;
+  loadLogs({ force: true });
+}
+
+function handleLogPageChange() {
+  const logState = currentLogState.value;
+  logState.loaded = false;
+  loadLogs({ force: true });
 }
 
 function getModeLabel(mode) {
@@ -1053,6 +1153,7 @@ function openStrategyConfigPage(strategy) {
     },
   });
   addTab(resolved.fullPath, strategyName);
+        resetAllLogStates();
   router.push(resolved);
 }
 
@@ -1490,6 +1591,10 @@ function getForceMarketSwitchFlag(logRow) {
   width: 180px;
 }
 
+.toolbar-datetime-range {
+  width: 360px;
+}
+
 .table-pagination {
   margin-top: 16px;
   display: flex;
@@ -1508,6 +1613,7 @@ function getForceMarketSwitchFlag(logRow) {
   }
 
   .toolbar-input,
+  .toolbar-datetime-range,
   .toolbar-select,
   .toolbar-card {
     width: 100%;
