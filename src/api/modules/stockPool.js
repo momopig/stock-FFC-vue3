@@ -364,6 +364,20 @@ export const getStockDetail = async (stock_id) => {
 };
 
 /**
+ * 根据股票代码+交易所查询关注股票详情
+ * @param {string} stock_code - 股票代码
+ * @param {string} exchange_code - 交易所代码
+ * @returns {Promise}
+ */
+export const getStockByCodeExchange = async (stock_code, exchange_code) => {
+  const query = qs.stringify({ stock_code, exchange_code });
+  const res = await request.get(
+    `/stock-api/api/stock-watchlist/lookup/code-exchange?${query}`
+  );
+  return res;
+};
+
+/**
  * 添加股票到池中
  * @param {Object} data - 股票数据
  * @returns {Promise}

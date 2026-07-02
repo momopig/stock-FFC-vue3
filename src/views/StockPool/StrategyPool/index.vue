@@ -48,6 +48,7 @@
           @bulk-add-to-group="handleBulkAddToGroup"
           @bulk-add-to-watch="handleBulkAddToWatch"
           @copy-all-stock-names="handleCopyAllStockNames"
+          @toggle-star="handleToggleStar"
         />
       </el-tab-pane>
 
@@ -101,6 +102,7 @@ import { getStrategyList } from '@/api/modules/strategy';
 import {
   getStockPoolList,
   getStockDetail,
+  getStockByCodeExchange,
   addStock,
   updateStock,
   deleteStock,
@@ -482,6 +484,67 @@ const handleBulkDelete = async (rows) => {
   );
   selectedRows.value = [];
   getStockList(null, {}, { force: true });
+};
+
+const handleToggleStar = async (row) => {
+  const resolveResponsePayload = (response) => {
+    if (!response || typeof response !== 'object') {
+      return {};
+    }
+    return response.payload && typeof response.payload === 'object'
+      ? response.payload
+      : response;
+  };
+
+  const isResponseFailed = (response) => {
+    if (!response || typeof response !== 'object') {
+      return false;
+    }
+    if (typeof response.success === 'boolean') {
+      return response.success === false;
+    }
+    if (typeof response.status === 'string') {
+      return response.status.toLowerCase() !== 'success';
+    }
+    return false;
+  };
+
+  let stockId = Number(row?.id || 0);
+  try {
+    if (!stockId && row?.stock_code && row?.exchange_code) {
+      const detailRes = await getStockByCodeExchange(
+        row.stock_code,
+        row.exchange_code
+      );
+      const detailPayload = resolveResponsePayload(detailRes);
+      stockId = Number(detailPayload?.id || 0);
+    }
+    if (!stockId) {
+      ElMessage.warning('缺少有效股票ID，无法更新加星状态');
+      return;
+    }
+
+    const nextStarred = !Boolean(row.is_starred);
+    const result = await updateStock(stockId, { is_starred: nextStarred });
+    if (isResponseFailed(result)) {
+      ElMessage.error(result?.message || '更新加星状态失败');
+      return;
+    }
+
+    row.is_starred = nextStarred;
+    ElMessage.success(nextStarred ? '已加星' : '已取消加星');
+  } catch (error) {
+    console.error('更新加星状态失败:', error);
+    ElMessage.error('更新加星状态失败，请稍后重试');
+    return;
+  }
+
+  try {
+    await getStockList();
+  } catch (refreshError) {
+    console.error('加星后刷新列表失败:', refreshError);
+    ElMessage.warning('加星状态已更新，但列表刷新失败，请稍后手动刷新');
+  }
 };
 
 const handleBulkAddToGroup = (rows) => {

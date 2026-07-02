@@ -104,6 +104,7 @@
       @bulk-add-to-group="handleBulkAddToGroup"
       @bulk-add-to-recycle="handleBulkAddToRecycle"
       @copy-all-stock-names="handleCopyAllStockNames"
+      @toggle-star="handleToggleStar"
     />
 
     <!-- 股票添加/编辑对话框 -->
@@ -1128,6 +1129,7 @@ const flattenGroupStockData = (stock) => {
     add_reason: stock.add_reason || '',
     strategy_name: '',
     is_self_selected: true,
+    is_starred: Boolean(stock.is_starred),
     created_by: '',
     status: 'active',
     priority_level: null,
@@ -1385,6 +1387,35 @@ const handleBulkAddToRecycle = async (rows) => {
     await handleAddToRecycle(row);
   }
   selectedRows.value = [];
+};
+
+const handleToggleStar = async (row) => {
+  if (!row?.id) {
+    ElMessage.warning('缺少分组内记录ID，无法更新加星状态');
+    return;
+  }
+
+  const nextStarred = !Boolean(row.is_starred);
+  try {
+    const result = await updateGroupStock(row.id, { is_starred: nextStarred });
+    if (result?.success === false) {
+      ElMessage.error(result?.message || '更新加星状态失败');
+      return;
+    }
+    row.is_starred = nextStarred;
+    ElMessage.success(nextStarred ? '已加星' : '已取消加星');
+  } catch (error) {
+    console.error('更新分组股票加星状态失败:', error);
+    ElMessage.error('更新加星状态失败，请稍后重试');
+    return;
+  }
+
+  try {
+    await getStockList();
+  } catch (refreshError) {
+    console.error('加星后刷新列表失败:', refreshError);
+    ElMessage.warning('加星状态已更新，但列表刷新失败，请稍后手动刷新');
+  }
 };
 
 // 查看股票详情

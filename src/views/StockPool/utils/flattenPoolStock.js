@@ -22,6 +22,7 @@ export function flattenPoolStockRow(stock, opts = {}) {
     add_reason: stock.add_reason || '',
     strategy_name: stock.strategy_name || '',
     is_self_selected: stock.is_self_selected || false,
+    is_starred: Boolean(stock.is_starred),
     created_by: stock.created_by || '',
     status: stock.status || 'active',
     priority_level: stock.priority_level || null,

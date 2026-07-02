@@ -150,6 +150,7 @@
         "
         :data="props.stockList"
         :row-key="getRowKey"
+        :row-class-name="getRowClassName"
         v-loading="loading"
         element-loading-text="加载股票数据中..."
         :default-sort="{ prop: 'selfChangeRate', order: 'descending' }"
@@ -196,6 +197,15 @@
                 </div>
                 <div class="stock-name-cell">
                   {{ row.stock_name || '--' }}
+                </div>
+                <div class="stock-star-action">
+                  <el-button
+                    link
+                    :type="row.is_starred ? 'warning' : 'info'"
+                    @click.stop="handleToggleStar(row)"
+                  >
+                    {{ row.is_starred ? '★ 取消加星' : '☆ 加星' }}
+                  </el-button>
                 </div>
                 <!-- 自选按钮 -->
                 <div class="self-select-buttons">
@@ -738,6 +748,7 @@ const emit = defineEmits([
   'bulk-add-to-recycle',
   'open-group',
   'copy-all-stock-names',
+  'toggle-star',
 ]);
 
 // 本地搜索和筛选状态
@@ -1246,6 +1257,17 @@ const handleOpenGroup = (group) => {
   emit('open-group', group);
 };
 
+const handleToggleStar = (row) => {
+  if (!row || row.id === undefined || row.id === null) {
+    return;
+  }
+  emit('toggle-star', row);
+};
+
+const getRowClassName = ({ row }) => {
+  return row?.is_starred ? 'row-starred' : '';
+};
+
 // 数值排序方法
 const sortNumber = (a, b) => {
   if (a == null && b == null) return 0;
@@ -1574,6 +1596,15 @@ watch(
       letter-spacing: 0.02em;
     }
 
+    .stock-star-action {
+      :deep(.el-button) {
+        padding: 0;
+        height: auto;
+        font-size: 12px;
+        line-height: 1;
+      }
+    }
+
     .self-select-buttons {
       display: flex;
       margin-top: 2px;
@@ -1670,5 +1701,9 @@ watch(
 
 .text-muted {
   color: #909399;
+}
+
+:deep(.stock-table .row-starred > td.el-table__cell) {
+  background-color: #fff8e6;
 }
 </style>

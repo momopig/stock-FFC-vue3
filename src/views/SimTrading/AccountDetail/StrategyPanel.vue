@@ -265,6 +265,9 @@
             <div class="log-toolbar">
               <el-select
                 v-model="currentLogState.filters.result_code"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
                 clearable
                 placeholder="选择结果码"
                 class="toolbar-select"
@@ -278,6 +281,9 @@
               </el-select>
               <el-select
                 v-model="currentLogState.filters.action_code"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
                 clearable
                 placeholder="选择动作"
                 class="toolbar-select"
@@ -499,6 +505,170 @@
           </el-tab-pane>
         </el-tabs>
       </el-tab-pane>
+
+      <el-tab-pane label="策略日志总览" name="ALL_LOGS" lazy>
+        <div class="category-header-card">
+          <h3>策略日志总览</h3>
+          <p>汇总展示当前账号下全部策略分类日志，便于统一定位执行原因。</p>
+        </div>
+
+        <div class="log-toolbar">
+          <el-select
+            v-model="currentLogState.filters.result_code"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            placeholder="选择结果码"
+            class="toolbar-select"
+          >
+            <el-option
+              v-for="(label, code) in STRATEGY_RESULT_CODE_LABELS"
+              :key="code"
+              :value="code"
+              :label="label"
+            />
+          </el-select>
+          <el-select
+            v-model="currentLogState.filters.action_code"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            placeholder="选择动作"
+            class="toolbar-select"
+          >
+            <el-option
+              v-for="(label, code) in STRATEGY_ACTION_CODE_LABELS"
+              :key="code"
+              :value="code"
+              :label="label"
+            />
+          </el-select>
+          <el-date-picker
+            v-model="currentLogState.filters.time_range"
+            type="datetimerange"
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            date-format="YYYY-MM-DD"
+            time-format="HH:mm:ss"
+            class="toolbar-datetime-range"
+          />
+          <el-input
+            v-model="currentLogState.filters.keyword"
+            clearable
+            placeholder="策略名称/股票/原因"
+            class="toolbar-input"
+          />
+          <el-button type="primary" @click="handleLogSearch">查询</el-button>
+          <el-button @click="resetLogFilters">重置</el-button>
+        </div>
+
+        <el-table :data="currentLogState.items" border>
+          <el-table-column prop="id" label="日志id" width="110" sortable />
+          <el-table-column
+            prop="strategy_name"
+            label="策略名称"
+            min-width="180"
+          />
+          <el-table-column label="股票" min-width="180">
+            <template #default="scope">
+              <span>{{ scope.row.stock_name || scope.row.stock_code || '-' }}</span>
+              <span v-if="scope.row.stock_code" class="muted-inline">{{ ` (${scope.row.stock_code})` }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="分类" width="130">
+            <template #default="scope">{{
+              getCategoryLabel(scope.row.strategy_category)
+            }}</template>
+          </el-table-column>
+          <el-table-column prop="action_code" label="动作" width="190">
+            <template #default="scope">
+              <div class="bilingual-code-cell">
+                <span class="bilingual-code-cn">{{
+                  getActionCodeLabel(scope.row.action_code).cn
+                }}</span>
+                <span class="bilingual-code-en">{{
+                  getActionCodeLabel(scope.row.action_code).en || '-'
+                }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="result_code" label="结果" width="220">
+            <template #default="scope">
+              <div class="bilingual-code-cell">
+                <span class="bilingual-code-cn">{{
+                  getResultCodeLabel(scope.row.result_code).cn
+                }}</span>
+                <span class="bilingual-code-en">{{
+                  getResultCodeLabel(scope.row.result_code).en || '-'
+                }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="trigger_reason"
+            label="原因"
+            min-width="300"
+          >
+            <template #default="scope">
+              <div class="reason-cell">
+                <div v-if="scope.row.trigger_reason" class="reason-text">
+                  {{ scope.row.trigger_reason }}
+                </div>
+                <div
+                  v-if="getForceMarketSwitchFlag(scope.row) !== null"
+                  class="reason-switch-tag"
+                >
+                  <el-tag
+                    size="small"
+                    :type="getForceMarketSwitchFlag(scope.row) ? 'success' : 'warning'"
+                  >
+                    QMT限价自动转市价：{{
+                      getForceMarketSwitchFlag(scope.row) ? '开启' : '关闭'
+                    }}
+                  </el-tag>
+                </div>
+                <div
+                  v-if="scope.row.signal_instance_name"
+                  class="reason-instance-name"
+                >
+                  策略实例：{{ scope.row.signal_instance_name }}
+                </div>
+                <div
+                  v-else-if="scope.row.system_remark"
+                  class="reason-text"
+                >
+                  {{ scope.row.system_remark }}
+                </div>
+                <div v-else class="reason-text">-</div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" min-width="180">
+            <template #default="scope">{{
+              formatDateTime(
+                scope.row.last_trigger_time || scope.row.created_time
+              )
+            }}</template>
+          </el-table-column>
+        </el-table>
+
+        <div class="table-pagination">
+          <el-pagination
+            v-model:current-page="currentLogState.pagination.page"
+            v-model:page-size="currentLogState.pagination.pageSize"
+            background
+            layout="total, sizes, prev, pager, next"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="currentLogState.total || 0"
+            @current-change="handleLogPageChange"
+            @size-change="handleLogPageChange"
+          />
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog
@@ -564,6 +734,17 @@
           <div class="field-help-text">
             2.0
             起建仓范围从策略模板中解耦，统一在账号绑定层配置，不再跟随策略模板一起复用。
+          </div>
+        </el-form-item>
+        <el-form-item label="股票黑名单">
+          <el-input
+            v-model="bindingForm.blacklist_stock_codes_text"
+            type="textarea"
+            :rows="4"
+            placeholder="输入股票代码，支持逗号/空格/换行分隔，例如：600519.SH, 000001.SZ"
+          />
+          <div class="field-help-text">
+            命中黑名单的股票会在建仓/清仓/做T执行阶段自动跳过。
           </div>
         </el-form-item>
         <el-form-item v-if="showBindingOverrideJson" label="覆盖配置 JSON">
@@ -647,6 +828,7 @@ const CATEGORY_OPTIONS = [
     description: '围绕底仓执行盘中高抛低吸。',
   },
 ];
+const LOG_OVERVIEW_CATEGORY = 'ALL_LOGS';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -657,6 +839,7 @@ const innerTabByCategory = reactive({
   OPEN_POSITION: 'config',
   CLOSE_POSITION: 'config',
   INTRADAY_T: 'config',
+  ALL_LOGS: 'logs',
 });
 const availableStrategies = ref([]);
 const bindings = ref([]);
@@ -673,8 +856,8 @@ function createCategoryLogState() {
     total: 0,
     items: [],
     filters: {
-      result_code: '',
-      action_code: '',
+      result_code: [],
+      action_code: [],
       keyword: '',
       time_range: [],
     },
@@ -691,6 +874,7 @@ const logStateByCategory = reactive({
   OPEN_POSITION: createCategoryLogState(),
   CLOSE_POSITION: createCategoryLogState(),
   INTRADAY_T: createCategoryLogState(),
+  ALL_LOGS: createCategoryLogState(),
 });
 
 const bindingDialog = reactive({
@@ -704,6 +888,7 @@ const bindingForm = reactive({
   strategy_id: undefined,
   enabled: true,
   group_ids: [],
+  blacklist_stock_codes_text: '',
   account_override_json_text: '',
 });
 
@@ -893,10 +1078,22 @@ async function loadLogs(options = {}) {
   }
   loading.value = true;
   try {
+    const strategyCategory =
+      category === LOG_OVERVIEW_CATEGORY ? undefined : category;
+    const selectedResultCodes = Array.isArray(logState.filters.result_code)
+      ? logState.filters.result_code.filter(Boolean)
+      : [];
+    const selectedActionCodes = Array.isArray(logState.filters.action_code)
+      ? logState.filters.action_code.filter(Boolean)
+      : [];
     const res = await getAccountStrategyLogs(accountIdNumber.value, {
-      strategy_category: category,
-      result_code: logState.filters.result_code || undefined,
-      action_code: logState.filters.action_code || undefined,
+      strategy_category: strategyCategory,
+      result_code: selectedResultCodes.length
+        ? selectedResultCodes.join(',')
+        : undefined,
+      action_code: selectedActionCodes.length
+        ? selectedActionCodes.join(',')
+        : undefined,
       keyword: logState.filters.keyword || undefined,
       ...buildLogTimeParams(logState),
       page: logState.pagination.page,
@@ -931,6 +1128,7 @@ function openCreateDialog(category = CATEGORY_OPTIONS[0].value) {
   bindingForm.strategy_id = undefined;
   bindingForm.enabled = true;
   bindingForm.group_ids = [];
+  bindingForm.blacklist_stock_codes_text = '';
   bindingForm.account_override_json_text = '';
 }
 
@@ -942,9 +1140,25 @@ function openEditDialog(binding) {
   bindingForm.strategy_id = binding.strategy_id;
   bindingForm.enabled = binding.enabled;
   bindingForm.group_ids = getBindingGroupIds(binding);
+  bindingForm.blacklist_stock_codes_text = getBindingBlacklistText(binding);
   bindingForm.account_override_json_text = binding.account_override_json
     ? JSON.stringify(binding.account_override_json, null, 2)
     : '';
+}
+
+function splitBlacklistTokens(rawValue) {
+  return String(rawValue || '')
+    .split(/[\s,，、;；]+/)
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function getBindingBlacklistText(binding) {
+  const stockCodes = binding?.account_override_json?.blacklist?.stock_codes;
+  if (!Array.isArray(stockCodes) || !stockCodes.length) {
+    return '';
+  }
+  return stockCodes.join('\n');
 }
 
 function parseOverrideJson() {
@@ -963,8 +1177,19 @@ function parseOverrideJson() {
 }
 
 function buildBindingOverridePayload() {
+  const blacklistCodes = Array.from(
+    new Set(splitBlacklistTokens(bindingForm.blacklist_stock_codes_text))
+  );
+  const blacklistPayload = blacklistCodes.length
+    ? {
+        blacklist: {
+          stock_codes: blacklistCodes,
+        },
+      }
+    : {};
+
   if (bindingDialog.selectedCategory !== 'OPEN_POSITION') {
-    return null;
+    return Object.keys(blacklistPayload).length ? blacklistPayload : null;
   }
   const groupIds = Array.isArray(bindingForm.group_ids)
     ? bindingForm.group_ids
@@ -972,6 +1197,7 @@ function buildBindingOverridePayload() {
         .filter((item) => Number.isInteger(item) && item > 0)
     : [];
   return {
+    ...blacklistPayload,
     open_position_scope: {
       group_ids: Array.from(new Set(groupIds)),
     },
@@ -982,6 +1208,12 @@ function mergeBindingOverridePayload(baseOverride) {
   const nextOverride = isPlainObject(baseOverride) ? { ...baseOverride } : {};
   const scopedOverride = buildBindingOverridePayload();
   if (!scopedOverride) {
+    return Object.keys(nextOverride).length ? nextOverride : null;
+  }
+  if (scopedOverride.blacklist) {
+    nextOverride.blacklist = scopedOverride.blacklist;
+  }
+  if (!scopedOverride.open_position_scope) {
     return Object.keys(nextOverride).length ? nextOverride : null;
   }
   return {
@@ -1101,8 +1333,8 @@ async function runDebugDispatch() {
 
 function resetLogFilters() {
   const logState = currentLogState.value;
-  logState.filters.result_code = '';
-  logState.filters.action_code = '';
+  logState.filters.result_code = [];
+  logState.filters.action_code = [];
   logState.filters.keyword = '';
   logState.filters.time_range = [];
   logState.pagination.page = 1;
@@ -1603,6 +1835,13 @@ function getForceMarketSwitchFlag(logRow) {
 
 .full-width {
   width: 100%;
+}
+
+.field-help-text {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 768px) {
