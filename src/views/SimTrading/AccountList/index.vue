@@ -77,10 +77,7 @@
             >
             <el-button link @click="openEditDialog(scope.row)">编辑</el-button>
             <el-button link @click="quickAction(scope.row, 'deposit')"
-              >转入</el-button
-            >
-            <el-button link @click="quickAction(scope.row, 'withdraw')"
-              >转出</el-button
+              >资金管理</el-button
             >
             <el-button
               v-if="scope.row.account_type === 'QMT'"

@@ -180,6 +180,19 @@ export async function getSimTradingCashFlows(accountId, params = {}) {
   );
 }
 
+export async function getSimTradingMaxAvailableCashSettings(accountId) {
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/max-available-cash`
+  );
+}
+
+export async function updateSimTradingMaxAvailableCashSettings(accountId, data) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/max-available-cash`,
+    data
+  );
+}
+
 export async function getSimTradingAccountActivity(accountId, params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(

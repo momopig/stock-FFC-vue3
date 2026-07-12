@@ -59,6 +59,19 @@
           <strong>{{ formatMoney(summary.available_cash) }}</strong>
         </div>
         <div class="overview-card">
+          <span>
+            不可交易可用资金
+            <el-tooltip
+              effect="dark"
+              content="是一种冻结的、暂时不参与交易的资金，当关闭“最大可用资金”时，这部分资金会被释放。"
+              placement="top"
+            >
+              <span class="help-dot">?</span>
+            </el-tooltip>
+          </span>
+          <strong>{{ formatMoney(summary.non_tradable_available_cash) }}</strong>
+        </div>
+        <div class="overview-card">
           <span>冻结资金</span>
           <strong>{{ formatMoney(summary.frozen_cash) }}</strong>
         </div>
@@ -1027,13 +1040,67 @@
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane
-          v-if="showTransferTab"
-          label="转账"
-          name="transfer"
-          lazy
-        >
-          <div class="transfer-grid">
+        <el-tab-pane v-if="showTransferTab" label="资金管理" name="transfer" lazy>
+          <el-tabs v-model="activeFundManagementTab" class="fund-management-tabs">
+            <el-tab-pane label="最大可用资金" name="max-available-cash" lazy>
+              <div class="fund-limit-panel" v-loading="maxAvailableCashLoading">
+                <div class="fund-limit-metrics">
+                  <div class="fund-limit-metric-item">
+                    <span class="metric-label">实际可用资金</span>
+                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.actual_available_cash) }}</span>
+                  </div>
+                  <div class="fund-limit-metric-item">
+                    <span class="metric-label">当前可用资金</span>
+                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.available_cash) }}</span>
+                  </div>
+                  <div class="fund-limit-metric-item">
+                    <span class="metric-label">不可交易可用资金</span>
+                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.non_tradable_available_cash) }}</span>
+                  </div>
+                </div>
+                <el-form :model="maxAvailableCashForm" label-width="140px" class="fund-limit-form">
+                  <el-form-item label="启用最大可用资金">
+                    <el-switch v-model="maxAvailableCashForm.enabled" @change="markMaxAvailableCashFormDirty" />
+                  </el-form-item>
+                  <el-form-item label="快捷额度">
+                    <el-radio-group v-model="maxAvailableCashForm.mode" @change="handleMaxAvailableCashModeChange">
+                      <el-radio label="CUSTOM">自定义</el-radio>
+                      <el-radio label="RATIO_1_2">1/2</el-radio>
+                      <el-radio label="RATIO_1_3">1/3</el-radio>
+                      <el-radio label="RATIO_1_4">1/4</el-radio>
+                      <el-radio label="RATIO_1_5">1/5</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="最大可用资金">
+                    <el-input-number
+                      v-model="maxAvailableCashForm.max_available_cash"
+                      :min="0"
+                      :precision="2"
+                      @change="markMaxAvailableCashFormDirty"
+                      :disabled="!maxAvailableCashForm.enabled || maxAvailableCashForm.mode !== 'CUSTOM'"
+                      class="full-width"
+                    />
+                    <div class="amount-chinese-hint">
+                      金额大写：{{ formatChineseMoney(maxAvailableCashForm.max_available_cash) }}
+                    </div>
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button type="primary" :loading="maxAvailableCashSaving" @click="saveMaxAvailableCashSettings"
+                      >保存设置</el-button
+                    >
+                  </el-form-item>
+                </el-form>
+                <el-alert
+                  :closable="false"
+                  show-icon
+                  type="info"
+                  title="不可交易可用资金 = 账号总可用资金 - 账号当前可用资金。开启后只允许“当前可用资金”参与交易。"
+                />
+              </div>
+            </el-tab-pane>
+
+            <el-tab-pane label="转账" name="transfer-sub" lazy>
+              <div class="transfer-grid">
             <div class="form-panel">
               <h3>入金</h3>
               <el-form :model="depositForm" label-width="100px">
@@ -1088,52 +1155,54 @@
                 </el-form-item>
               </el-form>
             </div>
-          </div>
+              </div>
 
-          <el-table :data="pagedTransferCashFlows" border>
-            <el-table-column
-              prop="stock_name"
-              label="股票名称"
-              min-width="100"
-            />
-            <el-table-column prop="stock_code" label="代码" width="120" />
-            <el-table-column label="类型" width="140">
-              <template #default="scope">{{
-                getFlowTypeLabel(scope.row.flow_type)
-              }}</template>
-            </el-table-column>
-            <el-table-column label="方向" width="100">
-              <template #default="scope">{{
-                getFlowDirectionLabel(scope.row.direction)
-              }}</template>
-            </el-table-column>
-            <el-table-column label="金额" width="140">
-              <template #default="scope">{{
-                formatMoney(scope.row.amount)
-              }}</template>
-            </el-table-column>
-            <el-table-column label="币种" width="130">
-              <template #default="scope">{{
-                getCurrencyLabel(scope.row.currency)
-              }}</template>
-            </el-table-column>
-            <el-table-column prop="reason" label="原因" min-width="180" />
-            <el-table-column label="时间" min-width="180">
-              <template #default="scope">{{
-                formatDateTime(scope.row.occurred_time)
-              }}</template>
-            </el-table-column>
-          </el-table>
-          <div class="table-pagination">
-            <el-pagination
-              v-model:current-page="transferCashFlowPagination.page"
-              v-model:page-size="transferCashFlowPagination.pageSize"
-              background
-              layout="total, sizes, prev, pager, next"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="cashFlows.length"
-            />
-          </div>
+              <el-table :data="pagedTransferCashFlows" border>
+                <el-table-column
+                  prop="stock_name"
+                  label="股票名称"
+                  min-width="100"
+                />
+                <el-table-column prop="stock_code" label="代码" width="120" />
+                <el-table-column label="类型" width="140">
+                  <template #default="scope">{{
+                    getFlowTypeLabel(scope.row.flow_type)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="方向" width="100">
+                  <template #default="scope">{{
+                    getFlowDirectionLabel(scope.row.direction)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="金额" width="140">
+                  <template #default="scope">{{
+                    formatMoney(scope.row.amount)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="币种" width="130">
+                  <template #default="scope">{{
+                    getCurrencyLabel(scope.row.currency)
+                  }}</template>
+                </el-table-column>
+                <el-table-column prop="reason" label="原因" min-width="180" />
+                <el-table-column label="时间" min-width="180">
+                  <template #default="scope">{{
+                    formatDateTime(scope.row.occurred_time)
+                  }}</template>
+                </el-table-column>
+              </el-table>
+              <div class="table-pagination">
+                <el-pagination
+                  v-model:current-page="transferCashFlowPagination.page"
+                  v-model:page-size="transferCashFlowPagination.pageSize"
+                  background
+                  layout="total, sizes, prev, pager, next"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="cashFlows.length"
+                />
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </el-tab-pane>
 
         <el-tab-pane label="查询" name="query" lazy>
@@ -1927,12 +1996,14 @@ import {
   getSimTradingAccountDetail,
   getSimTradingAccounts,
   getSimTradingRuntimeHealth,
+  getSimTradingMaxAvailableCashSettings,
   getSimTradingCashFlows,
   getSimTradingConditionOrders,
   getSimTradingOrders,
   recoverSimTradingRuntime,
   reorderSimTradingAccounts,
   updateSimTradingAccount,
+  updateSimTradingMaxAvailableCashSettings,
   updateSimTradingPosition,
   getSimTradingTrades,
   searchSimTradingStocks,
@@ -1972,6 +2043,11 @@ const selectedConditionStock = ref(null);
 const positionEditVisible = ref(false);
 const positionEditSubmitting = ref(false);
 const editingPosition = ref(null);
+const activeFundManagementTab = ref('max-available-cash');
+const maxAvailableCashLoading = ref(false);
+const maxAvailableCashSaving = ref(false);
+const maxAvailableCashFormDirty = ref(false);
+let maxAvailableCashRequestSeq = 0;
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
 const chipPriceGenerateLoading = ref(false);
@@ -2076,6 +2152,11 @@ const conditionForm = reactive({
 const depositForm = reactive({ amount: 10000, reason: '' });
 const withdrawForm = reactive({ amount: 1000, reason: '' });
 const positionEditForm = reactive({ avg_cost_price: 0 });
+const maxAvailableCashForm = reactive({
+  enabled: false,
+  mode: 'CUSTOM',
+  max_available_cash: 0,
+});
 
 const currentAccount = computed(
   () =>
@@ -2105,7 +2186,7 @@ const isRealAccount = computed(() => {
   return accountType !== 'SIMULATED';
 });
 const supportsTradeExecutorTab = computed(() => isRealAccount.value);
-const showTransferTab = computed(() => !isQmtAccount.value);
+const showTransferTab = computed(() => true);
 const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
 );
@@ -2221,6 +2302,18 @@ const visibleOpenOrders = computed(() =>
 );
 
 const summary = computed(() => detailPayload.value?.summary || {});
+const maxAvailableCashOverview = computed(() => {
+  const actualAvailableCash = Number(summary.value.actual_available_cash ?? summary.value.available_cash ?? 0);
+  const availableCash = Number(summary.value.available_cash || 0);
+  const nonTradableAvailableCash = Number(
+    summary.value.non_tradable_available_cash ?? Math.max(actualAvailableCash - availableCash, 0)
+  );
+  return {
+    actual_available_cash: actualAvailableCash,
+    available_cash: availableCash,
+    non_tradable_available_cash: nonTradableAvailableCash,
+  };
+});
 const positions = computed(() => detailPayload.value?.positions || []);
 const buyQuickPositions = computed(() => positions.value);
 const sellQuickPositions = computed(() =>
@@ -2320,6 +2413,123 @@ const pagedQueryCashFlows = computed(() =>
 const pagedTransferCashFlows = computed(() =>
   paginateList(cashFlows.value, transferCashFlowPagination)
 );
+
+const MAX_AVAILABLE_CASH_MODE_RATIO_MAP = {
+  RATIO_1_2: 0.5,
+  RATIO_1_3: 1 / 3,
+  RATIO_1_4: 0.25,
+  RATIO_1_5: 0.2,
+};
+
+function applyMaxAvailableCashForm(payload = {}) {
+  const enabled = payload.enabled ?? payload.max_available_cash_enabled;
+  const mode = payload.mode ?? payload.max_available_cash_mode;
+  maxAvailableCashForm.enabled = Boolean(enabled);
+  maxAvailableCashForm.mode = String(mode || 'CUSTOM').toUpperCase();
+  maxAvailableCashForm.max_available_cash = Number(payload.max_available_cash || 0);
+}
+
+function markMaxAvailableCashFormDirty() {
+  if (!maxAvailableCashSaving.value) {
+    maxAvailableCashFormDirty.value = true;
+  }
+}
+
+function fillMaxAvailableCashByMode(mode) {
+  const ratio = MAX_AVAILABLE_CASH_MODE_RATIO_MAP[mode];
+  if (!ratio) {
+    return;
+  }
+  const actualAvailableCash = Number(summary.value.actual_available_cash || summary.value.available_cash || 0);
+  maxAvailableCashForm.max_available_cash = Number((actualAvailableCash * ratio).toFixed(2));
+}
+
+function handleMaxAvailableCashModeChange(value) {
+  markMaxAvailableCashFormDirty();
+  const normalized = String(value || '').toUpperCase();
+  if (normalized !== 'CUSTOM') {
+    fillMaxAvailableCashByMode(normalized);
+  }
+}
+
+async function loadMaxAvailableCashSettings(accountId = activeAccountId.value, options = {}) {
+  if (!accountId) {
+    return;
+  }
+  const { force = false } = options;
+  if (!force && maxAvailableCashFormDirty.value && !maxAvailableCashSaving.value) {
+    return;
+  }
+  const requestSeq = ++maxAvailableCashRequestSeq;
+  const targetAccountId = String(accountId || '');
+  maxAvailableCashLoading.value = true;
+  try {
+    const res = await getSimTradingMaxAvailableCashSettings(Number(accountId));
+    if (
+      requestSeq !== maxAvailableCashRequestSeq ||
+      String(activeAccountId.value || '') !== targetAccountId
+    ) {
+      return;
+    }
+    if (res?.success) {
+      applyMaxAvailableCashForm(res.payload || {});
+      maxAvailableCashFormDirty.value = false;
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (requestSeq === maxAvailableCashRequestSeq) {
+      maxAvailableCashLoading.value = false;
+    }
+  }
+  if (
+    requestSeq !== maxAvailableCashRequestSeq ||
+    String(activeAccountId.value || '') !== targetAccountId
+  ) {
+    return;
+  }
+  applyMaxAvailableCashForm({
+    enabled: Boolean(summary.value.max_available_cash_enabled),
+    mode: String(summary.value.max_available_cash_mode || 'CUSTOM').toUpperCase(),
+    max_available_cash: Number(summary.value.max_available_cash || 0),
+  });
+  maxAvailableCashFormDirty.value = false;
+}
+
+async function saveMaxAvailableCashSettings() {
+  if (!activeAccountId.value || maxAvailableCashSaving.value) {
+    return;
+  }
+  if (maxAvailableCashForm.enabled && Number(maxAvailableCashForm.max_available_cash || 0) <= 0) {
+    ElMessage.warning('开启最大可用资金时，额度必须大于0');
+    return;
+  }
+  maxAvailableCashSaving.value = true;
+  try {
+    const payload = {
+      enabled: Boolean(maxAvailableCashForm.enabled),
+      mode: String(maxAvailableCashForm.mode || 'CUSTOM').toUpperCase(),
+      max_available_cash:
+        maxAvailableCashForm.mode === 'CUSTOM'
+          ? Number(maxAvailableCashForm.max_available_cash || 0)
+          : Number(maxAvailableCashForm.max_available_cash || 0),
+    };
+    const res = await updateSimTradingMaxAvailableCashSettings(Number(activeAccountId.value), payload);
+    if (!res?.success) {
+      throw new Error(res?.message || '保存最大可用资金设置失败');
+    }
+    applyMaxAvailableCashForm(res.payload || {});
+    maxAvailableCashFormDirty.value = false;
+    await loadAccountDetail(activeAccountId.value);
+    ElMessage.success('最大可用资金设置已更新');
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '保存最大可用资金设置失败');
+  } finally {
+    maxAvailableCashSaving.value = false;
+  }
+}
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -4115,6 +4325,10 @@ function clearAccountScopedState() {
   selectedOpenOrderIds.value = [];
   activityLoadedAccountId.value = '';
   cashFlowLoadedAccountId.value = '';
+  applyMaxAvailableCashForm({});
+  maxAvailableCashFormDirty.value = false;
+  activeFundManagementTab.value = 'max-available-cash';
+  maxAvailableCashRequestSeq += 1;
 }
 
 function isSameActiveAccount(accountId) {
@@ -4134,6 +4348,7 @@ async function loadAccountDetail(accountId = activeAccountId.value) {
     return;
   }
   detailPayload.value = res.payload;
+  await loadMaxAvailableCashSettings(accountId);
 }
 
 async function showActiveRuntimeHealth() {
@@ -4422,6 +4637,7 @@ async function refreshWorkspace(options = {}) {
     if (
       silentRefreshRunning ||
       actionLoading.value ||
+      maxAvailableCashSaving.value ||
       positionEditVisible.value ||
       positionEditSubmitting.value
     ) {
@@ -4568,6 +4784,17 @@ watch(activeTab, (value) => {
   });
 });
 
+watch(activeFundManagementTab, (value) => {
+  if (activeTab.value !== 'transfer') {
+    return;
+  }
+  if (value === 'transfer-sub') {
+    ensureActiveTabData().catch((error) => {
+      console.error(error);
+    });
+  }
+});
+
 watch(showTransferTab, (value) => {
   if (!value && activeTab.value === 'transfer') {
     activeTab.value = 'position';
@@ -4648,6 +4875,9 @@ watch(
     const routeTab = query.tab ? String(query.tab) : '';
     if (routeTab && isAccountDetailTabAvailable(routeTab)) {
       activeTab.value = routeTab;
+      if (routeTab === 'transfer' && (query.action === 'deposit' || query.action === 'withdraw')) {
+        activeFundManagementTab.value = 'transfer-sub';
+      }
       if (routeTab !== 'transfer' && query.action) {
         const nextQuery = { ...query };
         delete nextQuery.action;
@@ -4663,6 +4893,7 @@ watch(
       showTransferTab.value
     ) {
       activeTab.value = 'transfer';
+      activeFundManagementTab.value = 'transfer-sub';
       return;
     }
     if (routeTab === 'transfer' && !showTransferTab.value) {
@@ -5055,6 +5286,72 @@ onUnmounted(() => {
   color: #60748a;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: help;
+}
+
+.fund-management-tabs {
+  width: 100%;
+}
+
+.fund-limit-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.fund-limit-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.fund-limit-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #d8e3f2;
+  background: #f4f8ff;
+}
+
+.fund-limit-metric-item .metric-label {
+  font-size: 13px;
+  color: #5d6d7f;
+}
+
+.fund-limit-metric-item .metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e3a5c;
+}
+
+@media (max-width: 900px) {
+  .fund-limit-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fund-limit-form {
+  max-width: 640px;
+  padding: 18px;
+  border: 1px solid #e7eef6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(24, 59, 86, 0.04);
 }
 
 .transfer-grid {
