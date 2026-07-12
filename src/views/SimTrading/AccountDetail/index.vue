@@ -72,8 +72,25 @@
           <strong>{{ formatMoney(summary.non_tradable_available_cash) }}</strong>
         </div>
         <div class="overview-card">
-          <span>冻结资金</span>
+          <span>
+            冻结资金
+            <el-tooltip
+              effect="dark"
+              content="冻结资金通常来自未完成买入委托的预冻结金额；委托成交或撤单后会自动释放。"
+              placement="top"
+            >
+              <span class="help-dot">?</span>
+            </el-tooltip>
+          </span>
           <strong>{{ formatMoney(summary.frozen_cash) }}</strong>
+          <el-button
+            v-if="Number(summary.frozen_cash || 0) > 0"
+            link
+            type="primary"
+            class="overview-link-btn"
+            @click="openFrozenCashDetail"
+            >查看冻结清单</el-button
+          >
         </div>
         <div class="overview-card">
           <span>持仓市值</span>
@@ -1085,7 +1102,11 @@
                     </div>
                   </el-form-item>
                   <el-form-item>
-                    <el-button type="primary" :loading="maxAvailableCashSaving" @click="saveMaxAvailableCashSettings"
+                    <el-button
+                      type="primary"
+                      :loading="maxAvailableCashSaving"
+                      :disabled="!canSaveMaxAvailableCashSettings"
+                      @click="saveMaxAvailableCashSettings"
                       >保存设置</el-button
                     >
                   </el-form-item>
@@ -1960,6 +1981,38 @@
           >
         </template>
       </el-dialog>
+
+      <el-dialog v-model="frozenCashDetailVisible" title="冻结资金明细" width="980px">
+        <div class="tab-toolbar">
+          <el-space>
+            <el-button :loading="frozenCashDetailLoading" @click="loadFrozenCashDetail">刷新冻结清单</el-button>
+          </el-space>
+        </div>
+        <el-table :data="frozenCashOrderItems" border v-loading="frozenCashDetailLoading">
+          <el-table-column prop="order_no" label="委托号" min-width="180" />
+          <el-table-column prop="stock_name" label="股票名称" min-width="120" />
+          <el-table-column prop="stock_code" label="股票代码" width="120" />
+          <el-table-column label="方向" width="90">
+            <template #default="scope">{{ getDirectionLabel(scope.row.direction) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="120">
+            <template #default="scope">
+              <el-tag :type="getOrderStatusTagType(scope.row.order_status)" effect="light">
+                {{ getOrderStatusLabel(scope.row.order_status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="冻结金额" width="150">
+            <template #default="scope">{{ formatMoney(scope.row.frozen_cash) }}</template>
+          </el-table-column>
+          <el-table-column label="委托时间" min-width="180">
+            <template #default="scope">{{ formatDateTime(scope.row.placed_time) }}</template>
+          </el-table-column>
+        </el-table>
+        <template #footer>
+          <el-button @click="frozenCashDetailVisible = false">关闭</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
@@ -2047,6 +2100,9 @@ const activeFundManagementTab = ref('max-available-cash');
 const maxAvailableCashLoading = ref(false);
 const maxAvailableCashSaving = ref(false);
 const maxAvailableCashFormDirty = ref(false);
+const frozenCashDetailVisible = ref(false);
+const frozenCashDetailLoading = ref(false);
+const frozenCashOrderItems = ref([]);
 let maxAvailableCashRequestSeq = 0;
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
@@ -2314,6 +2370,15 @@ const maxAvailableCashOverview = computed(() => {
     non_tradable_available_cash: nonTradableAvailableCash,
   };
 });
+const canSaveMaxAvailableCashSettings = computed(() => {
+  if (maxAvailableCashSaving.value || !maxAvailableCashFormDirty.value) {
+    return false;
+  }
+  if (maxAvailableCashForm.enabled && Number(maxAvailableCashForm.max_available_cash || 0) <= 0) {
+    return false;
+  }
+  return true;
+});
 const positions = computed(() => detailPayload.value?.positions || []);
 const buyQuickPositions = computed(() => positions.value);
 const sellQuickPositions = computed(() =>
@@ -2447,9 +2512,50 @@ function fillMaxAvailableCashByMode(mode) {
 function handleMaxAvailableCashModeChange(value) {
   markMaxAvailableCashFormDirty();
   const normalized = String(value || '').toUpperCase();
+  if (normalized === 'CUSTOM') {
+    maxAvailableCashForm.max_available_cash = Number(
+      maxAvailableCashOverview.value.actual_available_cash || 0
+    );
+    return;
+  }
   if (normalized !== 'CUSTOM') {
     fillMaxAvailableCashByMode(normalized);
   }
+}
+
+async function loadFrozenCashDetail(accountId = activeAccountId.value) {
+  if (!accountId) {
+    frozenCashOrderItems.value = [];
+    return;
+  }
+  frozenCashDetailLoading.value = true;
+  try {
+    const res = await getSimTradingOrders({
+      account_id: Number(accountId),
+      page: 1,
+      page_size: 200,
+      only_open: true,
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || '加载冻结清单失败');
+    }
+    frozenCashOrderItems.value = (res.payload?.items || []).filter(
+      (item) =>
+        String(item?.direction || '').toUpperCase() === 'BUY' &&
+        isOpenOrderStatus(item?.order_status) &&
+        Number(item?.frozen_cash || 0) > 0
+    );
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '加载冻结清单失败');
+  } finally {
+    frozenCashDetailLoading.value = false;
+  }
+}
+
+async function openFrozenCashDetail() {
+  frozenCashDetailVisible.value = true;
+  await loadFrozenCashDetail(activeAccountId.value);
 }
 
 async function loadMaxAvailableCashSettings(accountId = activeAccountId.value, options = {}) {
@@ -4327,6 +4433,8 @@ function clearAccountScopedState() {
   cashFlowLoadedAccountId.value = '';
   applyMaxAvailableCashForm({});
   maxAvailableCashFormDirty.value = false;
+  frozenCashOrderItems.value = [];
+  frozenCashDetailVisible.value = false;
   activeFundManagementTab.value = 'max-available-cash';
   maxAvailableCashRequestSeq += 1;
 }
