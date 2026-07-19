@@ -125,6 +125,21 @@
             @click="emit('copy-all-stock-names')"
             >复制分组所有股票名称</el-button
           >
+          <el-tooltip
+            v-if="showForceSubscribeGroupButton"
+            content="按第1页至末页顺序优先订阅，保障本组股票实时行情"
+            placement="top"
+          >
+            <el-button
+              link
+              type="primary"
+              class="force-subscribe-group-btn"
+              :loading="forceSubscribeLoading"
+              @click="emit('force-subscribe-group-stocks')"
+            >
+              强制订阅本组股票
+            </el-button>
+          </el-tooltip>
         </div>
         <el-button class="fullscreen-btn" @click="toggleFullscreen">
           <el-icon>
@@ -730,6 +745,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showForceSubscribeGroupButton: {
+    type: Boolean,
+    default: false,
+  },
+  forceSubscribeLoading: {
+    type: Boolean,
+    default: false,
+  },
 });
 const userStore = UserStore();
 const quoteContractSummary = computed(() => {
@@ -790,6 +813,7 @@ const emit = defineEmits([
   'bulk-add-to-recycle',
   'open-group',
   'copy-all-stock-names',
+  'force-subscribe-group-stocks',
   'toggle-star',
 ]);
 
@@ -1589,6 +1613,12 @@ watch(
 
     .add-stock-btn {
       margin-left: auto;
+    }
+
+    .force-subscribe-group-btn {
+      padding-left: 0;
+      padding-right: 0;
+      font-weight: 500;
     }
   }
 

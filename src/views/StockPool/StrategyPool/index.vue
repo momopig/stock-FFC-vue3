@@ -16,16 +16,6 @@
         <!-- 洞察数据 -->
         <StockInsights :insightsData="insightsData" />
 
-        <div v-if="isFutuActive" class="futu-subscribe-action">
-          <el-button
-            type="primary"
-            :loading="forceSubscribeLoading"
-            @click="handleForceSubscribeStrategyPool"
-          >
-            强制订阅本组股票
-          </el-button>
-        </div>
-
         <!-- 股票列表 -->
         <StockList
           :stockList="displayStockList"
@@ -41,6 +31,8 @@
           :showBulkAddToGroupButton="true"
           :showBulkAddToWatchButton="userStore.userInfo?.is_superuser"
           :showCopyAllStockNamesButton="true"
+          :showForceSubscribeGroupButton="isFutuActive"
+          :forceSubscribeLoading="forceSubscribeLoading"
           @page-change="handlePageChange"
           @size-change="handlePageSizeChange"
           @search="handleSearchEvent"
@@ -58,6 +50,7 @@
           @bulk-add-to-group="handleBulkAddToGroup"
           @bulk-add-to-watch="handleBulkAddToWatch"
           @copy-all-stock-names="handleCopyAllStockNames"
+          @force-subscribe-group-stocks="handleForceSubscribeStrategyPool"
           @toggle-star="handleToggleStar"
         />
       </el-tab-pane>
