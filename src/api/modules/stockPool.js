@@ -462,3 +462,14 @@ export const getStock = async (search, onlyA = false) => {
   const query = qs.stringify(buildStockSearchParams(search, onlyA, 20));
   return await request.get(`/stock-api/api/stock/search?${query}`);
 };
+
+/**
+ * 重新获取单只股票最新价（后端会优先订阅富途行情并执行可靠性重试）。
+ * @param {string} code - 股票代码，不含交易所后缀
+ * @param {string} exchangeCode - 交易所代码，如 SH、SZ、HK、US
+ * @returns {Promise}
+ */
+export const refreshStockSearchPrice = async (code, exchangeCode) => {
+  const query = qs.stringify({ code, exchange_code: exchangeCode });
+  return await request.post(`/stock-api/api/stock/search/price?${query}`);
+};

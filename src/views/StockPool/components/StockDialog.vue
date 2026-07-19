@@ -178,14 +178,29 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="初始价格" prop="initial_price">
-            <el-input-number
-              v-model="formData.initial_price"
-              :disabled="isViewMode"
-              :precision="2"
-              :min="0"
-              placeholder="请输入初始价格"
-              style="width: 100%"
-            />
+            <div class="initial-price-wrapper">
+              <el-input-number
+                v-model="formData.initial_price"
+                :disabled="isViewMode"
+                :precision="2"
+                :min="0"
+                placeholder="请输入初始价格"
+                style="width: 100%"
+              />
+              <div v-if="shouldShowPriceRefresh" class="price-refresh-area">
+                <el-button
+                  type="primary"
+                  link
+                  :loading="priceRefreshLoading"
+                  @click="refreshSelectedStockPrice"
+                >
+                  重新获取价格
+                </el-button>
+                <span class="price-fail-reason">
+                  {{ selectedStockOption?.get_price_fail_reason || '暂未获取到有效最新价，请检查行情客户端后重试。' }}
+                </span>
+              </div>
+            </div>
           </el-form-item>
         </el-col>
       </el-row>
@@ -304,7 +319,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { UserStore } from '@/state/user';
 import { formatDateTime } from '@/utils/time';
-import { getStock } from '@/api/modules/stockPool';
+import { getStock, refreshStockSearchPrice } from '@/api/modules/stockPool';
 import { createGroup } from '@/api/modules/stockGroup';
 
 const props = defineProps({
@@ -346,6 +361,7 @@ const addMode = ref('single');
 const selectedStockOption = ref(null);
 const stockSelectOptions = ref([]);
 const stockSearchLoading = ref(false);
+const priceRefreshLoading = ref(false);
 
 // 批量添加相关
 const batchStockInput = ref('');
@@ -391,6 +407,15 @@ const normalizeStockFromApi = (stock) => {
     initialPrice: normalizedPrice,
   };
 };
+
+// 仅在新增场景、已选择股票且初始价格无效时展示手动刷新入口。
+const shouldShowPriceRefresh = computed(() => {
+  const price = Number(props.formData.initial_price);
+  return !props.isViewMode
+    && !props.isEditMode
+    && !!selectedStockOption.value?.code
+    && (!Number.isFinite(price) || price <= 0);
+});
 
 const getStockSearchItems = (result) => {
   return result?.payload?.items || [];
@@ -671,6 +696,52 @@ const refreshStock = () => {
   }
 };
 
+// 精确刷新当前选择股票的价格，避免重新执行模糊搜索后选中项发生变化。
+const refreshSelectedStockPrice = async () => {
+  const stock = selectedStockOption.value;
+  if (!stock?.code || !stock?.exchange_code) {
+    ElMessage.warning('请先搜索并选择股票');
+    return;
+  }
+
+  priceRefreshLoading.value = true;
+  try {
+    const result = await refreshStockSearchPrice(stock.code, stock.exchange_code);
+    const refreshedStock = normalizeStockFromApi(result?.payload || {});
+    const refreshedPrice = refreshedStock.initialPrice;
+    const nextStock = {
+      ...stock,
+      ...refreshedStock,
+      key: stock.key,
+      label: stock.label,
+    };
+    selectedStockOption.value = nextStock;
+    const optionIndex = stockSelectOptions.value.findIndex((item) => item.key === stock.key);
+    if (optionIndex >= 0) {
+      stockSelectOptions.value.splice(optionIndex, 1, nextStock);
+    }
+    if (refreshedPrice !== null) {
+      props.formData.initial_price = refreshedPrice;
+      selectedStockOption.value.get_price_fail_reason = null;
+      formRef.value?.clearValidate('initial_price');
+      ElMessage.success(`已获取最新价：${refreshedPrice}`);
+      return;
+    }
+    ElMessage.warning(
+      selectedStockOption.value.get_price_fail_reason || result?.message || '暂未获取到有效价格'
+    );
+  } catch (error) {
+    const failReason = error?.message || '价格刷新请求失败，请检查行情客户端后重试';
+    selectedStockOption.value = {
+      ...stock,
+      get_price_fail_reason: failReason,
+    };
+    ElMessage.error(failReason);
+  } finally {
+    priceRefreshLoading.value = false;
+  }
+};
+
 // 监听对话框显示状态
 watch(
   () => props.visible,
@@ -896,5 +967,19 @@ const handleSubmit = async () => {
   margin-top: 8px;
   font-size: 12px;
   color: var(--el-color-success);
+}
+.initial-price-wrapper {
+  width: 100%;
+}
+.price-refresh-area {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  line-height: 18px;
+}
+.price-fail-reason {
+  color: var(--el-color-warning);
+  font-size: 12px;
 }
 </style>
