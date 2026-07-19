@@ -16,6 +16,16 @@
         <!-- 洞察数据 -->
         <StockInsights :insightsData="insightsData" />
 
+        <div v-if="isFutuActive" class="futu-subscribe-action">
+          <el-button
+            type="primary"
+            :loading="forceSubscribeLoading"
+            @click="handleForceSubscribeStrategyPool"
+          >
+            强制订阅本组股票
+          </el-button>
+        </div>
+
         <!-- 股票列表 -->
         <StockList
           :stockList="displayStockList"
@@ -107,7 +117,9 @@ import {
   updateStock,
   deleteStock,
   updateStockStatus,
+  forceSubscribeStrategyPool,
 } from '@/api/modules/stockPool';
+import { getKlineSourceSettings } from '@/api/modules/klineSource';
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import StockDialog from '../components/StockDialog.vue';
@@ -140,6 +152,8 @@ const isViewMode = ref(false);
 const isEditMode = ref(false);
 const selectedRows = ref([]);
 const bulkAddRows = ref([]);
+const isFutuActive = ref(false);
+const forceSubscribeLoading = ref(false);
 
 // 分页参数
 const page = reactive({
@@ -284,8 +298,46 @@ const {
 
 // 页面加载时获取策略列表
 onMounted(async () => {
+  await loadKlineSourceSettings();
   await loadStrategies();
 });
+
+// 仅在当前活动数据源为富途时显示强制订阅入口。
+const loadKlineSourceSettings = async () => {
+  try {
+    const response = await getKlineSourceSettings();
+    isFutuActive.value = String(response?.payload?.active_source || '').toLowerCase() === 'futu';
+  } catch (error) {
+    console.warn('获取K线数据源配置失败，已隐藏富途订阅按钮:', error);
+    isFutuActive.value = false;
+  }
+};
+
+// 后端按页面顺序串行订阅，额度不足时优先保障第1页、第2页等靠前页面。
+const handleForceSubscribeStrategyPool = async () => {
+  if (!activeStrategy.value || activeStrategy.value === 'watch') {
+    ElMessage.warning('请先选择策略分组');
+    return;
+  }
+  forceSubscribeLoading.value = true;
+  try {
+    const response = await forceSubscribeStrategyPool(activeStrategy.value);
+    if (response?.success === false) {
+      ElMessage.error(response?.message || '强制订阅策略股票池失败');
+      return;
+    }
+    const payload = response?.payload || {};
+    ElMessage.success(
+      `订阅处理完成：共 ${payload.processed_count || 0} 只，新增成功 ${payload.success_count || 0} 只，失败 ${payload.failed_count || 0} 只`
+    );
+    await getStockList();
+  } catch (error) {
+    console.error('强制订阅策略股票池失败:', error);
+    ElMessage.error(error?.message || '强制订阅策略股票池失败，请稍后重试');
+  } finally {
+    forceSubscribeLoading.value = false;
+  }
+};
 
 // 加载策略列表
 const loadStrategies = async () => {

@@ -95,6 +95,17 @@ export const getGroupStocks = async (groupId, params = {}) => {
 };
 
 /**
+ * 强制订阅本分组股票，后端按第1页到末页顺序处理。
+ * @param {number} groupId - 分组ID
+ * @returns {Promise}
+ */
+export const forceSubscribeGroupStocks = async (groupId) => {
+  return await request.post(
+    `/stock-api/api/stock-groups/${groupId}/force-subscribe`
+  );
+};
+
+/**
  * 查询多个分组内股票（含行情）
  * @param {Array<number>} groupIds - 分组ID数组
  * @param {Object} params - 额外查询参数

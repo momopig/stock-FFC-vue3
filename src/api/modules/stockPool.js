@@ -279,6 +279,18 @@ export const getStockPoolList = async (params) => {
 };
 
 /**
+ * 强制订阅当前策略股票池，后端按第1页到末页顺序处理。
+ * @param {string} strategyName - 当前策略名称
+ * @returns {Promise}
+ */
+export const forceSubscribeStrategyPool = async (strategyName) => {
+  const queryString = qs.stringify({ strategy_name: strategyName });
+  return await request.post(
+    `/stock-api/api/stock-watchlist/strategy-pool/force-subscribe?${queryString}`
+  );
+};
+
+/**
  * 通过 WebSocket 获取股票池列表（带行情数据）
  * @param {Object} params - 查询参数
  * @param {number} params.page - 页码

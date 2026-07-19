@@ -70,6 +70,16 @@
     <!-- 洞察数据 -->
     <StockInsights :insightsData="insightsData" />
 
+    <div v-if="isFutuActive && activeGroupId" class="futu-subscribe-action">
+      <el-button
+        type="primary"
+        :loading="forceSubscribeLoading"
+        @click="handleForceSubscribeGroupStocks"
+      >
+        强制订阅本组股票
+      </el-button>
+    </div>
+
     <!-- 股票列表 -->
     <StockList
       :stockList="displayStockList"
@@ -156,7 +166,9 @@ import {
   removeStockFromGroup,
   updateGroupStock,
   addStockToGroups,
+  forceSubscribeGroupStocks,
 } from '@/api/modules/stockGroup';
+import { getKlineSourceSettings } from '@/api/modules/klineSource';
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import GroupSearchPopover from '../components/GroupSearchPopover.vue';
@@ -184,6 +196,8 @@ const BUILTIN_GROUP_CREATE_TYPES = Object.freeze([
 const groups = ref([]);
 const activeGroupId = ref('');
 const groupLoading = ref(false);
+const isFutuActive = ref(false);
+const forceSubscribeLoading = ref(false);
 const tabRef = ref(null);
 const groupsTabsContainerRef = ref(null);
 const renameInputRef = ref(null);
@@ -551,6 +565,7 @@ watch(
 // 页面加载时获取分组列表（分组变化由 watch 触发 flush；ResizeObserver 覆盖窗口与侧栏变宽）
 onMounted(async () => {
   applyRouteGroupId();
+  await loadKlineSourceSettings();
   await fetchGroups();
   document.addEventListener('visibilitychange', handleVisibilityChange);
   await nextTick();
@@ -560,6 +575,44 @@ onMounted(async () => {
   groupsTabsContainerRef.value &&
     groupTabsResizeObserver.observe(groupsTabsContainerRef.value);
 });
+
+// 仅在富途为当前活动数据源时展示本组强制订阅入口。
+const loadKlineSourceSettings = async () => {
+  try {
+    const response = await getKlineSourceSettings();
+    isFutuActive.value = String(response?.payload?.active_source || '').toLowerCase() === 'futu';
+  } catch (error) {
+    console.warn('获取K线数据源配置失败，已隐藏富途订阅按钮:', error);
+    isFutuActive.value = false;
+  }
+};
+
+// 由后端按页顺序串行订阅，避免大分组在额度不足时抢占前页股票的实时行情。
+const handleForceSubscribeGroupStocks = async () => {
+  const groupId = Number(activeGroupId.value || 0);
+  if (!groupId) {
+    ElMessage.warning('请先选择有效分组');
+    return;
+  }
+  forceSubscribeLoading.value = true;
+  try {
+    const response = await forceSubscribeGroupStocks(groupId);
+    if (response?.success === false) {
+      ElMessage.error(response?.message || '强制订阅本组股票失败');
+      return;
+    }
+    const payload = response?.payload || {};
+    ElMessage.success(
+      `订阅处理完成：共 ${payload.processed_count || 0} 只，新增成功 ${payload.success_count || 0} 只，失败 ${payload.failed_count || 0} 只`
+    );
+    await getStockList();
+  } catch (error) {
+    console.error('强制订阅本组股票失败:', error);
+    ElMessage.error(error?.message || '强制订阅本组股票失败，请稍后重试');
+  } finally {
+    forceSubscribeLoading.value = false;
+  }
+};
 
 onBeforeUnmount(() => {
   groupTabsResizeObserver?.disconnect?.();
