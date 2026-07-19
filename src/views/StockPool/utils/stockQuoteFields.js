@@ -37,5 +37,9 @@ export function mapQuoteToFlatRowFields(quote, initialPrice) {
     price_location_indicator: q.ma_response?.price_location_indicator || null,
     day_map_change_rate: dayMapChangeRate,
     risk_signs: q?.risk_signs || null,
+    quote_contract_warning: q?.quote_contract_warning || '',
+    quote_contract_missing_fields: Array.isArray(q?.quote_contract_missing_fields)
+      ? q.quote_contract_missing_fields
+      : [],
   };
 }

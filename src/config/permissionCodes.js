@@ -10,6 +10,8 @@ export const PermissionCodes = {
   SYSTEM_ROLE_ASSIGN: 'system:role:assign',
   SYSTEM_LOG_READ: 'system:log:read',
   SYSTEM_DUMP_READ: 'system:dump_snapshot:read',
+  SYSTEM_KLINE_SOURCE_READ: 'system:kline_source:read',
+  SYSTEM_KLINE_SOURCE_WRITE: 'system:kline_source:write',
   SYSTEM_STOCK_SEARCH_SOURCE_READ: 'system:stock_search_source:read',
   SYSTEM_STOCK_SEARCH_INDEX_READ: 'system:stock_search_index:read',
   SYSTEM_STOCK_SEARCH_INDEX_SYNC: 'system:stock_search_index:sync',

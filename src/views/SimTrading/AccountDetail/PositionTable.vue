@@ -81,6 +81,26 @@
       }}</template>
     </el-table-column>
     <el-table-column
+      v-if="showPositionRatio"
+      prop="loss_to_asset_ratio"
+      width="170"
+      sortable
+    >
+      <template #header>
+        <el-tooltip
+          content="计算公式为：亏损总额 / 当前总资产 × 100%。建议按 2% 作为全局止损线，账号亏损越严重，止损越严格。"
+          placement="top"
+        >
+          <span>亏损占当前总资产(%)</span>
+        </el-tooltip>
+      </template>
+      <template #default="scope">
+        <span :class="profitClass(-Number(scope.row.loss_to_asset_ratio || 0))">
+          {{ formatPercent(scope.row.loss_to_asset_ratio) }}
+        </span>
+      </template>
+    </el-table-column>
+    <el-table-column
       v-if="showHoldingDays"
       label="持仓天数"
       width="120"

@@ -39,6 +39,13 @@ const routes = [
     meta: { permissionCodes: [PermissionCodes.SYSTEM_DUMP_READ] },
   },
   {
+    path: '/system/kline-source-management',
+    component: lazy(
+      () => import('@/views/System/KlineSourceManagement/index.vue')
+    ),
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_KLINE_SOURCE_READ] },
+  },
+  {
     path: '/system/stock-search-settings',
     component: lazy(
       () => import('@/views/System/StockSearchSettings/index.vue')

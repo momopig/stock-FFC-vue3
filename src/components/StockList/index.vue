@@ -137,6 +137,17 @@
           </span>
         </el-button>
       </div>
+      <el-alert
+        v-if="quoteContractSummary.count > 0"
+        class="quote-contract-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
+          当前列表有 {{ quoteContractSummary.count }} 只股票仍存在数据源字段缺失，统一层已补默认值。缺失最多的字段：{{ quoteContractSummary.preview || '无' }}。
+        </template>
+      </el-alert>
       <!-- 股票列表表格 -->
       <el-table
         ref="tableRef"
@@ -721,6 +732,37 @@ const props = defineProps({
   },
 });
 const userStore = UserStore();
+const quoteContractSummary = computed(() => {
+  const rows = Array.isArray(props.stockList) ? props.stockList : [];
+  const warnedRows = rows.filter(
+    (item) => item?.quote_contract_warning || item?.quote?.quote_contract_warning
+  );
+  if (!warnedRows.length) {
+    return { count: 0, preview: '' };
+  }
+
+  const fieldCounter = new Map();
+  warnedRows.forEach((item) => {
+    const fields =
+      item?.quote_contract_missing_fields ||
+      item?.quote?.quote_contract_missing_fields ||
+      [];
+    fields.forEach((field) => {
+      fieldCounter.set(field, (fieldCounter.get(field) || 0) + 1);
+    });
+  });
+
+  const preview = Array.from(fieldCounter.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5)
+    .map(([field]) => field)
+    .join('、');
+
+  return {
+    count: warnedRows.length,
+    preview,
+  };
+});
 const isBuiltinAdmin = computed(() => {
   const roles = userStore?.userInfo?.roles;
   return Array.isArray(roles) && roles.includes('builtin_super_admin');
@@ -1520,6 +1562,10 @@ watch(
 
 <style scoped lang="less">
 .stock-list-container {
+  .quote-contract-alert {
+    margin-bottom: 12px;
+  }
+
   .top-container {
     display: flex;
     align-items: center;

@@ -162,6 +162,7 @@
                 v-for="item in accountRiskOverview.boundaryItems"
                 :key="item.label"
                 class="account-risk-overview-item"
+                :class="{ 'is-loss-threshold': item.type === 'loss-threshold' }"
               >
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
@@ -3653,12 +3654,9 @@ function buildAccountRiskOverview() {
       { label: '当前总分块数(M + N)', value: `${totalSlots} 份` },
       { label: '风控单份分块金额', value: `${formatMoney(slotAmount)} 元` },
       {
-        label: '浮亏阈值比例',
-        value: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}%`,
-      },
-      {
-        label: '浮亏阈值金额',
-        value: `${formatMoney(maxFloatingLossAmount)} 元`,
+        label: '浮亏阈值（比例 / 金额）',
+        value: `${riskPayload.maxFloatingLossPercent.toFixed(2).replace(/\.00$/, '')}% / ${formatMoney(maxFloatingLossAmount)} 元`,
+        type: 'loss-threshold',
       },
     ],
   };
@@ -5356,6 +5354,16 @@ onUnmounted(() => {
 .account-risk-overview-item strong {
   font-size: 22px;
   color: #6a4510;
+}
+
+.account-risk-overview-item.is-loss-threshold {
+  border-color: rgba(31, 138, 91, 0.3);
+  background: rgba(232, 248, 239, 0.94);
+}
+
+.account-risk-overview-item.is-loss-threshold span,
+.account-risk-overview-item.is-loss-threshold strong {
+  color: #1f8a5b;
 }
 
 .account-risk-overview-item__desc {

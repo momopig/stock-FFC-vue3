@@ -184,6 +184,13 @@ export const menuList = [
     permissionCodes: [PermissionCodes.SYSTEM_DUMP_READ],
   },
   {
+    name: '股票K线数据源管理',
+    foldName: 'K线数据源',
+    icon: 'Monitor',
+    path: '/system/kline-source-management',
+    permissionCodes: [PermissionCodes.SYSTEM_KLINE_SOURCE_READ],
+  },
+  {
     name: '模糊搜索源设置',
     foldName: '搜索源设置',
     icon: 'Setting',
