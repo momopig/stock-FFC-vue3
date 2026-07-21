@@ -245,6 +245,10 @@
                       </el-table>
                     </el-card>
 
+                    <Teleport
+                      v-if="mainTab === 'log-management' && logManagementTab === 'split-batches'"
+                      to="#trade-executor-split-batches-log"
+                    >
                     <el-card shadow="never" class="detail-card advanced-only-card">
                       <template #header>
                         <div class="section-header">
@@ -346,7 +350,12 @@
                         />
                       </div>
                     </el-card>
+                    </Teleport>
 
+                    <Teleport
+                      v-if="mainTab === 'log-management' && logManagementTab === 'change-logs'"
+                      to="#trade-executor-change-logs"
+                    >
                     <el-card shadow="never" class="detail-card advanced-only-card">
                       <template #header>
                         <div class="section-header">
@@ -418,11 +427,23 @@
                         />
                       </div>
                     </el-card>
+                    </Teleport>
                   </template>
                 </div>
               </el-tab-pane>
             </el-tabs>
           </el-card>
+        </el-tab-pane>
+
+        <el-tab-pane label="日志管理" name="log-management" lazy>
+          <el-tabs v-model="logManagementTab" class="executor-log-tabs">
+            <el-tab-pane label="委托单拆单日志" name="split-batches">
+              <div id="trade-executor-split-batches-log"></div>
+            </el-tab-pane>
+            <el-tab-pane label="变更日志" name="change-logs" lazy>
+              <div id="trade-executor-change-logs"></div>
+            </el-tab-pane>
+          </el-tabs>
         </el-tab-pane>
       </el-tabs>
     </template>
@@ -556,6 +577,8 @@ const replayPayload = ref(null);
 const selectedTemplateKey = ref('');
 const mainTab = ref('mode-select');
 const configModeTab = ref('ADVANCED_AUTO');
+// 日志管理二级页签，用于在拆单日志和变更日志之间切换。
+const logManagementTab = ref('split-batches');
 const logFieldNameMode = ref('CN');
 const logPage = reactive({ total: 0, page: 1, page_size: 10, items: [] });
 const logFilters = reactive({
@@ -1605,6 +1628,7 @@ watch(
     replayPayload.value = null;
     mainTab.value = 'mode-select';
     configModeTab.value = 'ADVANCED_AUTO';
+    logManagementTab.value = 'split-batches';
     logFilters.operation_type = '';
     logFilters.dateRange = [];
     childDialog.visible = false;

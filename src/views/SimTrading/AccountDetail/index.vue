@@ -136,10 +136,23 @@
         </div>
       </div>
 
-      <div
-        v-if="accountRiskOverview.enabled"
-        class="account-risk-overview-card"
-      >
+      <div class="account-risk-overview-card">
+        <template v-if="!accountRiskOverview.enabled">
+          <div class="account-risk-overview-header account-risk-overview-header--unbound">
+            <div>
+              <h3>账号风控概览</h3>
+              <p>当前交易账号未绑定“账号风控策略”，处于无人值守状态，存在风险！！！</p>
+            </div>
+            <el-button type="danger" @click="goToAccountRiskStrategy">去绑定账号风控策略</el-button>
+          </div>
+          <el-alert
+            title="未绑定账号风控策略时，手动交易与自动化策略均缺少账号级仓位、预算、持仓数量和浮亏边界约束。"
+            type="error"
+            :closable="false"
+            show-icon
+          />
+        </template>
+        <template v-else>
         <div class="account-risk-overview-header">
           <div>
             <h3>账号风控概览</h3>
@@ -217,6 +230,7 @@
             </div>
           </section>
         </div>
+        </template>
       </div>
 
       <el-tabs v-model="activeTab">
@@ -3662,6 +3676,11 @@ function buildAccountRiskOverview() {
   };
 }
 
+function goToAccountRiskStrategy() {
+  // 跳转至“自动化策略”tab页，方便用户查看当前账号的风控策略配置
+  router.push(`/sim-trading/account-detail?accountId=${currentAccount?.value?.id}&tab=strategy`);
+}
+
 function buildBuyRiskSummary() {
   const riskPayload = getActiveRiskPayload();
   if (!riskPayload) {
@@ -5270,6 +5289,15 @@ onUnmounted(() => {
   margin: 6px 0 0;
   color: #8a641f;
   font-size: 13px;
+}
+
+.account-risk-overview-header--unbound {
+  margin-bottom: 0;
+}
+
+.account-risk-overview-header--unbound h3,
+.account-risk-overview-header--unbound p {
+  color: #9b2c2c;
 }
 
 .account-risk-overview-sections {
