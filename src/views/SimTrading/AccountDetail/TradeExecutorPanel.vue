@@ -76,7 +76,7 @@
           </el-card>
         </el-tab-pane>
 
-        <el-tab-pane label="模式配置" name="mode-config">
+        <el-tab-pane label="模式配置" name="mode-config" lazy>
           <el-card shadow="never" class="detail-card mode-config-main-card">
             <template #header>
               <div class="section-header">
@@ -245,203 +245,189 @@
                       </el-table>
                     </el-card>
 
-                    <Teleport
-                      v-if="mainTab === 'log-management' && logManagementTab === 'split-batches'"
-                      to="#trade-executor-split-batches-log"
-                    >
-                    <el-card shadow="never" class="detail-card advanced-only-card">
-                      <template #header>
-                        <div class="section-header">
-                          <div>
-                            <h4>委托单拆单日志</h4>
-                            <p>查看真实账号订单经过执行器后的拆单批次、提交结果和异常信息。</p>
-                          </div>
-                          <el-space wrap>
-                            <el-button type="warning" plain :loading="syncingActiveBatches" @click="syncActiveBatches">同步活跃批次</el-button>
-                            <el-button plain @click="resetBatchFilters">重置筛选</el-button>
-                          </el-space>
-                        </div>
-                      </template>
-                      <div class="batch-filter-bar">
-                        <el-input v-model="batchFilters.stock_code" placeholder="标的代码" clearable class="filter-item" @keyup.enter="applyBatchFilters" />
-                        <el-select v-model="batchFilters.direction" placeholder="方向" clearable class="filter-item">
-                          <el-option label="买入" value="BUY" />
-                          <el-option label="卖出" value="SELL" />
-                        </el-select>
-                        <el-select v-model="batchFilters.source_type" placeholder="来源" clearable class="filter-item">
-                          <el-option label="手工" value="MANUAL" />
-                          <el-option label="策略" value="STRATEGY" />
-                        </el-select>
-                        <el-select v-model="batchFilters.status" placeholder="执行状态" clearable class="filter-item">
-                          <el-option label="待提交" value="PENDING" />
-                          <el-option label="全部成功" value="SUCCESS" />
-                          <el-option label="部分成功" value="PARTIAL_SUCCESS" />
-                          <el-option label="执行失败" value="FAILED" />
-                        </el-select>
-                        <el-select v-model="batchFilters.lifecycle_status" placeholder="生命周期" clearable class="filter-item">
-                          <el-option label="处理中" value="ACTIVE" />
-                          <el-option label="全部成交" value="FILLED" />
-                          <el-option label="部分成交" value="PARTIAL_FILLED" />
-                          <el-option label="已撤销" value="CANCELED" />
-                          <el-option label="失败" value="FAILED" />
-                          <el-option label="已终态" value="TERMINAL" />
-                        </el-select>
-                        <el-date-picker
-                          v-model="batchFilters.dateRange"
-                          type="daterange"
-                          range-separator="至"
-                          start-placeholder="开始日期"
-                          end-placeholder="结束日期"
-                          value-format="YYYY-MM-DD"
-                          class="filter-item filter-item--wide"
-                        />
-                        <el-button type="primary" @click="applyBatchFilters">查询</el-button>
-                      </div>
-                      <el-table :data="batchPage.items" border v-loading="batchesLoading">
-                        <el-table-column prop="created_time" label="提交时间" min-width="180">
-                          <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
-                        </el-table-column>
-                        <el-table-column prop="stock_name" label="标的" min-width="160">
-                          <template #default="scope">
-                            <div class="message-stack compact">
-                              <span>{{ scope.row.stock_name }}</span>
-                              <span class="subtle-line">{{ scope.row.stock_code }}.{{ scope.row.exchange_code }}</span>
-                            </div>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="direction" label="方向" width="90" />
-                        <el-table-column prop="requested_order_type" label="委托类型" width="110" />
-                        <el-table-column prop="requested_quantity" label="原始数量" width="110" sortable />
-                        <el-table-column label="拆单进度" min-width="150">
-                          <template #default="scope">{{ scope.row.submitted_child_count }}/{{ scope.row.child_order_count }}</template>
-                        </el-table-column>
-                        <el-table-column prop="primary_order_id" label="主返回单号" min-width="140" />
-                        <el-table-column label="状态" width="130">
-                          <template #default="scope">
-                            <el-tag :type="batchStatusTagType(scope.row.status)">{{ formatBatchStatus(scope.row.status) }}</el-tag>
-                          </template>
-                        </el-table-column>
-                        <el-table-column label="生命周期" min-width="140">
-                          <template #default="scope">
-                            <div class="message-stack compact">
-                              <el-tag :type="lifecycleStatusTagType(scope.row.lifecycle_status)">{{ formatLifecycleStatus(scope.row.lifecycle_status) }}</el-tag>
-                              <span class="subtle-line">{{ scope.row.lifecycle_synced_time ? formatDateTime(scope.row.lifecycle_synced_time) : '未同步' }}</span>
-                            </div>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="last_error_message" label="异常信息" min-width="220" show-overflow-tooltip />
-                        <el-table-column label="操作" width="180" fixed="right">
-                          <template #default="scope">
-                            <el-button type="warning" link @click="syncBatchStatus(scope.row)">同步状态</el-button>
-                            <el-button type="primary" link @click="openChildDialog(scope.row)">查看子单</el-button>
-                          </template>
-                        </el-table-column>
-                      </el-table>
-                      <div class="table-pagination">
-                        <el-pagination
-                          v-model:current-page="batchPage.page"
-                          v-model:page-size="batchPage.page_size"
-                          background
-                          layout="total, sizes, prev, pager, next"
-                          :page-sizes="[10, 20, 50]"
-                          :total="batchPage.total"
-                          @current-change="loadBatches"
-                          @size-change="loadBatches"
-                        />
-                      </div>
-                    </el-card>
-                    </Teleport>
-
-                    <Teleport
-                      v-if="mainTab === 'log-management' && logManagementTab === 'change-logs'"
-                      to="#trade-executor-change-logs"
-                    >
-                    <el-card shadow="never" class="detail-card advanced-only-card">
-                      <template #header>
-                        <div class="section-header">
-                          <div>
-                            <h4>变更日志</h4>
-                            <p>记录保存、模板切换、复制、重置等操作的变化轨迹。</p>
-                          </div>
-                          <el-radio-group v-model="logFieldNameMode" size="small">
-                            <el-radio-button label="CN">中文字段名</el-radio-button>
-                            <el-radio-button label="EN">英文字段名</el-radio-button>
-                          </el-radio-group>
-                        </div>
-                      </template>
-                      <div class="batch-filter-bar">
-                        <el-select v-model="logFilters.operation_type" placeholder="操作类型" clearable class="filter-item">
-                          <el-option
-                            v-for="item in LOG_OPERATION_OPTIONS"
-                            :key="item.value"
-                            :label="item.label"
-                            :value="item.value"
-                          />
-                        </el-select>
-                        <el-date-picker
-                          v-model="logFilters.dateRange"
-                          type="daterange"
-                          range-separator="至"
-                          start-placeholder="开始日期"
-                          end-placeholder="结束日期"
-                          value-format="YYYY-MM-DD"
-                          class="filter-item filter-item--wide"
-                        />
-                        <el-button type="primary" @click="applyLogFilters">查询</el-button>
-                        <el-button @click="resetLogFilters">重置</el-button>
-                      </div>
-                      <el-table :data="logPage.items" border v-loading="logsLoading">
-                        <el-table-column prop="id" label="日志id" width="110" sortable />
-                        <el-table-column label="操作类型" min-width="180">
-                          <template #default="scope">
-                            <el-tooltip placement="top" :content="operationTypeLabel(scope.row.operation_type).desc">
-                              <el-tag size="small" type="info">{{ operationTypeLabel(scope.row.operation_type).label }}</el-tag>
-                            </el-tooltip>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="operator_username" label="操作人" width="120" />
-                        <el-table-column prop="created_time" label="时间" min-width="180">
-                          <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
-                        </el-table-column>
-                        <el-table-column label="变更字段" min-width="260">
-                          <template #default="scope">
-                            <div class="message-stack">
-                              <span v-for="item in scope.row.changed_fields_json" :key="`${scope.row.id}-${item.field}`" class="note-line">
-                                {{ formatChangedFieldName(item.field) }}: {{ formatValue(item.before_value) }} -> {{ formatValue(item.after_value) }}
-                              </span>
-                            </div>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="remark" label="备注" min-width="220" />
-                      </el-table>
-                      <div class="table-pagination">
-                        <el-pagination
-                          v-model:current-page="logPage.page"
-                          v-model:page-size="logPage.page_size"
-                          background
-                          layout="total, sizes, prev, pager, next"
-                          :page-sizes="[10, 20, 50]"
-                          :total="logPage.total"
-                          @current-change="loadLogs"
-                          @size-change="loadLogs"
-                        />
-                      </div>
-                    </el-card>
-                    </Teleport>
                   </template>
                 </div>
               </el-tab-pane>
             </el-tabs>
           </el-card>
         </el-tab-pane>
-
         <el-tab-pane label="日志管理" name="log-management" lazy>
           <el-tabs v-model="logManagementTab" class="executor-log-tabs">
             <el-tab-pane label="委托单拆单日志" name="split-batches">
-              <div id="trade-executor-split-batches-log"></div>
+              <el-card shadow="never" class="detail-card advanced-only-card">
+                <template #header>
+                  <div class="section-header">
+                    <div>
+                      <h4>委托单拆单日志</h4>
+                      <p>查看真实账号订单经过执行器后的拆单批次、提交结果和异常信息。</p>
+                    </div>
+                    <el-space wrap>
+                      <el-button type="warning" plain :loading="syncingActiveBatches" @click="syncActiveBatches">同步活跃批次</el-button>
+                      <el-button plain @click="resetBatchFilters">重置筛选</el-button>
+                    </el-space>
+                  </div>
+                </template>
+                <div class="batch-filter-bar">
+                  <el-input v-model="batchFilters.stock_code" placeholder="标的代码" clearable class="filter-item" @keyup.enter="applyBatchFilters" />
+                  <el-select v-model="batchFilters.direction" placeholder="方向" clearable class="filter-item">
+                    <el-option label="买入" value="BUY" />
+                    <el-option label="卖出" value="SELL" />
+                  </el-select>
+                  <el-select v-model="batchFilters.source_type" placeholder="来源" clearable class="filter-item">
+                    <el-option label="手工" value="MANUAL" />
+                    <el-option label="策略" value="STRATEGY" />
+                  </el-select>
+                  <el-select v-model="batchFilters.status" placeholder="执行状态" clearable class="filter-item">
+                    <el-option label="待提交" value="PENDING" />
+                    <el-option label="全部成功" value="SUCCESS" />
+                    <el-option label="部分成功" value="PARTIAL_SUCCESS" />
+                    <el-option label="执行失败" value="FAILED" />
+                  </el-select>
+                  <el-select v-model="batchFilters.lifecycle_status" placeholder="生命周期" clearable class="filter-item">
+                    <el-option label="处理中" value="ACTIVE" />
+                    <el-option label="全部成交" value="FILLED" />
+                    <el-option label="部分成交" value="PARTIAL_FILLED" />
+                    <el-option label="已撤销" value="CANCELED" />
+                    <el-option label="失败" value="FAILED" />
+                    <el-option label="已终态" value="TERMINAL" />
+                  </el-select>
+                  <el-date-picker
+                    v-model="batchFilters.dateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    value-format="YYYY-MM-DD"
+                    class="filter-item filter-item--wide"
+                  />
+                  <el-button type="primary" @click="applyBatchFilters">查询</el-button>
+                </div>
+                <el-table :data="batchPage.items" border v-loading="batchesLoading">
+                  <el-table-column prop="created_time" label="提交时间" min-width="180">
+                    <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="stock_name" label="标的" min-width="160">
+                    <template #default="scope">
+                      <div class="message-stack compact">
+                        <span>{{ scope.row.stock_name }}</span>
+                        <span class="subtle-line">{{ scope.row.stock_code }}.{{ scope.row.exchange_code }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="direction" label="方向" width="90" />
+                  <el-table-column prop="requested_order_type" label="委托类型" width="110" />
+                  <el-table-column prop="requested_quantity" label="原始数量" width="110" sortable />
+                  <el-table-column label="拆单进度" min-width="150">
+                    <template #default="scope">{{ scope.row.submitted_child_count }}/{{ scope.row.child_order_count }}</template>
+                  </el-table-column>
+                  <el-table-column prop="primary_order_id" label="主返回单号" min-width="140" />
+                  <el-table-column label="状态" width="130">
+                    <template #default="scope">
+                      <el-tag :type="batchStatusTagType(scope.row.status)">{{ formatBatchStatus(scope.row.status) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="生命周期" min-width="140">
+                    <template #default="scope">
+                      <div class="message-stack compact">
+                        <el-tag :type="lifecycleStatusTagType(scope.row.lifecycle_status)">{{ formatLifecycleStatus(scope.row.lifecycle_status) }}</el-tag>
+                        <span class="subtle-line">{{ scope.row.lifecycle_synced_time ? formatDateTime(scope.row.lifecycle_synced_time) : '未同步' }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="last_error_message" label="异常信息" min-width="220" show-overflow-tooltip />
+                  <el-table-column label="操作" width="180" fixed="right">
+                    <template #default="scope">
+                      <el-button type="warning" link @click="syncBatchStatus(scope.row)">同步状态</el-button>
+                      <el-button type="primary" link @click="openChildDialog(scope.row)">查看子单</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div class="table-pagination">
+                  <el-pagination
+                    v-model:current-page="batchPage.page"
+                    v-model:page-size="batchPage.page_size"
+                    background
+                    layout="total, sizes, prev, pager, next"
+                    :page-sizes="[10, 20, 50]"
+                    :total="batchPage.total"
+                    @current-change="loadBatches"
+                    @size-change="loadBatches"
+                  />
+                </div>
+              </el-card>
             </el-tab-pane>
             <el-tab-pane label="变更日志" name="change-logs" lazy>
-              <div id="trade-executor-change-logs"></div>
+              <el-card shadow="never" class="detail-card advanced-only-card">
+                <template #header>
+                  <div class="section-header">
+                    <div>
+                      <h4>变更日志</h4>
+                      <p>记录保存、模板切换、复制、重置等操作的变化轨迹。</p>
+                    </div>
+                    <el-radio-group v-model="logFieldNameMode" size="small">
+                      <el-radio-button label="CN">中文字段名</el-radio-button>
+                      <el-radio-button label="EN">英文字段名</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                </template>
+                <div class="batch-filter-bar">
+                  <el-select v-model="logFilters.operation_type" placeholder="操作类型" clearable class="filter-item">
+                    <el-option
+                      v-for="item in LOG_OPERATION_OPTIONS"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
+                  </el-select>
+                  <el-date-picker
+                    v-model="logFilters.dateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    value-format="YYYY-MM-DD"
+                    class="filter-item filter-item--wide"
+                  />
+                  <el-button type="primary" @click="applyLogFilters">查询</el-button>
+                  <el-button @click="resetLogFilters">重置</el-button>
+                </div>
+                <el-table :data="logPage.items" border v-loading="logsLoading">
+                  <el-table-column prop="id" label="日志id" width="110" sortable />
+                  <el-table-column label="操作类型" min-width="180">
+                    <template #default="scope">
+                      <el-tooltip placement="top" :content="operationTypeLabel(scope.row.operation_type).desc">
+                        <el-tag size="small" type="info">{{ operationTypeLabel(scope.row.operation_type).label }}</el-tag>
+                      </el-tooltip>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="operator_username" label="操作人" width="120" />
+                  <el-table-column prop="created_time" label="时间" min-width="180">
+                    <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+                  </el-table-column>
+                  <el-table-column label="变更字段" min-width="260">
+                    <template #default="scope">
+                      <div class="message-stack">
+                        <span v-for="item in scope.row.changed_fields_json" :key="`${scope.row.id}-${item.field}`" class="note-line">
+                          {{ formatChangedFieldName(item.field) }}: {{ formatValue(item.before_value) }} -> {{ formatValue(item.after_value) }}
+                        </span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="220" />
+                </el-table>
+                <div class="table-pagination">
+                  <el-pagination
+                    v-model:current-page="logPage.page"
+                    v-model:page-size="logPage.page_size"
+                    background
+                    layout="total, sizes, prev, pager, next"
+                    :page-sizes="[10, 20, 50]"
+                    :total="logPage.total"
+                    @current-change="loadLogs"
+                    @size-change="loadLogs"
+                  />
+                </div>
+              </el-card>
             </el-tab-pane>
           </el-tabs>
         </el-tab-pane>
