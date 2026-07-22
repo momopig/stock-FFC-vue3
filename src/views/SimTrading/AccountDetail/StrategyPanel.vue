@@ -194,6 +194,24 @@
                       <span v-else>-</span>
                     </template>
                   </el-table-column>
+                  <el-table-column label="股票黑白名单状态" min-width="260">
+                    <template #default="scope">
+                      <div class="risk-preview-cell">
+                        <span>{{ getStockFilterModeLabel(scope.row) }}</span>
+                        <span v-if="getStockFilterStocks(scope.row).length" class="stock-filter-preview-list">
+                          <el-link
+                            v-for="stock in getStockFilterStocks(scope.row)"
+                            :key="`stock-filter-preview-${scope.row.id}-${stock.key}`"
+                            type="primary"
+                            :underline="false"
+                            @click="openStockFinance(stock)"
+                          >
+                            {{ formatStockFilterStock(stock) }}
+                          </el-link>
+                        </span>
+                      </div>
+                    </template>
+                  </el-table-column>
                   <el-table-column
                     v-if="group.category === 'OPEN_POSITION'"
                     label="股票分组"
@@ -736,15 +754,112 @@
             起建仓范围从策略模板中解耦，统一在账号绑定层配置，不再跟随策略模板一起复用。
           </div>
         </el-form-item>
-        <el-form-item label="股票黑名单">
-          <el-input
-            v-model="bindingForm.blacklist_stock_codes_text"
-            type="textarea"
-            :rows="4"
-            placeholder="输入股票代码，支持逗号/空格/换行分隔，例如：600519.SH, 000001.SZ"
-          />
+        <el-form-item label="股票黑白名单">
+          <el-radio-group v-model="bindingForm.stock_filter_mode" class="stock-filter-radio-group">
+            <el-radio label="DISABLED">关闭黑白名单</el-radio>
+            <el-radio label="BLACKLIST">开启股票黑名单</el-radio>
+            <el-radio label="WHITELIST">开启股票白名单</el-radio>
+          </el-radio-group>
           <div class="field-help-text">
-            命中黑名单的股票会在建仓/清仓/做T执行阶段自动跳过。
+            黑名单股票不会被当前策略处理；白名单模式下当前策略只监控已选股票。
+          </div>
+        </el-form-item>
+        <el-form-item v-if="bindingForm.stock_filter_mode === 'BLACKLIST'" label="股票黑名单">
+          <el-select
+            ref="blacklistSelectRef"
+            v-model="blacklistSelectionKeys"
+            class="full-width stock-filter-select"
+            multiple
+            filterable
+            remote
+            automatic-dropdown
+            clearable
+            popper-class="stock-filter-select-dropdown"
+            placeholder="默认显示当前账号建仓分组股票；可按名称、代码、拼音搜索"
+            :remote-method="searchBlacklistOptions"
+            :loading="stockFilterSearchLoading"
+            @focus="handleBlacklistFocus"
+            @visible-change="handleBlacklistVisibleChange"
+          >
+            <el-option
+              v-for="stock in stockFilterOptions.blacklist"
+              :key="stock.key"
+              :label="formatStockFilterStock(stock)"
+              :value="stock.key"
+            >
+              <div class="stock-filter-option-inline">
+                <span class="stock-filter-option-main">{{ formatStockFilterStock(stock) }}</span>
+                <span
+                  v-if="getStockSourceGroupText(stock)"
+                  class="stock-filter-option-marker"
+                >
+                  {{ getStockSourceGroupText(stock) }}
+                </span>
+              </div>
+            </el-option>
+          </el-select>
+          <div v-if="bindingForm.blacklist_stocks.length" class="stock-filter-selected-list">
+            <el-link
+              v-for="stock in bindingForm.blacklist_stocks"
+              :key="`selected-stock-filter-${stock.key}`"
+              type="primary"
+              :underline="false"
+              @click="openStockFinance(stock)"
+            >
+              {{ formatStockFilterStock(stock) }}
+            </el-link>
+          </div>
+          <div class="field-help-text">
+            选择结果保存为股票代码、交易所和中文名称；点击已选股票可在新窗口查看百度财经行情。
+          </div>
+        </el-form-item>
+        <el-form-item v-if="bindingForm.stock_filter_mode === 'WHITELIST'" label="股票白名单">
+          <el-select
+            ref="whitelistSelectRef"
+            v-model="whitelistSelectionKeys"
+            class="full-width stock-filter-select"
+            multiple
+            filterable
+            remote
+            automatic-dropdown
+            clearable
+            popper-class="stock-filter-select-dropdown"
+            placeholder="默认显示当前账号建仓分组股票；可按名称、代码、拼音搜索"
+            :remote-method="searchWhitelistOptions"
+            :loading="stockFilterSearchLoading"
+            @focus="handleWhitelistFocus"
+            @visible-change="handleWhitelistVisibleChange"
+          >
+            <el-option
+              v-for="stock in stockFilterOptions.whitelist"
+              :key="stock.key"
+              :label="formatStockFilterStock(stock)"
+              :value="stock.key"
+            >
+              <div class="stock-filter-option-inline">
+                <span class="stock-filter-option-main">{{ formatStockFilterStock(stock) }}</span>
+                <span
+                  v-if="getStockSourceGroupText(stock)"
+                  class="stock-filter-option-marker"
+                >
+                  {{ getStockSourceGroupText(stock) }}
+                </span>
+              </div>
+            </el-option>
+          </el-select>
+          <div v-if="bindingForm.whitelist_stocks.length" class="stock-filter-selected-list">
+            <el-link
+              v-for="stock in bindingForm.whitelist_stocks"
+              :key="`selected-whitelist-stock-filter-${stock.key}`"
+              type="primary"
+              :underline="false"
+              @click="openStockFinance(stock)"
+            >
+              {{ formatStockFilterStock(stock) }}
+            </el-link>
+          </div>
+          <div class="field-help-text">
+            选择结果保存为股票代码、交易所和中文名称；点击已选股票可在新窗口查看百度财经行情。
           </div>
         </el-form-item>
         <el-form-item v-if="showBindingOverrideJson" label="覆盖配置 JSON">
@@ -767,7 +882,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 
@@ -783,7 +898,8 @@ import {
   toggleAccountStrategySettings,
   updateAccountStrategyBinding,
 } from '@/api/modules/simTradingStrategy';
-import { getUserGroups } from '@/api/modules/stockGroup';
+import { getGroupStocksByGroups, getUserGroups } from '@/api/modules/stockGroup';
+import { searchSimTradingStocks } from '@/api/modules/simTrading';
 import { useTabsStore } from '@/composables/useTabsStore';
 import {
   getStrategyActionLabel,
@@ -844,6 +960,13 @@ const innerTabByCategory = reactive({
 const availableStrategies = ref([]);
 const bindings = ref([]);
 const userGroups = ref([]);
+const blacklistSelectRef = ref(null);
+const whitelistSelectRef = ref(null);
+const stockFilterOptions = reactive({
+  blacklist: [],
+  whitelist: [],
+});
+const stockFilterSearchLoading = ref(false);
 const settings = reactive({
   automation_enabled: false,
   last_dispatch_status: '',
@@ -888,7 +1011,9 @@ const bindingForm = reactive({
   strategy_id: undefined,
   enabled: true,
   group_ids: [],
-  blacklist_stock_codes_text: '',
+  stock_filter_mode: 'DISABLED',
+  blacklist_stocks: [],
+  whitelist_stocks: [],
   account_override_json_text: '',
 });
 
@@ -940,6 +1065,40 @@ const accountBoundGroups = computed(() => {
       });
     });
   return result;
+});
+const accountBoundGroupIds = computed(() => {
+  const ids = new Set(
+    bindings.value
+      .filter((binding) => binding.strategy_category === 'OPEN_POSITION')
+      .flatMap((binding) => getBindingGroupIds(binding))
+  );
+  // 若当前正在编辑建仓策略，动态纳入弹窗里已选择但尚未保存的分组。
+  if (bindingDialog.selectedCategory === 'OPEN_POSITION') {
+    (bindingForm.group_ids || []).forEach((groupId) => ids.add(Number(groupId)));
+  }
+  return Array.from(ids).filter((groupId) => Number.isInteger(groupId) && groupId > 0);
+});
+const blacklistOptionMap = computed(
+  () => new Map(stockFilterOptions.blacklist.map((item) => [item.key, item]))
+);
+const whitelistOptionMap = computed(
+  () => new Map(stockFilterOptions.whitelist.map((item) => [item.key, item]))
+);
+const blacklistSelectionKeys = computed({
+  get: () => bindingForm.blacklist_stocks.map((item) => item.key),
+  set: (keys) => {
+    bindingForm.blacklist_stocks = Array.from(new Set(keys || []))
+      .map((key) => blacklistOptionMap.value.get(key) || parseStockFilterKey(key))
+      .filter(Boolean);
+  },
+});
+const whitelistSelectionKeys = computed({
+  get: () => bindingForm.whitelist_stocks.map((item) => item.key),
+  set: (keys) => {
+    bindingForm.whitelist_stocks = Array.from(new Set(keys || []))
+      .map((key) => whitelistOptionMap.value.get(key) || parseStockFilterKey(key))
+      .filter(Boolean);
+  },
 });
 const currentBindingStrategy = computed(() => {
   if (bindingDialog.mode === 'create') {
@@ -1028,6 +1187,7 @@ async function loadAll() {
       : Array.isArray(groupsRes?.payload)
         ? groupsRes.payload
         : [];
+      await loadStockFilterDefaultOptions();
     if (getActiveInnerTab() === 'logs') {
       await loadLogs({ force: true });
     }
@@ -1128,7 +1288,9 @@ function openCreateDialog(category = CATEGORY_OPTIONS[0].value) {
   bindingForm.strategy_id = undefined;
   bindingForm.enabled = true;
   bindingForm.group_ids = [];
-  bindingForm.blacklist_stock_codes_text = '';
+  bindingForm.stock_filter_mode = 'DISABLED';
+  bindingForm.blacklist_stocks = [];
+  bindingForm.whitelist_stocks = [];
   bindingForm.account_override_json_text = '';
 }
 
@@ -1140,25 +1302,291 @@ function openEditDialog(binding) {
   bindingForm.strategy_id = binding.strategy_id;
   bindingForm.enabled = binding.enabled;
   bindingForm.group_ids = getBindingGroupIds(binding);
-  bindingForm.blacklist_stock_codes_text = getBindingBlacklistText(binding);
+  bindingForm.stock_filter_mode = getStockFilterMode(binding);
+  const restoredStocks = getStockFilterStocks(binding);
+  if (bindingForm.stock_filter_mode === 'BLACKLIST') {
+    bindingForm.blacklist_stocks = restoredStocks;
+  } else if (bindingForm.stock_filter_mode === 'WHITELIST') {
+    bindingForm.whitelist_stocks = restoredStocks;
+  }
+  mergeStockFilterOptions(restoredStocks, 'blacklist');
+  mergeStockFilterOptions(restoredStocks, 'whitelist');
   bindingForm.account_override_json_text = binding.account_override_json
     ? JSON.stringify(binding.account_override_json, null, 2)
     : '';
 }
 
-function splitBlacklistTokens(rawValue) {
-  return String(rawValue || '')
-    .split(/[\s,，、;；]+/)
-    .map((item) => item.trim().toUpperCase())
-    .filter(Boolean);
+function normalizeStockFilterStock(stock) {
+  const stockCode = String(stock?.stock_code || stock?.code || '').trim().toUpperCase();
+  const exchangeCode = String(stock?.exchange_code || stock?.exchange || '').trim().toUpperCase();
+  const stockName = String(stock?.stock_name || stock?.name || '').trim();
+  const sourceGroupIds = Array.from(
+    new Set(
+      (Array.isArray(stock?.source_group_ids) ? stock.source_group_ids : [stock?.group_id])
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    )
+  );
+  const sourceGroupNames = Array.from(
+    new Set(
+      (Array.isArray(stock?.source_group_names) ? stock.source_group_names : [])
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    )
+  );
+  if (!stockCode) return null;
+  return {
+    stock_code: stockCode,
+    exchange_code: exchangeCode,
+    stock_name: stockName,
+    key: `${stockCode}.${exchangeCode || 'UNKNOWN'}`,
+    source_group_ids: sourceGroupIds,
+    source_group_names: sourceGroupNames,
+  };
 }
 
-function getBindingBlacklistText(binding) {
-  const stockCodes = binding?.account_override_json?.blacklist?.stock_codes;
-  if (!Array.isArray(stockCodes) || !stockCodes.length) {
+function parseStockFilterKey(key) {
+  const [stockCode, exchangeCode] = String(key || '').split('.', 2);
+  return normalizeStockFilterStock({ stock_code: stockCode, exchange_code: exchangeCode === 'UNKNOWN' ? '' : exchangeCode });
+}
+
+function mergeStockFilterOptions(stocks, target = 'blacklist') {
+  const optionMap = new Map(stockFilterOptions[target].map((item) => [item.key, item]));
+  (stocks || []).forEach((stock) => {
+    const normalized = normalizeStockFilterStock(stock);
+    if (normalized) optionMap.set(normalized.key, normalized);
+  });
+  stockFilterOptions[target] = Array.from(optionMap.values());
+}
+
+function getStockFilterMode(binding) {
+  const mode = String(binding?.account_override_json?.stock_filter?.mode || '').trim().toUpperCase();
+  if (['DISABLED', 'BLACKLIST', 'WHITELIST'].includes(mode)) return mode;
+  const legacyCodes = binding?.account_override_json?.blacklist?.stock_codes;
+  return Array.isArray(legacyCodes) && legacyCodes.length ? 'BLACKLIST' : 'DISABLED';
+}
+
+function getStockFilterStocks(binding) {
+  const stocks = binding?.account_override_json?.stock_filter?.stocks;
+  if (Array.isArray(stocks)) {
+    return stocks.map(normalizeStockFilterStock).filter(Boolean);
+  }
+  const legacyCodes = binding?.account_override_json?.blacklist?.stock_codes;
+  return Array.isArray(legacyCodes)
+    ? legacyCodes.map((stockCode) => normalizeStockFilterStock({ stock_code: stockCode })).filter(Boolean)
+    : [];
+}
+
+function getStockFilterModeLabel(binding) {
+  const mode = getStockFilterMode(binding);
+  return {
+    DISABLED: '关闭黑白名单',
+    BLACKLIST: '开启股票黑名单',
+    WHITELIST: '开启股票白名单',
+  }[mode] || '关闭黑白名单';
+}
+
+function formatStockFilterStock(stock) {
+  const normalized = normalizeStockFilterStock(stock) || {};
+  const fullCode = normalized.exchange_code
+    ? `${normalized.stock_code}.${normalized.exchange_code}`
+    : normalized.stock_code;
+  return normalized.stock_name ? `${normalized.stock_name}（${fullCode}）` : fullCode;
+}
+
+function getStockSourceGroupText(stock) {
+  const normalized = normalizeStockFilterStock(stock) || {};
+  const names = Array.from(
+    new Set(
+      (normalized.source_group_names || []).filter(Boolean)
+    )
+  );
+  if (!names.length) {
     return '';
   }
-  return stockCodes.join('\n');
+  return names.join('、');
+}
+
+function openStockFinance(stock) {
+  const normalized = normalizeStockFilterStock(stock);
+  if (!normalized?.stock_code) return;
+  window.open(`https://finance.baidu.com/stock/ab-${normalized.stock_code}`, '_blank', 'noopener');
+}
+
+async function fetchBoundGroupStocks(groupIds) {
+  // 后端接口限制 page_size <= 200，超过会触发 422。
+  const pageSize = 200;
+  let page = 1;
+  let total = 0;
+  const stockMap = new Map();
+  do {
+    const result = await getGroupStocksByGroups(groupIds, {
+      page,
+      page_size: pageSize,
+    });
+    const payload = result?.payload || {};
+    const items = Array.isArray(payload.items)
+      ? payload.items
+      : Array.isArray(payload)
+        ? payload
+        : [];
+    total = Number(payload.total || items.length || 0);
+    items.forEach((item) => {
+      const normalized = normalizeStockFilterStock(item);
+      if (!normalized) {
+        return;
+      }
+      const existing = stockMap.get(normalized.key);
+      const itemGroupId = Number(item?.group_id || 0);
+      const mergedGroupIds = new Set([
+        ...(existing?.source_group_ids || []),
+        ...(normalized.source_group_ids || []),
+        ...(Number.isInteger(itemGroupId) && itemGroupId > 0 ? [itemGroupId] : []),
+      ]);
+      const mergedGroupNames = new Set([
+        ...(existing?.source_group_names || []),
+        ...(normalized.source_group_names || []),
+      ]);
+      Array.from(mergedGroupIds).forEach((groupId) => {
+        const groupName = userGroupNameMap.value.get(groupId);
+        if (groupName) {
+          mergedGroupNames.add(groupName);
+        }
+      });
+      stockMap.set(normalized.key, {
+        ...(existing || normalized),
+        ...normalized,
+        source_group_ids: Array.from(mergedGroupIds),
+        source_group_names: Array.from(mergedGroupNames),
+      });
+    });
+    if (!items.length || items.length < pageSize) {
+      break;
+    }
+    page += 1;
+  } while (!total || stockMap.size < total);
+  return Array.from(stockMap.values());
+}
+
+async function loadStockFilterDefaultOptions(target = null) {
+  const groupIds = accountBoundGroupIds.value;
+  const applyTargets = target ? [target] : ['blacklist', 'whitelist'];
+  if (!groupIds.length) {
+    applyTargets.forEach((name) => {
+      stockFilterOptions[name] = [];
+    });
+    return;
+  }
+  try {
+    const items = await fetchBoundGroupStocks(groupIds);
+    applyTargets.forEach((name) => {
+      stockFilterOptions[name] = [];
+      mergeStockFilterOptions(items, name);
+    });
+    if (!target || target === 'blacklist') {
+      mergeStockFilterOptions(bindingForm.blacklist_stocks, 'blacklist');
+    }
+    if (!target || target === 'whitelist') {
+      mergeStockFilterOptions(bindingForm.whitelist_stocks, 'whitelist');
+    }
+  } catch (error) {
+    console.error('获取黑白名单默认股票候选失败:', error);
+  }
+}
+
+async function searchStockFilterOptions(query, target = 'blacklist') {
+  const keyword = String(query || '').trim();
+  if (!keyword) {
+    await loadStockFilterDefaultOptions(target);
+    return;
+  }
+  stockFilterSearchLoading.value = true;
+  try {
+    const result = await searchSimTradingStocks(keyword, false);
+    if (result?.success === false) {
+      ElMessage.error(result?.message || '股票搜索失败，请稍后重试');
+      return;
+    }
+    // 输入关键字时仅展示搜索结果，不混入默认分组候选。
+    stockFilterOptions[target] = [];
+    mergeStockFilterOptions(result?.payload?.items || [], target);
+    if (target === 'blacklist') {
+      mergeStockFilterOptions(bindingForm.blacklist_stocks, 'blacklist');
+    } else {
+      mergeStockFilterOptions(bindingForm.whitelist_stocks, 'whitelist');
+    }
+  } catch (error) {
+    console.error('搜索黑白名单股票失败:', error);
+    ElMessage.error(error?.message || '股票搜索失败，请稍后重试');
+  } finally {
+    stockFilterSearchLoading.value = false;
+  }
+}
+
+const searchBlacklistOptions = (query) => searchStockFilterOptions(query, 'blacklist');
+const searchWhitelistOptions = (query) => searchStockFilterOptions(query, 'whitelist');
+
+function getStockFilterQuery(target) {
+  const selectRef = target === 'blacklist' ? blacklistSelectRef.value : whitelistSelectRef.value;
+  return String(selectRef?.query || '').trim();
+}
+
+function ensureStockFilterDropdownVisible(target) {
+  const selectRef = target === 'blacklist' ? blacklistSelectRef.value : whitelistSelectRef.value;
+  if (!selectRef || selectRef.expanded) {
+    return;
+  }
+  if (typeof selectRef.toggleMenu === 'function') {
+    selectRef.toggleMenu();
+    return;
+  }
+  selectRef.expanded = true;
+}
+
+async function handleBlacklistFocus() {
+  const query = getStockFilterQuery('blacklist');
+  if (query) {
+    await searchStockFilterOptions(query, 'blacklist');
+  } else {
+    await loadStockFilterDefaultOptions('blacklist');
+  }
+  await nextTick();
+  ensureStockFilterDropdownVisible('blacklist');
+}
+
+async function handleWhitelistFocus() {
+  const query = getStockFilterQuery('whitelist');
+  if (query) {
+    await searchStockFilterOptions(query, 'whitelist');
+  } else {
+    await loadStockFilterDefaultOptions('whitelist');
+  }
+  await nextTick();
+  ensureStockFilterDropdownVisible('whitelist');
+}
+
+async function handleBlacklistVisibleChange(visible) {
+  if (!visible) {
+    return;
+  }
+  const query = getStockFilterQuery('blacklist');
+  if (query) {
+    await searchStockFilterOptions(query, 'blacklist');
+    return;
+  }
+  await loadStockFilterDefaultOptions('blacklist');
+}
+
+async function handleWhitelistVisibleChange(visible) {
+  if (!visible) {
+    return;
+  }
+  const query = getStockFilterQuery('whitelist');
+  if (query) {
+    await searchStockFilterOptions(query, 'whitelist');
+    return;
+  }
+  await loadStockFilterDefaultOptions('whitelist');
 }
 
 function parseOverrideJson() {
@@ -1177,19 +1605,27 @@ function parseOverrideJson() {
 }
 
 function buildBindingOverridePayload() {
-  const blacklistCodes = Array.from(
-    new Set(splitBlacklistTokens(bindingForm.blacklist_stock_codes_text))
-  );
-  const blacklistPayload = blacklistCodes.length
-    ? {
-        blacklist: {
-          stock_codes: blacklistCodes,
-        },
-      }
-    : {};
+  const blacklistStocks = bindingForm.blacklist_stocks
+    .map(normalizeStockFilterStock)
+    .filter(Boolean);
+  const whitelistStocks = bindingForm.whitelist_stocks
+    .map(normalizeStockFilterStock)
+    .filter(Boolean);
+  if (bindingForm.stock_filter_mode === 'WHITELIST' && !whitelistStocks.length) {
+    throw new Error('开启股票白名单时至少需要选择一只股票');
+  }
+  const currentStocks = bindingForm.stock_filter_mode === 'BLACKLIST' ? blacklistStocks : whitelistStocks;
+  const stockFilterPayload = {
+    stock_filter: {
+      mode: bindingForm.stock_filter_mode,
+      stocks: bindingForm.stock_filter_mode === 'DISABLED' ? [] : currentStocks,
+      blacklist_stocks: blacklistStocks,
+      whitelist_stocks: whitelistStocks,
+    },
+  };
 
   if (bindingDialog.selectedCategory !== 'OPEN_POSITION') {
-    return Object.keys(blacklistPayload).length ? blacklistPayload : null;
+    return stockFilterPayload;
   }
   const groupIds = Array.isArray(bindingForm.group_ids)
     ? bindingForm.group_ids
@@ -1197,7 +1633,7 @@ function buildBindingOverridePayload() {
         .filter((item) => Number.isInteger(item) && item > 0)
     : [];
   return {
-    ...blacklistPayload,
+    ...stockFilterPayload,
     open_position_scope: {
       group_ids: Array.from(new Set(groupIds)),
     },
@@ -1210,8 +1646,9 @@ function mergeBindingOverridePayload(baseOverride) {
   if (!scopedOverride) {
     return Object.keys(nextOverride).length ? nextOverride : null;
   }
-  if (scopedOverride.blacklist) {
-    nextOverride.blacklist = scopedOverride.blacklist;
+  if (scopedOverride.stock_filter) {
+    nextOverride.stock_filter = scopedOverride.stock_filter;
+    delete nextOverride.blacklist;
   }
   if (!scopedOverride.open_position_scope) {
     return Object.keys(nextOverride).length ? nextOverride : null;
@@ -1732,6 +2169,64 @@ function getForceMarketSwitchFlag(logRow) {
   font-size: 12px;
 }
 
+.stock-filter-preview-list,
+.stock-filter-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+
+.stock-filter-radio-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.stock-filter-select {
+  width: 100%;
+}
+
+.stock-filter-select :deep(.el-tag__content) {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.stock-filter-option-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  line-height: 34px;
+  /* 为选中态勾选图标预留右侧空间，避免与分组名称贴近。 */
+  padding-right: 20px;
+  box-sizing: border-box;
+}
+
+.stock-filter-option-main {
+  color: var(--el-text-color-regular);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-filter-option-marker {
+  flex: 0 0 auto;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .bound-group-cell {
   display: flex;
   flex-wrap: wrap;
@@ -1857,5 +2352,12 @@ function getForceMarketSwitchFlag(logRow) {
   .toolbar-card {
     width: 100%;
   }
+}
+</style>
+
+<style>
+.stock-filter-select-dropdown .el-select-dropdown__item.is-selected .stock-filter-option-main,
+.stock-filter-select-dropdown .el-select-dropdown__item.is-selected .stock-filter-option-marker {
+  color: var(--el-color-primary);
 }
 </style>
