@@ -4892,9 +4892,14 @@ watch(activeTab, (value) => {
   if (route.path !== pageRoutePath) {
     return;
   }
+  const resolvedAccountId = String(activeAccountId.value || route.query.accountId || '');
+  if (!resolvedAccountId) {
+    // 初始化期间账号尚未加载时，避免把 URL 上已有 accountId 覆盖为空。
+    return;
+  }
   const nextQuery = {
     ...route.query,
-    accountId: activeAccountId.value,
+    accountId: resolvedAccountId,
     tab: value,
   };
   if (value !== 'transfer' && 'action' in nextQuery) {

@@ -55,18 +55,28 @@
         formatMoney(scope.row.market_value)
       }}</template>
     </el-table-column>
-    <el-table-column prop="unrealized_pnl" label="浮盈亏" width="130" sortable>
+    <el-table-column label="持仓盈亏" width="150" sortable :sort-method="sortByHoldingPnl">
       <template #default="scope">
-        <span :class="profitClass(scope.row.unrealized_pnl)">{{
-          formatMoney(scope.row.unrealized_pnl)
-        }}</span>
+        <div class="dual-line-cell">
+          <span :class="profitClass(scope.row.unrealized_pnl)">{{
+            formatMoney(scope.row.unrealized_pnl)
+          }}</span>
+          <span :class="profitClass(scope.row.unrealized_pnl)">{{
+            formatPercent(scope.row.pnl_rate)
+          }}</span>
+        </div>
       </template>
     </el-table-column>
-    <el-table-column prop="pnl_rate" label="盈亏涨跌幅" width="120" sortable>
+    <el-table-column label="今日盈亏" width="150" sortable :sort-method="sortByTodayPnl">
       <template #default="scope">
-        <span :class="profitClass(scope.row.unrealized_pnl)">{{
-          formatPercent(scope.row.pnl_rate)
-        }}</span>
+        <div class="dual-line-cell">
+          <span :class="profitClass(resolveTodayPnl(scope.row))">{{
+            formatMoney(resolveTodayPnl(scope.row))
+          }}</span>
+          <span :class="profitClass(resolveTodayPnl(scope.row))">{{
+            formatPercent(resolveTodayPnlRate(scope.row))
+          }}</span>
+        </div>
       </template>
     </el-table-column>
     <el-table-column
@@ -275,11 +285,90 @@ function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(2)}%`;
 }
 
+function normalizeRateToRatio(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return 0;
+  }
+  // 后端若返回百分比口径（例如 -1.23）需换算为比例口径（-0.0123）。
+  if (Math.abs(num) > 1) {
+    return num / 100;
+  }
+  return num;
+}
+
 function profitClass(value) {
   const num = Number(value || 0);
   if (num > 0) return 'profit-up';
   if (num < 0) return 'profit-down';
   return '';
+}
+
+function pickFirstNumber(row, keys = []) {
+  for (const key of keys) {
+    const value = Number(row?.[key]);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function resolveTodayPnl(row) {
+  const directValue = pickFirstNumber(row, [
+    'today_pnl',
+    'today_unrealized_pnl',
+    'today_profit',
+    'daily_pnl',
+    'day_pnl',
+  ]);
+  if (directValue !== null) {
+    return directValue;
+  }
+  const currentPrice = Number(row?.current_price || 0);
+  const prevClose = Number(row?.quote?.prev_close || row?.prev_close || 0);
+  const totalQty = Number(row?.total_quantity || 0);
+  if (
+    Number.isFinite(currentPrice) &&
+    Number.isFinite(prevClose) &&
+    Number.isFinite(totalQty) &&
+    currentPrice > 0 &&
+    prevClose > 0 &&
+    totalQty > 0
+  ) {
+    return (currentPrice - prevClose) * totalQty;
+  }
+  return 0;
+}
+
+function resolveTodayPnlRate(row) {
+  const directRate = pickFirstNumber(row, [
+    'today_pnl_rate',
+    'today_change_rate',
+    'daily_pnl_rate',
+    'day_pnl_rate',
+  ]);
+  if (directRate !== null) {
+    return normalizeRateToRatio(directRate);
+  }
+  const quoteRate = Number(row?.quote?.change_rate);
+  if (Number.isFinite(quoteRate)) {
+    return normalizeRateToRatio(quoteRate);
+  }
+  const currentPrice = Number(row?.current_price || 0);
+  const prevClose = Number(row?.quote?.prev_close || row?.prev_close || 0);
+  if (currentPrice > 0 && prevClose > 0) {
+    return (currentPrice - prevClose) / prevClose;
+  }
+  return 0;
+}
+
+function sortByHoldingPnl(left, right) {
+  return Number(left?.unrealized_pnl || 0) - Number(right?.unrealized_pnl || 0);
+}
+
+function sortByTodayPnl(left, right) {
+  return resolveTodayPnl(left) - resolveTodayPnl(right);
 }
 
 function normalizeDate(value) {
@@ -428,5 +517,11 @@ function openStockDetail(row) {
 
 .profit-down {
   color: #1f8a5b;
+}
+
+.dual-line-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.45;
 }
 </style>

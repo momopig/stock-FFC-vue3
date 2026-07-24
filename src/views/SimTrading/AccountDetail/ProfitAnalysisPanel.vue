@@ -198,13 +198,15 @@
                   min-width="140"
                 >
                   <template #default="scope">
-                    <button
-                      type="button"
-                      class="ranking-link-button"
-                      @click="handleRankingStockClick(scope.row)"
-                    >
-                      {{ formatRankingStockName(scope.row) }}
-                    </button>
+                    <div class="ranking-name-cell">
+                      <button
+                        type="button"
+                        class="ranking-link-button"
+                        @click="openBaiduStockPage(scope.row)"
+                      >
+                         <span>{{ formatRankingStockName(scope.row) }}</span>
+                      </button>
+                    </div>
                   </template>
                 </el-table-column>
                 <el-table-column prop="stock_code" label="代码" width="120" />
@@ -246,6 +248,25 @@
                   <template #default="scope">{{
                     formatHoldingDays(scope.row.holding_days)
                   }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="180" fixed="right">
+                  <template #default="scope">
+                    <el-space>
+                      <el-button
+                        link
+                        type="primary"
+                        @click="openHistoryTradesPage(scope.row)"
+                      >
+                        历史成交
+                      </el-button>
+                      <el-button
+                        link
+                        @click="openBaiduStockPage(scope.row)"
+                      >
+                        百度查股
+                      </el-button>
+                    </el-space>
+                  </template>
                 </el-table-column>
               </el-table>
             </section>
@@ -898,7 +919,28 @@ function formatRankingStockName(row) {
   return formatTradeStockName(row?.stock_name, row?.stock_code);
 }
 
-function handleRankingStockClick(row) {
+function normalizeStockDigits(stockCode) {
+  return String(stockCode || '').replace(/[^0-9]/g, '');
+}
+
+function getBaiduStockUrl(row) {
+  const digits = normalizeStockDigits(row?.stock_code);
+  if (!digits) {
+    return '';
+  }
+  return `https://finance.baidu.com/stock/ab-${digits}`;
+}
+
+function openBaiduStockPage(row) {
+  const url = getBaiduStockUrl(row);
+  if (!url) {
+    ElMessage.warning('股票代码无效，无法跳转百度查股');
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+function openHistoryTradesPage(row) {
   emit('view-history-trades', {
     stock_code: row?.stock_code || '',
     stock_name: row?.stock_name || '',
@@ -1259,6 +1301,12 @@ function formatDayNumber(value) {
 .calendar-breakdown-empty {
   font-size: 12px;
   color: #7b8794;
+}
+
+.ranking-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .curve-tooltip__title {
