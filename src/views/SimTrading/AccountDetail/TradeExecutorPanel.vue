@@ -303,6 +303,7 @@
                   <el-button type="primary" @click="applyBatchFilters">查询</el-button>
                 </div>
                 <el-table :data="batchPage.items" border v-loading="batchesLoading">
+                  <el-table-column prop="id" label="日志id" width="110" sortable />
                   <el-table-column prop="created_time" label="提交时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
                   </el-table-column>
@@ -314,13 +315,74 @@
                       </div>
                     </template>
                   </el-table-column>
+                  <el-table-column label="交易策略" min-width="260">
+                    <template #default="scope">
+                      <el-button
+                        v-if="scope.row.strategy_name"
+                        link
+                        type="primary"
+                        class="strategy-link-wrap"
+                        @click="jumpToStrategyLog(scope.row)"
+                      >
+                        <span class="strategy-link-text">{{ scope.row.strategy_name }}({{ formatStrategyCategory(scope.row.strategy_category) }})</span>
+                      </el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易执行器模式" min-width="160">
+                    <template #default="scope">
+                      {{ formatExecutionMode(scope.row.execution_mode) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="定价基准价(base_price)" min-width="170" sortable>
+                    <template #default="scope">
+                      {{ formatBasePrice(scope.row.pricing_base_price) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="基准价来源" min-width="150">
+                    <template #default="scope">
+                      {{ formatBaseSource(scope.row.pricing_base_source) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="偏移比例" min-width="140" sortable>
+                    <template #default="scope">
+                      {{ formatOffsetRatio(scope.row) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="推导结果(公式)" min-width="280">
+                    <template #default="scope">
+                      <span class="strategy-link-text">{{ formatPricingDerivation(scope.row) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="委托价格" min-width="130" sortable>
+                    <template #default="scope">
+                      {{ formatOrderPrice(scope.row.submitted_order_price) }}
+                    </template>
+                  </el-table-column>
                   <el-table-column prop="direction" label="方向" width="90" />
-                  <el-table-column prop="requested_order_type" label="委托类型" width="110" />
+                  <el-table-column label="委托类型" width="110">
+                    <template #default="scope">
+                      {{ getOrderTypeLabel(scope.row.submitted_order_type || scope.row.requested_order_type) }}
+                    </template>
+                  </el-table-column>
                   <el-table-column prop="requested_quantity" label="原始数量" width="110" sortable />
                   <el-table-column label="拆单进度" min-width="150">
                     <template #default="scope">{{ scope.row.submitted_child_count }}/{{ scope.row.child_order_count }}</template>
                   </el-table-column>
-                  <el-table-column prop="primary_order_id" label="主返回单号" min-width="140" />
+                  <el-table-column label="主返回单号" min-width="160">
+                    <template #default="scope">
+                      <el-button
+                        v-if="scope.row.primary_order_id"
+                        link
+                        type="primary"
+                        class="order-link-wrap"
+                        @click="jumpToOrderQuery(scope.row)"
+                      >
+                        <span class="order-link-text">{{ scope.row.primary_order_id }}</span>
+                      </el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="状态" width="130">
                     <template #default="scope">
                       <el-tag :type="batchStatusTagType(scope.row.status)">{{ formatBatchStatus(scope.row.status) }}</el-tag>
@@ -547,6 +609,8 @@ const props = defineProps({
     default: null,
   },
 });
+
+const emit = defineEmits(['jump-strategy-log', 'jump-order-query']);
 
 const loading = ref(false);
 const saving = ref(false);
@@ -1143,6 +1207,15 @@ function runtimeOrderTypeLabel(value) {
   };
 }
 
+function getOrderTypeLabel(value) {
+  const normalized = String(value || '').toUpperCase();
+  const mapping = {
+    LIMIT: '限价',
+    MARKET: '市价',
+  };
+  return mapping[normalized] || value || '--';
+}
+
 function operationTypeLabel(value) {
   const normalized = String(value || '').toUpperCase();
   const mapping = {
@@ -1274,6 +1347,143 @@ function lifecycleStatusTagType(value) {
     return 'info';
   }
   return 'info';
+}
+
+function formatStrategyCategory(value) {
+  const categoryMap = {
+    ACCOUNT_RISK: '账号风控',
+    OPEN_POSITION: '建仓',
+    CLOSE_POSITION: '清仓',
+    INTRADAY_T: '做T',
+  };
+  const normalized = String(value || '').trim().toUpperCase();
+  return categoryMap[normalized] || value || '--';
+}
+
+function formatExecutionMode(value) {
+  const modeMap = {
+    ADVANCED_AUTO: '高级自动模式',
+    FIXED_MARKET: '固定市价模式',
+    FIXED_LIMIT: '固定限价模式',
+  };
+  const normalized = String(value || '').trim().toUpperCase();
+  return modeMap[normalized] || value || '--';
+}
+
+function formatBasePrice(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return '--';
+  }
+  return numberValue.toFixed(4);
+}
+
+function formatBaseSource(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  const mapping = {
+    last_price: '最新价(last_price)',
+    reference_last_price: '参考价(reference_last_price)',
+    requested_order_price: '请求委托价(requested_order_price)',
+    bid_price: '买盘价(bid_price)',
+    ask_price: '卖盘价(ask_price)',
+    bid_px: '买盘价(bid_px)',
+    ask_px: '卖盘价(ask_px)',
+    bid_quote: '买盘报价(bid_quote)',
+    ask_quote: '卖盘报价(ask_quote)',
+  };
+  if (mapping[normalized]) {
+    return mapping[normalized];
+  }
+
+  const levelMatch = normalized.match(/^(bid|buy|ask|sell)(?:_price)?(\d+)$/i);
+  if (levelMatch) {
+    const side = levelMatch[1].toLowerCase();
+    const level = levelMatch[2];
+    if (side === 'bid' || side === 'buy') {
+      return `买${level}价(${normalized})`;
+    }
+    return `卖${level}价(${normalized})`;
+  }
+
+  return value || '--';
+}
+
+function resolveOffsetRatio(row) {
+  const direction = String(row?.direction || '').trim().toUpperCase();
+  if (direction === 'SELL') {
+    const sellRatio = Number(row?.sell_offset_ratio);
+    return Number.isFinite(sellRatio) && sellRatio >= 0 ? sellRatio : null;
+  }
+  if (direction === 'BUY') {
+    const configRatio = Number(row?.config_snapshot_json?.limit_buy_offset_ratio);
+    return Number.isFinite(configRatio) && configRatio >= 0 ? configRatio : null;
+  }
+  return null;
+}
+
+function formatOffsetRatio(row) {
+  const ratioValue = resolveOffsetRatio(row);
+  if (!Number.isFinite(ratioValue) || ratioValue < 0) {
+    return '--';
+  }
+  return `${(ratioValue * 100).toFixed(2)}%`;
+}
+
+function formatPricingDerivation(row) {
+  const basePrice = Number(row?.pricing_base_price);
+  const ratioValue = resolveOffsetRatio(row);
+  const direction = String(row?.direction || '').trim().toUpperCase();
+  const submittedPrice = Number(row?.submitted_order_price);
+  const formulaResultPrice = Number(row?.pricing_formula_result_price);
+
+  if (!Number.isFinite(basePrice) || basePrice <= 0 || !Number.isFinite(ratioValue) || ratioValue < 0) {
+    return '--';
+  }
+  const sign = direction === 'BUY' ? '+' : '-';
+  const rawPrice = direction === 'BUY'
+    ? basePrice * (1 + ratioValue)
+    : basePrice * (1 - ratioValue);
+  const finalPrice = Number.isFinite(submittedPrice) && submittedPrice > 0
+    ? submittedPrice
+    : (Number.isFinite(formulaResultPrice) && formulaResultPrice > 0 ? formulaResultPrice : null);
+  if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    return `${basePrice.toFixed(4)} × (1 ${sign} ${(ratioValue * 100).toFixed(2)}%) = ${rawPrice.toFixed(4)}`;
+  }
+  return `${basePrice.toFixed(4)} × (1 ${sign} ${(ratioValue * 100).toFixed(2)}%) = ${rawPrice.toFixed(4)} -> ${finalPrice.toFixed(2)}`;
+}
+
+function formatOrderPrice(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return '--';
+  }
+  return numberValue.toFixed(2);
+}
+
+function jumpToStrategyLog(row) {
+  const strategyName = String(row?.strategy_name || '').trim();
+  if (!strategyName) {
+    ElMessage.warning('当前批次缺少策略名称，无法跳转');
+    return;
+  }
+  emit('jump-strategy-log', {
+    strategyName,
+    strategyCategory: String(row?.strategy_category || '').trim().toUpperCase(),
+    sourceBatchId: Number(row?.id || 0),
+  });
+}
+
+function jumpToOrderQuery(row) {
+  const orderNo = String(row?.primary_order_id || '').trim();
+  if (!orderNo) {
+    ElMessage.warning('当前批次暂无主返回单号');
+    return;
+  }
+  emit('jump-order-query', {
+    orderNo,
+    createdTime: row?.created_time || '',
+    sourceBatchId: Number(row?.id || 0),
+  });
 }
 
 async function loadBundle() {
@@ -1930,6 +2140,21 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.strategy-link-wrap,
+.order-link-wrap {
+  max-width: 100%;
+  height: auto;
+  padding: 0;
+  text-align: left;
+}
+
+.strategy-link-text,
+.order-link-text {
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.5;
 }
 
 .copy-target-list {

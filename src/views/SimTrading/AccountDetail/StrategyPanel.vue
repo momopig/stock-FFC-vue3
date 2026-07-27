@@ -917,6 +917,10 @@ const props = defineProps({
     type: [Number, String],
     default: 0,
   },
+  logJumpSignal: {
+    type: Object,
+    default: null,
+  },
 });
 
 const router = useRouter();
@@ -1139,6 +1143,37 @@ function getActiveInnerTab() {
   return innerTabByCategory[activeCategoryTab.value] || 'config';
 }
 
+function normalizeLogJumpCategory(category) {
+  const normalized = String(category || '').trim().toUpperCase();
+  const validCategories = new Set([
+    'ACCOUNT_RISK',
+    'OPEN_POSITION',
+    'CLOSE_POSITION',
+    'INTRADAY_T',
+    LOG_OVERVIEW_CATEGORY,
+  ]);
+  if (validCategories.has(normalized)) {
+    return normalized;
+  }
+  return LOG_OVERVIEW_CATEGORY;
+}
+
+async function applyExternalLogJump(signal) {
+  if (!signal || typeof signal !== 'object') {
+    return;
+  }
+  const targetCategory = normalizeLogJumpCategory(signal.strategyCategory);
+  const keyword = String(signal.keyword || '').trim();
+  activeCategoryTab.value = targetCategory;
+  innerTabByCategory[targetCategory] = 'logs';
+  const logState = getCategoryLogState(targetCategory);
+  logState.filters.keyword = keyword;
+  logState.pagination.page = 1;
+  logState.loaded = false;
+  await nextTick();
+  await loadLogs({ force: true, category: targetCategory });
+}
+
 watch(activeCategoryTab, () => {
   if (getActiveInnerTab() === 'logs') {
     loadLogs();
@@ -1164,6 +1199,20 @@ watch(
       loadLogs();
     }
   }
+);
+
+watch(
+  () => props.logJumpSignal,
+  (signal) => {
+    if (!signal) {
+      return;
+    }
+    applyExternalLogJump(signal).catch((error) => {
+      console.error(error);
+      ElMessage.error(error?.message || '跳转策略日志失败');
+    });
+  },
+  { deep: true }
 );
 
 async function loadAll() {

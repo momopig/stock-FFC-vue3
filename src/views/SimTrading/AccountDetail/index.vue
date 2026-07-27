@@ -291,6 +291,7 @@
             v-if="currentAccount && supportsStrategyAutomation"
             :account-id="activeAccountId"
             :account-total-asset="summary.current_total_asset"
+            :log-jump-signal="strategyLogJumpSignal"
           />
           <el-alert
             v-else
@@ -311,6 +312,8 @@
             :account-id="activeAccountId"
             :accounts="accounts"
             :current-account="currentAccount"
+            @jump-strategy-log="handleTradeExecutorJumpStrategy"
+            @jump-order-query="handleTradeExecutorJumpOrderQuery"
           />
         </el-tab-pane>
 
@@ -1333,6 +1336,11 @@
                     min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
+                  <el-table-column label="委托类型" width="90">
+                    <template #default="scope">{{
+                      getOrderTypeLabel(scope.row.order_type)
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{
                       getDirectionLabel(scope.row.direction)
@@ -1476,6 +1484,11 @@
                     min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
+                  <el-table-column label="委托类型" width="90">
+                    <template #default="scope">{{
+                      getOrderTypeLabel(resolveTradeOrderType(scope.row))
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{
                       getDirectionLabel(scope.row.direction)
@@ -1613,6 +1626,11 @@
                     min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
+                  <el-table-column label="委托类型" width="90">
+                    <template #default="scope">{{
+                      getOrderTypeLabel(scope.row.order_type)
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{
                       getDirectionLabel(scope.row.direction)
@@ -1760,6 +1778,11 @@
                     min-width="100"
                   />
                   <el-table-column prop="stock_code" label="代码" width="120" />
+                  <el-table-column label="委托类型" width="90">
+                    <template #default="scope">{{
+                      getOrderTypeLabel(resolveTradeOrderType(scope.row))
+                    }}</template>
+                  </el-table-column>
                   <el-table-column label="方向" width="90">
                     <template #default="scope">{{
                       getDirectionLabel(scope.row.direction)
@@ -2100,6 +2123,7 @@ const conditionOrders = ref([]);
 const trades = ref([]);
 const cashFlows = ref([]);
 const activeQueryTab = ref('today-orders');
+const strategyLogJumpSignal = ref(null);
 const selectedOpenOrderIds = ref([]);
 const cancelingOrderIds = ref([]);
 const batchCancelLoading = ref(false);
@@ -3106,6 +3130,34 @@ function getTradeContextItems(row) {
   return items;
 }
 
+function resolveTradeOrderType(row) {
+  const tradeOrderType = String(row?.order_type || '').trim().toUpperCase();
+  if (tradeOrderType) {
+    return tradeOrderType;
+  }
+  const orderId = Number(row?.order_id || 0);
+  if (orderId > 0) {
+    const matchedById = allOrders.value.find(
+      (item) => Number(item?.id || 0) === orderId
+    );
+    const matchedByIdType = String(matchedById?.order_type || '').trim().toUpperCase();
+    if (matchedByIdType) {
+      return matchedByIdType;
+    }
+  }
+  const orderNo = String(row?.order_no || '').trim();
+  if (orderNo) {
+    const matchedByNo = allOrders.value.find(
+      (item) => String(item?.order_no || '').trim() === orderNo
+    );
+    const matchedByNoType = String(matchedByNo?.order_type || '').trim().toUpperCase();
+    if (matchedByNoType) {
+      return matchedByNoType;
+    }
+  }
+  return '';
+}
+
 function getOrderTypeLabel(orderType) {
   const map = {
     LIMIT: '限价',
@@ -4052,6 +4104,39 @@ function handleProfitRankingTradeHistory(payload) {
   activeQueryTab.value = 'history-trades';
   queryForm.keyword = payload?.stock_name || payload?.stock_code || '';
   queryForm.orderKeyword = '';
+  applyQueryFilters();
+}
+
+function handleTradeExecutorJumpStrategy(payload) {
+  const strategyName = String(payload?.strategyName || '').trim();
+  if (!strategyName) {
+    ElMessage.warning('当前批次缺少策略名称，无法跳转到策略日志');
+    return;
+  }
+  activeTab.value = 'strategy';
+  strategyLogJumpSignal.value = {
+    keyword: strategyName,
+    strategyCategory: String(payload?.strategyCategory || '').trim().toUpperCase(),
+    token: Date.now(),
+  };
+}
+
+function handleTradeExecutorJumpOrderQuery(payload) {
+  const orderNo = String(payload?.orderNo || '').trim();
+  if (!orderNo) {
+    ElMessage.warning('当前批次缺少主返回单号，无法跳转');
+    return;
+  }
+  activeTab.value = 'query';
+  activeQueryTab.value = isToday(payload?.createdTime)
+    ? 'today-orders'
+    : 'history-orders';
+  queryForm.keyword = '';
+  queryForm.orderKeyword = orderNo;
+  queryForm.direction = '';
+  queryForm.orderStatus = '';
+  queryForm.flowType = '';
+  queryForm.dateRange = [];
   applyQueryFilters();
 }
 
