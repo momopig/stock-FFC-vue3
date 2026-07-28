@@ -341,7 +341,38 @@
                   </el-table-column>
                   <el-table-column label="基准价来源" min-width="150">
                     <template #default="scope">
-                      {{ formatBaseSource(scope.row.pricing_base_source) }}
+                      <el-tooltip
+                        v-if="buildBaseSourceTooltipLines(scope.row).length"
+                        placement="top"
+                        effect="dark"
+                      >
+                        <template #content>
+                          <div class="quote-tooltip-lines">
+                            <div
+                              v-for="(line, index) in buildBaseSourceTooltipLines(scope.row)"
+                              :key="`${scope.row.id || 'row'}-${index}-${line}`"
+                            >
+                              {{ line }}
+                            </div>
+                          </div>
+                        </template>
+                        <span class="strategy-link-text">{{ formatBaseSource(scope.row.pricing_base_source) }}</span>
+                      </el-tooltip>
+                      <span v-else>{{ formatBaseSource(scope.row.pricing_base_source) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="买卖五档" min-width="220">
+                    <template #default="scope">
+                      <div class="quote-depth-list">
+                        <div
+                          v-for="(line, index) in buildOrderBookFiveLines(scope.row)"
+                          :key="`${scope.row.id || 'row'}-depth-${index}-${line.label}`"
+                          class="quote-depth-row"
+                        >
+                          <span class="quote-depth-label">{{ line.label }}</span>
+                          <span class="quote-depth-value">{{ line.value }}</span>
+                        </div>
+                      </div>
                     </template>
                   </el-table-column>
                   <el-table-column label="偏移比例" min-width="140" sortable>
@@ -1379,7 +1410,20 @@ function formatBasePrice(value) {
 }
 
 function formatBaseSource(value) {
-  const normalized = String(value || '').trim().toLowerCase();
+  const rawValue = String(value || '').trim();
+  const normalized = rawValue.toLowerCase();
+  const levelTaggedMatch = normalized.match(/^([a-z_0-9]+)@l(\d+)$/i);
+  if (levelTaggedMatch) {
+    const sourceKey = levelTaggedMatch[1];
+    const sourceLevel = levelTaggedMatch[2];
+    if (/^(bid|buy)/i.test(sourceKey)) {
+      return `买${sourceLevel}价(${sourceKey})`;
+    }
+    if (/^(ask|sell)/i.test(sourceKey)) {
+      return `卖${sourceLevel}价(${sourceKey})`;
+    }
+    return `${sourceKey}@L${sourceLevel}`;
+  }
   const mapping = {
     last_price: '最新价(last_price)',
     reference_last_price: '参考价(reference_last_price)',
@@ -1405,7 +1449,73 @@ function formatBaseSource(value) {
     return `卖${level}价(${normalized})`;
   }
 
-  return value || '--';
+  return rawValue || '--';
+}
+
+function extractQuoteDepthPrice(quoteSnapshot, sidePrefix, level) {
+  const candidates = sidePrefix === 'BUY'
+    ? [`buy${level}`, `buy_price${level}`, `bid${level}`, `bid_price${level}`]
+    : [`sell${level}`, `sell_price${level}`, `ask${level}`, `ask_price${level}`];
+  for (const key of candidates) {
+    const numberValue = Number(quoteSnapshot?.[key]);
+    if (Number.isFinite(numberValue) && numberValue > 0) {
+      return { key, value: numberValue };
+    }
+  }
+  return null;
+}
+
+function buildBaseSourceTooltipLines(row) {
+  const latestQuote = row?.plan_snapshot_json?.latest_quote || {};
+  const lines = [];
+  const sourceLabel = formatBaseSource(row?.pricing_base_source);
+  if (sourceLabel && sourceLabel !== '--') {
+    lines.push(`命中来源: ${sourceLabel}`);
+  }
+
+  const quoteStatus = String(latestQuote?.quote_status || '').trim();
+  if (quoteStatus) {
+    lines.push(`行情状态: ${quoteStatus}`);
+  }
+
+  const lastPrice = Number(latestQuote?.last_price);
+  if (Number.isFinite(lastPrice) && lastPrice > 0) {
+    lines.push(`现价(last_price): ${lastPrice.toFixed(4)}`);
+  }
+
+  for (let level = 1; level <= 5; level += 1) {
+    const buyInfo = extractQuoteDepthPrice(latestQuote, 'BUY', level);
+    if (buyInfo) {
+      lines.push(`买${level}: ${buyInfo.value.toFixed(4)} (${buyInfo.key})`);
+    }
+  }
+  for (let level = 1; level <= 5; level += 1) {
+    const sellInfo = extractQuoteDepthPrice(latestQuote, 'SELL', level);
+    if (sellInfo) {
+      lines.push(`卖${level}: ${sellInfo.value.toFixed(4)} (${sellInfo.key})`);
+    }
+  }
+  return lines;
+}
+
+function buildOrderBookFiveLines(row) {
+  const latestQuote = row?.plan_snapshot_json?.latest_quote || {};
+  const rows = [];
+  for (let level = 5; level >= 1; level -= 1) {
+    const sellInfo = extractQuoteDepthPrice(latestQuote, 'SELL', level);
+    rows.push({
+      label: `卖${level}`,
+      value: sellInfo ? sellInfo.value.toFixed(4) : '--',
+    });
+  }
+  for (let level = 1; level <= 5; level += 1) {
+    const buyInfo = extractQuoteDepthPrice(latestQuote, 'BUY', level);
+    rows.push({
+      label: `买${level}`,
+      value: buyInfo ? buyInfo.value.toFixed(4) : '--',
+    });
+  }
+  return rows;
 }
 
 function resolveOffsetRatio(row) {
@@ -2155,6 +2265,35 @@ onMounted(() => {
   white-space: normal;
   word-break: break-all;
   line-height: 1.5;
+}
+
+.quote-tooltip-lines {
+  max-width: 360px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.quote-depth-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.quote-depth-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  line-height: 1.35;
+}
+
+.quote-depth-label {
+  color: #475569;
+  min-width: 36px;
+}
+
+.quote-depth-value {
+  color: #0f172a;
 }
 
 .copy-target-list {
