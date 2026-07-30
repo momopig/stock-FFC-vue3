@@ -243,6 +243,18 @@
                   <el-table-column label="操作" width="220" fixed="right">
                     <template #default="scope">
                       <el-space wrap>
+                        <el-tooltip
+                          content="立即执行一次当前交易策略，便于观察执行日志与输出结果。"
+                          placement="top"
+                        >
+                          <el-button
+                            link
+                            type="warning"
+                            :loading="runningBindingId === scope.row.id"
+                            @click="runSingleBindingDebug(scope.row)"
+                            >手动执行</el-button
+                          >
+                        </el-tooltip>
                         <el-button
                           link
                           type="primary"
@@ -889,6 +901,7 @@ import { useRouter } from 'vue-router';
 import {
   createAccountStrategyBinding,
   debugRunAccountStrategy,
+  debugRunAccountStrategyBinding,
   deleteAccountStrategyBinding,
   getAccountStrategyBindings,
   getAccountStrategyLogs,
@@ -953,6 +966,7 @@ const LOG_OVERVIEW_CATEGORY = 'ALL_LOGS';
 const loading = ref(false);
 const saving = ref(false);
 const savingBindingId = ref(null);
+const runningBindingId = ref(null);
 const activeCategoryTab = ref('ACCOUNT_RISK');
 const innerTabByCategory = reactive({
   ACCOUNT_RISK: 'config',
@@ -1814,6 +1828,25 @@ async function runDebugDispatch() {
     }
   } finally {
     saving.value = false;
+  }
+}
+
+async function runSingleBindingDebug(binding) {
+  if (!accountIdNumber.value || !binding?.id) {
+    return;
+  }
+  runningBindingId.value = binding.id;
+  try {
+    const res = await debugRunAccountStrategyBinding(accountIdNumber.value, binding.id);
+    ElMessage.success(res.payload?.message || '手动执行完成');
+    markAllLogStatesDirty();
+    await loadAll();
+    const category = String(binding.strategy_category || '').trim().toUpperCase() || LOG_OVERVIEW_CATEGORY;
+    activeCategoryTab.value = category;
+    innerTabByCategory[category] = 'logs';
+    await loadLogs({ force: true, category });
+  } finally {
+    runningBindingId.value = null;
   }
 }
 

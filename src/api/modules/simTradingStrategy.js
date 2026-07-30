@@ -118,3 +118,8 @@ export async function getAccountStrategyLogs(accountId, params = {}) {
 export async function debugRunAccountStrategy(accountId) {
   return await request.post(`${SIM_PREFIX}/accounts/${accountId}/strategy-dispatch/debug-run`);
 }
+
+
+export async function debugRunAccountStrategyBinding(accountId, bindingId) {
+  return await request.post(`${SIM_PREFIX}/accounts/${accountId}/strategy-bindings/${bindingId}/debug-run`);
+}

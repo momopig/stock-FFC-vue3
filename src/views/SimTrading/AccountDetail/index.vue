@@ -1979,7 +1979,7 @@
         </el-tab-pane>
       </el-tabs>
 
-      <el-dialog v-model="positionEditVisible" title="编辑持仓" width="460px">
+      <el-dialog v-model="positionEditVisible" title="编辑持仓" width="560px">
         <el-form :model="positionEditForm" label-width="110px">
           <el-form-item label="股票名称">
             <el-input
@@ -1994,18 +1994,67 @@
             />
           </el-form-item>
           <el-form-item label="总持仓">
-            <el-input
-              :model-value="editingPosition?.total_quantity || 0"
-              disabled
+            <el-input-number
+              v-model="positionEditForm.total_quantity"
+              :min="0"
+              :step="1"
+              :precision="0"
+              class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="可卖数量">
+            <el-input-number
+              v-model="positionEditForm.sellable_quantity"
+              :min="0"
+              :step="1"
+              :precision="0"
+              class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="冻结数量">
+            <el-input-number
+              v-model="positionEditForm.frozen_quantity"
+              :min="0"
+              :step="1"
+              :precision="0"
+              class="full-width"
             />
           </el-form-item>
           <el-form-item label="成本价">
             <el-input-number
               v-model="positionEditForm.avg_cost_price"
               :min="0"
-              :precision="6"
+              :precision="2"
               :step="0.01"
               class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="数量校验">
+            <el-input
+              :model-value="positionEditQuantityValidationText"
+              :class="positionEditQuantityValidationPass ? 'value-pass' : 'value-fail'"
+              disabled
+            />
+          </el-form-item>
+          <el-form-item label="持仓盈亏(参考)">
+            <el-input
+              :model-value="formatMoney(positionEditPreview.unrealizedPnl)"
+              :class="profitClass(positionEditPreview.unrealizedPnl)"
+              disabled
+            />
+          </el-form-item>
+          <el-form-item label="持仓盈亏比例(参考)">
+            <el-input
+              :model-value="formatPercent(positionEditPreview.pnlRate)"
+              :class="profitClass(positionEditPreview.pnlRate)"
+              disabled
+            />
+          </el-form-item>
+          <el-form-item label="亏损占总资产(%)">
+            <el-input
+              :model-value="formatPercent(positionEditPreview.lossToAssetRatio)"
+              :class="profitClass(-Number(positionEditPreview.lossToAssetRatio || 0))"
+              disabled
             />
           </el-form-item>
         </el-form>
@@ -2246,7 +2295,12 @@ const conditionForm = reactive({
 
 const depositForm = reactive({ amount: 10000, reason: '' });
 const withdrawForm = reactive({ amount: 1000, reason: '' });
-const positionEditForm = reactive({ avg_cost_price: 0 });
+const positionEditForm = reactive({
+  avg_cost_price: 0,
+  total_quantity: 0,
+  sellable_quantity: 0,
+  frozen_quantity: 0,
+});
 const maxAvailableCashForm = reactive({
   enabled: false,
   mode: 'CUSTOM',
@@ -2419,6 +2473,38 @@ const canSaveMaxAvailableCashSettings = computed(() => {
   return true;
 });
 const positions = computed(() => detailPayload.value?.positions || []);
+const positionEditQuantityValidationPass = computed(() => {
+  const totalQuantity = Number(positionEditForm.total_quantity || 0);
+  const sellableQuantity = Number(positionEditForm.sellable_quantity || 0);
+  const frozenQuantity = Number(positionEditForm.frozen_quantity || 0);
+  return totalQuantity === sellableQuantity + frozenQuantity;
+});
+const positionEditQuantityValidationText = computed(() => {
+  const totalQuantity = Number(positionEditForm.total_quantity || 0);
+  const sellableQuantity = Number(positionEditForm.sellable_quantity || 0);
+  const frozenQuantity = Number(positionEditForm.frozen_quantity || 0);
+  if (positionEditQuantityValidationPass.value) {
+    return `通过：${totalQuantity} = ${sellableQuantity} + ${frozenQuantity}`;
+  }
+  return `不通过：${totalQuantity} != ${sellableQuantity} + ${frozenQuantity}`;
+});
+const positionEditPreview = computed(() => {
+  const currentPrice = Number(editingPosition.value?.current_price || 0);
+  const avgCostPrice = Number(positionEditForm.avg_cost_price || 0);
+  const totalQuantity = Number(positionEditForm.total_quantity || 0);
+  const unrealizedPnl = (currentPrice - avgCostPrice) * totalQuantity;
+  const pnlRate = avgCostPrice > 0 ? (currentPrice - avgCostPrice) / avgCostPrice : 0;
+  const currentTotalAsset = Number(summary.value?.current_total_asset || 0);
+  const lossToAssetRatio =
+    unrealizedPnl < 0 && currentTotalAsset > 0
+      ? Math.abs(unrealizedPnl) / currentTotalAsset
+      : 0;
+  return {
+    unrealizedPnl,
+    pnlRate,
+    lossToAssetRatio,
+  };
+});
 const buyQuickPositions = computed(() => positions.value);
 const sellQuickPositions = computed(() =>
   positions.value.filter((item) => Number(item.sellable_quantity || 0) > 0)
@@ -3935,11 +4021,14 @@ function refreshSelectedStock(selectedStock, targetForm, side) {
 
 function openEditPositionDialog(row) {
   if (!isSimulatedAccount.value) {
-    ElMessage.info('真实券商持仓不支持在 FFC 中直接修改成本价');
+    ElMessage.info('真实券商持仓不支持在 FFC 中直接修改调试持仓字段');
     return;
   }
   editingPosition.value = row;
   positionEditForm.avg_cost_price = Number(row?.avg_cost_price || 0);
+  positionEditForm.total_quantity = Number(row?.total_quantity || 0);
+  positionEditForm.sellable_quantity = Number(row?.sellable_quantity || 0);
+  positionEditForm.frozen_quantity = Number(row?.frozen_quantity || 0);
   positionEditVisible.value = true;
 }
 
@@ -3951,20 +4040,39 @@ async function submitPositionEdit() {
     ElMessage.warning('成本价不能小于 0');
     return;
   }
+  if (!(Number(positionEditForm.total_quantity) >= 0)) {
+    ElMessage.warning('总持仓不能小于 0');
+    return;
+  }
+  if (!(Number(positionEditForm.sellable_quantity) >= 0)) {
+    ElMessage.warning('可卖数量不能小于 0');
+    return;
+  }
+  if (!(Number(positionEditForm.frozen_quantity) >= 0)) {
+    ElMessage.warning('冻结数量不能小于 0');
+    return;
+  }
+  if (!positionEditQuantityValidationPass.value) {
+    ElMessage.warning('总持仓必须等于可卖数量+冻结数量');
+    return;
+  }
   positionEditSubmitting.value = true;
   try {
     const res = await updateSimTradingPosition(
       Number(activeAccountId.value),
       editingPosition.value.id,
       {
-        avg_cost_price: Number(positionEditForm.avg_cost_price),
+        avg_cost_price: Number(Number(positionEditForm.avg_cost_price).toFixed(2)),
+        total_quantity: Number(positionEditForm.total_quantity),
+        sellable_quantity: Number(positionEditForm.sellable_quantity),
+        frozen_quantity: Number(positionEditForm.frozen_quantity),
       }
     );
     if (!res?.success) {
       ElMessage.error(res?.message || '更新持仓失败');
       return;
     }
-    ElMessage.success('持仓成本已更新');
+    ElMessage.success('持仓调试字段已更新');
     positionEditVisible.value = false;
     await loadAccountDetail();
   } catch (error) {
@@ -5691,6 +5799,16 @@ onUnmounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+.value-pass :deep(.el-input__inner) {
+  color: #1f8a5b;
+  font-weight: 600;
+}
+
+.value-fail :deep(.el-input__inner) {
+  color: #cf3f3f;
+  font-weight: 600;
 }
 
 .tab-toolbar {
