@@ -6,6 +6,26 @@
         <p>
           为真实账号维护执行器参数、复制模板、查看变更日志，并通过固定行情场景回放验证参数效果。
         </p>
+                  <el-card shadow="never" class="detail-card output-mode-card">
+            <template #header>
+              <div class="section-header">
+                <div>
+                  <h4>执行输出</h4>
+                  <p>控制执行器是提交真实买卖委托，还是只输出买卖通知用于人工确认。</p>
+                </div>
+              </div>
+            </template>
+            <el-radio-group v-model="configForm.execution_output_mode">
+              <el-radio-button
+                v-for="item in EXECUTION_OUTPUT_OPTIONS"
+                :key="item.value"
+                :label="item.value"
+              >
+                {{ item.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <p class="output-mode-tip">{{ currentExecutionOutputMeta.description }}</p>
+          </el-card>
       </div>
       <el-space wrap>
         <el-button @click="loadAll">刷新</el-button>
@@ -21,7 +41,9 @@
         <el-button type="info" plain @click="openCopyDialog">复制到其他账号</el-button>
         <el-button type="danger" plain :loading="resetting" @click="resetConfig">重置默认</el-button>
       </el-space>
+
     </div>
+
 
     <template v-if="bundle">
       <el-alert
@@ -75,26 +97,6 @@
             </div>
           </el-card>
 
-          <el-card shadow="never" class="detail-card output-mode-card">
-            <template #header>
-              <div class="section-header">
-                <div>
-                  <h4>执行输出</h4>
-                  <p>控制执行器是提交真实买卖委托，还是只输出买卖通知用于人工确认。</p>
-                </div>
-              </div>
-            </template>
-            <el-radio-group v-model="configForm.execution_output_mode">
-              <el-radio-button
-                v-for="item in EXECUTION_OUTPUT_OPTIONS"
-                :key="item.value"
-                :label="item.value"
-              >
-                {{ item.label }}
-              </el-radio-button>
-            </el-radio-group>
-            <p class="output-mode-tip">{{ currentExecutionOutputMeta.description }}</p>
-          </el-card>
         </el-tab-pane>
 
         <el-tab-pane label="模式配置" name="mode-config" lazy>
@@ -796,7 +798,7 @@ const EXECUTION_OUTPUT_OPTIONS = [
   {
     value: 'NOTIFY_ONLY',
     label: '执行买卖通知',
-    description: '仅生成交易通知和拆单日志，不触发真实下单。',
+    description: '仅生成交易通知和拆单日志，不触发真实下单。(可在委托单拆单日志查看)',
   },
 ];
 
