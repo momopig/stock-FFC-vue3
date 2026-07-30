@@ -699,6 +699,84 @@
           />
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="非交易时段委托配置" name="OFFHOURS_CONFIG" lazy>
+        <div class="category-header-card">
+          <h3>非交易时段委托配置</h3>
+          <p>
+            非交易时段，策略调度会从间隔轮询切换为单次触发任务，以减少无效资源消耗；
+            本配置同时用于控制非交易时段策略委托是否允许提交。
+          </p>
+        </div>
+
+        <el-card shadow="never" class="offhours-config-card">
+          <el-form label-width="260px">
+            <el-form-item label="非交易时段买卖委托">
+              <el-radio-group v-model="offhoursConfigForm.offhours_order_mode">
+                <el-radio label="ALLOW">允许委托</el-radio>
+                <el-radio label="REJECT">拒绝委托</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="非交易时段委托单未成交自动撤销时间">
+              <el-time-picker
+                v-model="offhoursConfigForm.offhours_cancel_unfilled_time"
+                value-format="HH:mm"
+                format="HH:mm"
+                placeholder="请选择时间"
+                :clearable="false"
+              />
+              <div class="field-help-text">
+                默认 09:45。到达该时间后，系统会自动撤销仍未成交的非交易时段策略委托单。
+              </div>
+            </el-form-item>
+            <el-form-item>
+              <template #label>
+                <span>
+                  交易策略非交易时段单次触发时间
+                  <el-tooltip
+                    content="非交易时段，交易策略从间隔轮询改为单次执行任务，以节约服务器资源。"
+                    placement="top"
+                  >
+                    <el-icon class="label-help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </span>
+              </template>
+              <div class="offhours-time-inline">
+                <span class="offhours-time-sep">午休</span>
+                <el-time-picker
+                  v-model="offhoursConfigForm.offhours_noon_trigger_time"
+                  value-format="HH:mm"
+                  format="HH:mm"
+                  placeholder="午休触发时间"
+                  :clearable="false"
+                />
+                <span class="offhours-time-sep">午后</span>
+                <el-time-picker
+                  v-model="offhoursConfigForm.offhours_afternoon_trigger_time"
+                  value-format="HH:mm"
+                  format="HH:mm"
+                  placeholder="午后触发时间"
+                  :clearable="false"
+                />
+              </div>
+            </el-form-item>
+
+            <el-form-item label="交易时段参考">
+              <div class="offhours-market-hours">
+                <div>A股：早盘 09:30 ~ 11:30，午盘 13:00 ~ 15:00</div>
+                <div>港股：早盘 09:30 ~ 12:00，午盘 13:00 ~ 16:00</div>
+                <div>美股（夏令时）：21:30 ~ 次日 04:00</div>
+                <div>美股（冬令时）：22:30 ~ 次日 05:00</div>
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <div class="offhours-config-actions">
+            <el-button :disabled="saving" @click="syncOffhoursConfigForm">重置</el-button>
+            <el-button type="primary" :loading="saving" @click="saveOffhoursConfig">保存配置</el-button>
+          </div>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog
@@ -896,6 +974,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 
 import {
@@ -909,6 +988,7 @@ import {
   getExecutionStrategies,
   reorderAccountStrategyBindings,
   toggleAccountStrategySettings,
+  updateAccountStrategySettings,
   updateAccountStrategyBinding,
 } from '@/api/modules/simTradingStrategy';
 import { getGroupStocksByGroups, getUserGroups } from '@/api/modules/stockGroup';
@@ -987,8 +1067,19 @@ const stockFilterOptions = reactive({
 const stockFilterSearchLoading = ref(false);
 const settings = reactive({
   automation_enabled: false,
+  offhours_order_mode: 'ALLOW',
+  offhours_noon_trigger_time: '12:30',
+  offhours_afternoon_trigger_time: '16:30',
+  offhours_cancel_unfilled_time: '09:45',
   last_dispatch_status: '',
   last_dispatch_time: '',
+});
+
+const offhoursConfigForm = reactive({
+  offhours_order_mode: 'ALLOW',
+  offhours_noon_trigger_time: '12:30',
+  offhours_afternoon_trigger_time: '16:30',
+  offhours_cancel_unfilled_time: '09:45',
 });
 
 function createCategoryLogState() {
@@ -1243,6 +1334,7 @@ async function loadAll() {
         getUserGroups().catch(() => ({ payload: [] })),
       ]);
     Object.assign(settings, settingsRes.payload || {});
+    syncOffhoursConfigForm();
     bindings.value = bindingsRes.payload?.items || [];
     availableStrategies.value = strategiesRes.payload?.items || [];
     userGroups.value = Array.isArray(groupsRes?.payload?.items)
@@ -1338,6 +1430,43 @@ async function handleAutomationToggle(value) {
     });
     Object.assign(settings, res.payload || {});
     ElMessage.success(value ? '账号自动化已开启' : '账号自动化已关闭');
+  } finally {
+    saving.value = false;
+  }
+}
+
+function syncOffhoursConfigForm() {
+  offhoursConfigForm.offhours_order_mode =
+    String(settings.offhours_order_mode || 'ALLOW').toUpperCase() === 'REJECT'
+      ? 'REJECT'
+      : 'ALLOW';
+  offhoursConfigForm.offhours_noon_trigger_time =
+    String(settings.offhours_noon_trigger_time || '12:30') || '12:30';
+  offhoursConfigForm.offhours_afternoon_trigger_time =
+    String(settings.offhours_afternoon_trigger_time || '16:30') || '16:30';
+  offhoursConfigForm.offhours_cancel_unfilled_time =
+    String(settings.offhours_cancel_unfilled_time || '09:45') || '09:45';
+}
+
+async function saveOffhoursConfig() {
+  if (!accountIdNumber.value) {
+    return;
+  }
+  saving.value = true;
+  try {
+    const res = await updateAccountStrategySettings(accountIdNumber.value, {
+      offhours_order_mode: offhoursConfigForm.offhours_order_mode,
+      offhours_noon_trigger_time: offhoursConfigForm.offhours_noon_trigger_time,
+      offhours_afternoon_trigger_time:
+        offhoursConfigForm.offhours_afternoon_trigger_time,
+      offhours_cancel_unfilled_time:
+        offhoursConfigForm.offhours_cancel_unfilled_time,
+    });
+    Object.assign(settings, res.payload || {});
+    syncOffhoursConfigForm();
+    ElMessage.success('非交易时段委托配置已保存');
+  } catch (error) {
+    ElMessage.error(error?.message || '保存非交易时段委托配置失败');
   } finally {
     saving.value = false;
   }
@@ -2421,6 +2550,44 @@ function getForceMarketSwitchFlag(logRow) {
   line-height: 1.5;
 }
 
+.offhours-config-card {
+  border-radius: 14px;
+}
+
+.offhours-time-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.offhours-time-sep {
+  color: #606266;
+  font-size: 12px;
+}
+
+.offhours-market-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.offhours-config-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.label-help-icon {
+  margin-left: 6px;
+  color: #909399;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
 @media (max-width: 768px) {
   .strategy-toolbar,
   .toolbar-left,
@@ -2433,6 +2600,10 @@ function getForceMarketSwitchFlag(logRow) {
   .toolbar-select,
   .toolbar-card {
     width: 100%;
+  }
+
+  .offhours-config-actions {
+    justify-content: flex-start;
   }
 }
 </style>

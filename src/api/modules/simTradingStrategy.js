@@ -62,6 +62,11 @@ export async function toggleAccountStrategySettings(accountId, data) {
 }
 
 
+export async function updateAccountStrategySettings(accountId, data) {
+  return await request.patch(`${SIM_PREFIX}/accounts/${accountId}/strategy-settings`, data);
+}
+
+
 export async function getAccountStrategyBindings(accountId) {
   const cacheKey = `strategy-bindings:${Number(accountId)}`;
   const cached = readCache(cacheKey);
