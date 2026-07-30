@@ -74,6 +74,27 @@
               </div>
             </div>
           </el-card>
+
+          <el-card shadow="never" class="detail-card output-mode-card">
+            <template #header>
+              <div class="section-header">
+                <div>
+                  <h4>执行输出</h4>
+                  <p>控制执行器是提交真实买卖委托，还是只输出买卖通知用于人工确认。</p>
+                </div>
+              </div>
+            </template>
+            <el-radio-group v-model="configForm.execution_output_mode">
+              <el-radio-button
+                v-for="item in EXECUTION_OUTPUT_OPTIONS"
+                :key="item.value"
+                :label="item.value"
+              >
+                {{ item.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <p class="output-mode-tip">{{ currentExecutionOutputMeta.description }}</p>
+          </el-card>
         </el-tab-pane>
 
         <el-tab-pane label="模式配置" name="mode-config" lazy>
@@ -303,7 +324,20 @@
                   <el-button type="primary" @click="applyBatchFilters">查询</el-button>
                 </div>
                 <el-table :data="batchPage.items" border v-loading="batchesLoading">
-                  <el-table-column prop="id" label="日志id" width="110" sortable />
+                  <el-table-column label="日志id" width="120" sortable>
+                    <template #default="scope">
+                      <div class="batch-id-cell">
+                        <span>{{ scope.row.id }}</span>
+                        <el-tooltip
+                          v-if="isNotifyOnlyBatch(scope.row)"
+                          content="当前批次为通知模式，未触发真实委托下单。"
+                          placement="top"
+                        >
+                          <el-icon class="notify-icon"><BellFilled /></el-icon>
+                        </el-tooltip>
+                      </div>
+                    </template>
+                  </el-table-column>
                   <el-table-column prop="created_time" label="提交时间" min-width="180">
                     <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
                   </el-table-column>
@@ -332,6 +366,21 @@
                   <el-table-column label="交易执行器模式" min-width="160">
                     <template #default="scope">
                       {{ formatExecutionMode(scope.row.execution_mode) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="执行输出" min-width="160">
+                    <template #default="scope">
+                      {{ formatExecutionOutput(scope.row.execution_output) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易原因" min-width="260" show-overflow-tooltip>
+                    <template #default="scope">
+                      {{ formatTradeReason(scope.row.trade_reason) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="交易前持仓快照" min-width="220">
+                    <template #default="scope">
+                      <span class="strategy-link-text">{{ formatPreTradePositionSnapshot(scope.row.pre_trade_position_snapshot) }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="定价基准价(base_price)" min-width="170" sortable>
@@ -611,7 +660,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { QuestionFilled } from '@element-plus/icons-vue';
+import { BellFilled, QuestionFilled } from '@element-plus/icons-vue';
 
 import {
   getSimTradingTradeExecutorBatchChildren,
@@ -738,6 +787,24 @@ const EXECUTION_MODE_META_MAP = EXECUTION_MODE_OPTIONS.reduce((acc, item) => {
   return acc;
 }, {});
 
+const EXECUTION_OUTPUT_OPTIONS = [
+  {
+    value: 'EXECUTE_ORDER',
+    label: '执行买卖委托',
+    description: '按执行器模式直接提交真实委托到券商。',
+  },
+  {
+    value: 'NOTIFY_ONLY',
+    label: '执行买卖通知',
+    description: '仅生成交易通知和拆单日志，不触发真实下单。',
+  },
+];
+
+const EXECUTION_OUTPUT_META_MAP = EXECUTION_OUTPUT_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item;
+  return acc;
+}, {});
+
 const FIXED_MARKET_MODE_OPTIONS = [
   { value: 'FIVE_TURN_LIMIT', label: '最优五档即时成交剩余转限价' },
   { value: 'FIVE_CANCEL', label: '最优五档即时成交剩余撤销' },
@@ -755,6 +822,8 @@ const ENUM_VALUE_LABEL_MAP = {
   ADVANCED_AUTO: '高级自动模式',
   FIXED_MARKET: '固定市价模式',
   FIXED_LIMIT: '固定限价模式',
+  EXECUTE_ORDER: '执行买卖委托',
+  NOTIFY_ONLY: '执行买卖通知',
   ...FIXED_MARKET_MODE_LABEL_MAP,
   LIMIT: '限价单',
   MARKET: '市价单',
@@ -774,6 +843,7 @@ const PERCENT_FIELD_KEYS = [
 
 const RAW_DEFAULT_CONFIG = {
   execution_mode: 'ADVANCED_AUTO',
+  execution_output_mode: 'EXECUTE_ORDER',
   fixed_market_order_mode: 'FIVE_TURN_LIMIT',
   limit_buy_offset_ratio: 0.001,
   limit_sell_offset_ratio: 0.001,
@@ -807,6 +877,13 @@ const PARAMETER_FIELD_META = {
     label: '固定市价委托风格',
     help: '用于选择固定市价模式下的执行偏好；新手默认建议保留“五档成交剩余转限价”。',
     options: FIXED_MARKET_MODE_OPTIONS,
+  },
+  execution_output_mode: {
+    key: 'execution_output_mode',
+    type: 'select',
+    label: '执行输出',
+    help: '执行买卖委托会真实下单，执行买卖通知仅输出通知和日志。',
+    options: EXECUTION_OUTPUT_OPTIONS,
   },
   limit_buy_offset_ratio: {
     key: 'limit_buy_offset_ratio',
@@ -1026,6 +1103,7 @@ const PARAMETER_SECTION_DEFS = [
     description: '控制频控、重试、风控开关、队列和拆单等共性行为。',
     modes: ['ADVANCED_AUTO', 'FIXED_MARKET', 'FIXED_LIMIT'],
     fieldKeys: [
+      'execution_output_mode',
       'split_volume_threshold',
       'single_account_max_order_per_second',
       'order_timeout_ms',
@@ -1085,6 +1163,18 @@ const currentExecutionMode = computed(() => {
 
 const currentModeMeta = computed(() => {
   return EXECUTION_MODE_META_MAP[currentExecutionMode.value] || EXECUTION_MODE_OPTIONS[0];
+});
+
+const currentExecutionOutputMode = computed(() => {
+  const normalized = String(configForm.execution_output_mode || 'EXECUTE_ORDER').toUpperCase();
+  if (normalized === 'NOTIFY_ONLY') {
+    return 'NOTIFY_ONLY';
+  }
+  return 'EXECUTE_ORDER';
+});
+
+const currentExecutionOutputMeta = computed(() => {
+  return EXECUTION_OUTPUT_META_MAP[currentExecutionOutputMode.value] || EXECUTION_OUTPUT_OPTIONS[0];
 });
 
 const parameterSectionsByMode = computed(() => {
@@ -1399,6 +1489,35 @@ function formatExecutionMode(value) {
   };
   const normalized = String(value || '').trim().toUpperCase();
   return modeMap[normalized] || value || '--';
+}
+
+function formatExecutionOutput(value) {
+  const outputMap = {
+    EXECUTE_ORDER: '执行买卖委托',
+    NOTIFY_ONLY: '执行买卖通知',
+  };
+  const normalized = String(value || '').trim().toUpperCase();
+  return outputMap[normalized] || value || '--';
+}
+
+function isNotifyOnlyBatch(row) {
+  return String(row?.execution_output || '').trim().toUpperCase() === 'NOTIFY_ONLY';
+}
+
+function formatTradeReason(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '--';
+}
+
+function formatPreTradePositionSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return '--';
+  }
+  const totalQuantity = Number(snapshot.total_quantity || 0);
+  const sellableQuantity = Number(snapshot.sellable_quantity || 0);
+  const avgCostPrice = Number(snapshot.avg_cost_price || 0);
+  const normalizedAvgCost = Number.isFinite(avgCostPrice) ? avgCostPrice : 0;
+  return `总仓:${totalQuantity} 可卖:${sellableQuantity} 成本:${normalizedAvgCost.toFixed(4)}`;
 }
 
 function formatBasePrice(value) {
@@ -1962,6 +2081,22 @@ onMounted(() => {
 
 .filter-item--wide {
   width: 320px;
+}
+
+.output-mode-tip {
+  margin: 12px 0 0;
+  color: #5f6b7a;
+  line-height: 1.6;
+}
+
+.batch-id-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notify-icon {
+  color: #c62828;
 }
 </style>
 
