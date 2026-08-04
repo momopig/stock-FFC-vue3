@@ -85,6 +85,18 @@ export async function recoverSimTradingRuntime(accountId, data = {}) {
   return await request.post(`${API_PREFIX}/accounts/${accountId}/runtime-recover`, data);
 }
 
+export async function getSimTradingQmtReconcileStatus(accountId) {
+  return await request.get(`${API_PREFIX}/accounts/${accountId}/qmt-reconcile`);
+}
+
+export async function runSimTradingQmtReconcile(accountId) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/qmt-reconcile`);
+}
+
+export async function updateSimTradingQmtReconcileSettings(accountId, data = {}) {
+  return await request.post(`${API_PREFIX}/accounts/${accountId}/qmt-reconcile/settings`, data);
+}
+
 export async function getSimTradingTradeExecutorConfig(accountId) {
   return await request.get(`${API_PREFIX}/accounts/${accountId}/trade-executor/config`);
 }

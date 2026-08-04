@@ -1253,7 +1253,7 @@
               :closable="false"
               show-icon
             />
-            <div class="query-toolbar">
+            <div v-if="activeQueryTab !== 'qmt-reconcile'" class="query-toolbar">
               <el-input
                 v-model="queryForm.keyword"
                 clearable
@@ -1458,6 +1458,16 @@
                       formatDateTime(scope.row.placed_time)
                     }}</template>
                   </el-table-column>
+                  <el-table-column label="数据存储来源" width="140">
+                    <template #default="scope">
+                      <el-tag
+                        :type="getActivityStorageSourceTagType(scope.row)"
+                        effect="light"
+                      >
+                        {{ getActivityStorageSourceLabel(scope.row) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1599,6 +1609,16 @@
                     <template #default="scope">{{
                       formatDateTime(scope.row.traded_time)
                     }}</template>
+                  </el-table-column>
+                  <el-table-column label="数据存储来源" width="140">
+                    <template #default="scope">
+                      <el-tag
+                        :type="getActivityStorageSourceTagType(scope.row)"
+                        effect="light"
+                      >
+                        {{ getActivityStorageSourceLabel(scope.row) }}
+                      </el-tag>
+                    </template>
                   </el-table-column>
                 </el-table>
                 <div class="table-pagination">
@@ -1748,6 +1768,16 @@
                       formatDateTime(scope.row.placed_time)
                     }}</template>
                   </el-table-column>
+                  <el-table-column label="数据存储来源" width="140">
+                    <template #default="scope">
+                      <el-tag
+                        :type="getActivityStorageSourceTagType(scope.row)"
+                        effect="light"
+                      >
+                        {{ getActivityStorageSourceLabel(scope.row) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1894,6 +1924,16 @@
                       formatDateTime(scope.row.traded_time)
                     }}</template>
                   </el-table-column>
+                  <el-table-column label="数据存储来源" width="140">
+                    <template #default="scope">
+                      <el-tag
+                        :type="getActivityStorageSourceTagType(scope.row)"
+                        effect="light"
+                      >
+                        {{ getActivityStorageSourceLabel(scope.row) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1955,6 +1995,107 @@
                     :page-sizes="[10, 20, 50, 100]"
                     :total="filteredCashFlows.length"
                   />
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane
+                v-if="isRealAccount"
+                label="QMT当日对账"
+                name="qmt-reconcile"
+                lazy
+              >
+                <el-alert
+                  v-if="!isQmtAccount"
+                  title="当前实盘账号不是QMT通道，暂不支持QMT当日对账。"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                />
+                <div v-else class="qmt-reconcile-shell">
+                  <div class="qmt-reconcile-header">
+                    <div>
+                      <strong>QMT当日对账中心</strong>
+                      <p>
+                        最近对账时间：{{ qmtReconcileLastTimeText }}（{{ qmtReconcileSourceText }}）
+                      </p>
+                    </div>
+                    <el-tag type="info" effect="light" v-if="qmtReconcileStatus?.auto_enabled">
+                      自动对账 {{ qmtReconcileForm.auto_time }}
+                    </el-tag>
+                    <el-tag type="warning" effect="light" v-else>
+                      自动对账未开启
+                    </el-tag>
+                  </div>
+
+                  <el-tabs v-model="activeQmtReconcileTab" class="qmt-reconcile-tabs">
+                    <el-tab-pane label="自动对账" name="auto" lazy>
+                      <div class="qmt-reconcile-panel">
+                        <el-form label-width="130px">
+                          <el-form-item label="是否开启自动对账">
+                            <el-radio-group v-model="qmtReconcileForm.auto_enabled">
+                              <el-radio :label="true">是</el-radio>
+                              <el-radio :label="false">否</el-radio>
+                            </el-radio-group>
+                          </el-form-item>
+                          <el-form-item label="自动对账时间">
+                            <el-time-select
+                              v-model="qmtReconcileForm.auto_time"
+                              :disabled="!qmtReconcileForm.auto_enabled"
+                              start="14:30"
+                              step="00:05"
+                              end="23:55"
+                              placeholder="自动对账时间"
+                              style="width: 160px"
+                            />
+                          </el-form-item>
+                          <el-form-item>
+                            <el-button
+                              type="primary"
+                              :loading="qmtReconcileSaving"
+                              :disabled="qmtReconcileStatusLoading"
+                              @click="saveQmtReconcileSettings"
+                            >保存配置</el-button>
+                          </el-form-item>
+                        </el-form>
+                      </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="手动对账" name="manual" lazy>
+                      <div class="qmt-reconcile-panel">
+                        <el-alert
+                          title="点击按钮会同步QMT当日委托与当日成交，并自动刷新查询数据。"
+                          type="info"
+                          :closable="false"
+                          show-icon
+                        />
+                        <el-space wrap style="margin-top: 12px">
+                          <el-button
+                            type="primary"
+                            :loading="qmtReconcileRunning"
+                            :disabled="qmtReconcileStatusLoading"
+                            @click="runQmtReconcileNow"
+                          >当日对账(当日委托、当日成交)</el-button>
+                          <el-button
+                            :loading="qmtReconcileStatusLoading"
+                            @click="loadQmtReconcileStatus"
+                          >刷新对账状态</el-button>
+                        </el-space>
+                      </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="导入账单" name="import-bill" lazy>
+                      <div class="qmt-reconcile-panel">
+                        <el-alert
+                          title="导入账单能力预留中：后续可在此接入券商导出文件（委托/成交）解析并补齐。"
+                          type="warning"
+                          :closable="false"
+                          show-icon
+                        />
+                        <el-button style="margin-top: 12px" @click="showQmtImportBillComingSoon"
+                          >导入账单（待开发）</el-button>
+                      </div>
+                    </el-tab-pane>
+                  </el-tabs>
                 </div>
               </el-tab-pane>
             </el-tabs>
@@ -2135,13 +2276,16 @@ import {
   depositSimTradingAccount,
   getSimTradingAccountDetail,
   getSimTradingAccounts,
+  getSimTradingQmtReconcileStatus,
   getSimTradingRuntimeHealth,
   getSimTradingMaxAvailableCashSettings,
   getSimTradingCashFlows,
   getSimTradingConditionOrders,
   getSimTradingOrders,
+  runSimTradingQmtReconcile,
   recoverSimTradingRuntime,
   reorderSimTradingAccounts,
+  updateSimTradingQmtReconcileSettings,
   updateSimTradingAccount,
   updateSimTradingMaxAvailableCashSettings,
   updateSimTradingPosition,
@@ -2172,6 +2316,7 @@ const conditionOrders = ref([]);
 const trades = ref([]);
 const cashFlows = ref([]);
 const activeQueryTab = ref('today-orders');
+const activeQmtReconcileTab = ref('auto');
 const strategyLogJumpSignal = ref(null);
 const selectedOpenOrderIds = ref([]);
 const cancelingOrderIds = ref([]);
@@ -2196,6 +2341,10 @@ const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
 const chipPriceGenerateLoading = ref(false);
 const runtimeActionLoading = ref(false);
+const qmtReconcileStatusLoading = ref(false);
+const qmtReconcileSaving = ref(false);
+const qmtReconcileRunning = ref(false);
+const qmtReconcileStatus = ref(null);
 const accountOrderSaving = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 const POSITION_QUOTE_REFRESH_INTERVAL_MS = 5000;
@@ -2306,6 +2455,10 @@ const maxAvailableCashForm = reactive({
   mode: 'CUSTOM',
   max_available_cash: 0,
 });
+const qmtReconcileForm = reactive({
+  auto_enabled: false,
+  auto_time: '15:10',
+});
 
 const currentAccount = computed(
   () =>
@@ -2386,6 +2539,20 @@ const detailPageDescription = computed(() =>
     ? '围绕单个 QMT 实盘账户完成持仓查看、买卖委托、条件单、撤单、查询、盈亏分析与自动化策略执行。'
     : '围绕单账户完成持仓查看、买卖委托、撤单、转账和成交查询。'
 );
+const qmtReconcileLastTimeText = computed(() => {
+  const raw = qmtReconcileStatus.value?.last_reconcile_at;
+  return raw ? formatDateTime(raw) : '--';
+});
+const qmtReconcileSourceText = computed(() => {
+  const source = String(qmtReconcileStatus.value?.last_reconcile_source || '').toUpperCase();
+  if (source === 'MANUAL') {
+    return '手动';
+  }
+  if (source === 'SCHEDULER') {
+    return '自动';
+  }
+  return '--';
+});
 
 function isAccountDetailTabAvailable(tab) {
   if (!VALID_ACCOUNT_DETAIL_TABS.includes(tab)) {
@@ -2510,24 +2677,16 @@ const sellQuickPositions = computed(() =>
   positions.value.filter((item) => Number(item.sellable_quantity || 0) > 0)
 );
 const todayOrders = computed(() =>
-  isQmtAccount.value
-    ? allOrders.value
-    : allOrders.value.filter((item) => isToday(item.placed_time))
+  allOrders.value.filter((item) => isToday(item.placed_time))
 );
 const historyOrders = computed(() =>
-  isQmtAccount.value
-    ? []
-    : allOrders.value.filter((item) => !isToday(item.placed_time))
+  allOrders.value.filter((item) => !isToday(item.placed_time))
 );
 const todayTrades = computed(() =>
-  isQmtAccount.value
-    ? trades.value
-    : trades.value.filter((item) => isToday(item.traded_time))
+  trades.value.filter((item) => isToday(item.traded_time))
 );
 const historyTrades = computed(() =>
-  isQmtAccount.value
-    ? []
-    : trades.value.filter((item) => !isToday(item.traded_time))
+  trades.value.filter((item) => !isToday(item.traded_time))
 );
 const filteredTodayOrders = computed(() => filterOrders(todayOrders.value));
 const filteredHistoryOrders = computed(() => filterOrders(historyOrders.value));
@@ -2617,6 +2776,12 @@ function applyMaxAvailableCashForm(payload = {}) {
   maxAvailableCashForm.enabled = Boolean(enabled);
   maxAvailableCashForm.mode = String(mode || 'CUSTOM').toUpperCase();
   maxAvailableCashForm.max_available_cash = Number(payload.max_available_cash || 0);
+}
+
+function applyQmtReconcileStatus(payload = {}) {
+  qmtReconcileStatus.value = payload || null;
+  qmtReconcileForm.auto_enabled = Boolean(payload?.auto_enabled);
+  qmtReconcileForm.auto_time = String(payload?.auto_time || '15:10');
 }
 
 function markMaxAvailableCashFormDirty() {
@@ -3331,6 +3496,32 @@ function getFlowDirectionLabel(direction) {
     RELEASE: '释放',
   };
   return map[direction] || direction || '--';
+}
+
+function isLocalStoredActivity(row) {
+  if (!isQmtAccount.value) {
+    return true;
+  }
+  const sourceType = String(row?.source_type || '').trim().toUpperCase();
+  if (sourceType === 'BROKER_QMT_SYNC') {
+    return true;
+  }
+  const reasonText = String(row?.trade_reason || '');
+  if (
+    reasonText.includes('[BROKER_ORDER_NO=') ||
+    reasonText.includes('[BROKER_TRADE_NO=')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function getActivityStorageSourceLabel(row) {
+  return isLocalStoredActivity(row) ? '本地' : '线上(券商)';
+}
+
+function getActivityStorageSourceTagType(row) {
+  return isLocalStoredActivity(row) ? 'success' : 'warning';
 }
 
 function normalizeStockFromApi(stock) {
@@ -4647,6 +4838,10 @@ function clearAccountScopedState() {
   frozenCashDetailVisible.value = false;
   activeFundManagementTab.value = 'max-available-cash';
   maxAvailableCashRequestSeq += 1;
+  qmtReconcileStatus.value = null;
+  qmtReconcileForm.auto_enabled = false;
+  qmtReconcileForm.auto_time = '15:10';
+  activeQmtReconcileTab.value = 'auto';
 }
 
 function isSameActiveAccount(accountId) {
@@ -4728,6 +4923,79 @@ async function recoverActiveRuntime() {
   } finally {
     runtimeActionLoading.value = false;
   }
+}
+
+async function loadQmtReconcileStatus(accountId = activeAccountId.value) {
+  if (!accountId || !isQmtAccount.value) {
+    qmtReconcileStatus.value = null;
+    return;
+  }
+  qmtReconcileStatusLoading.value = true;
+  try {
+    const res = await getSimTradingQmtReconcileStatus(Number(accountId));
+    if (!res?.success) {
+      throw new Error(res?.message || '获取QMT对账状态失败');
+    }
+    if (!isSameActiveAccount(accountId)) {
+      return;
+    }
+    applyQmtReconcileStatus(res.payload || {});
+  } catch (error) {
+    console.error(error);
+    if (!syncingWorkspace) {
+      ElMessage.error(error?.message || '获取QMT对账状态失败');
+    }
+  } finally {
+    qmtReconcileStatusLoading.value = false;
+  }
+}
+
+async function saveQmtReconcileSettings() {
+  if (!activeAccountId.value || !isQmtAccount.value || qmtReconcileSaving.value) {
+    return;
+  }
+  qmtReconcileSaving.value = true;
+  try {
+    const res = await updateSimTradingQmtReconcileSettings(Number(activeAccountId.value), {
+      auto_enabled: Boolean(qmtReconcileForm.auto_enabled),
+      auto_time: String(qmtReconcileForm.auto_time || '15:10'),
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || '保存QMT自动对账配置失败');
+    }
+    applyQmtReconcileStatus(res.payload || {});
+    ElMessage.success('QMT自动对账配置已保存');
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '保存QMT自动对账配置失败');
+  } finally {
+    qmtReconcileSaving.value = false;
+  }
+}
+
+async function runQmtReconcileNow() {
+  if (!activeAccountId.value || !isQmtAccount.value || qmtReconcileRunning.value) {
+    return;
+  }
+  qmtReconcileRunning.value = true;
+  try {
+    const res = await runSimTradingQmtReconcile(Number(activeAccountId.value));
+    if (!res?.success) {
+      throw new Error(res?.message || 'QMT当日对账失败');
+    }
+    applyQmtReconcileStatus(res.payload || {});
+    await loadActivityPanels(activeAccountId.value);
+    ElMessage.success('QMT当日对账完成');
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || 'QMT当日对账失败');
+  } finally {
+    qmtReconcileRunning.value = false;
+  }
+}
+
+function showQmtImportBillComingSoon() {
+  ElMessage.info('导入账单能力开发中，后续会支持券商账单文件导入补齐。');
 }
 
 async function refreshPositionsOnly() {
@@ -4974,6 +5242,11 @@ async function refreshWorkspace(options = {}) {
       loadAccountDetail(activeAccountId.value),
       loadAccountStrategyBindings(activeAccountId.value),
     ]);
+    if (isQmtAccount.value) {
+      await loadQmtReconcileStatus(activeAccountId.value);
+    } else {
+      qmtReconcileStatus.value = null;
+    }
     await ensureActiveTabData({
       force: true,
       accountId: activeAccountId.value,
@@ -5130,6 +5403,17 @@ watch(activeQueryTab, () => {
   queryFilters.orderStatus = '';
   queryFilters.flowType = '';
   resetAllQueryPages();
+  if (activeQueryTab.value === 'qmt-reconcile' && isQmtAccount.value) {
+    loadQmtReconcileStatus(activeAccountId.value).catch((error) => {
+      console.error(error);
+    });
+  }
+});
+
+watch(isRealAccount, (value) => {
+  if (!value && activeQueryTab.value === 'qmt-reconcile') {
+    activeQueryTab.value = 'today-orders';
+  }
 });
 
 watch(
@@ -5828,6 +6112,40 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.qmt-reconcile-shell {
+  margin-top: 8px;
+}
+
+.qmt-reconcile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f7fafc;
+  border: 1px solid #e5edf5;
+}
+
+.qmt-reconcile-header p {
+  margin: 4px 0 0;
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.qmt-reconcile-tabs {
+  margin-top: 12px;
+}
+
+.qmt-reconcile-panel {
+  background: #ffffff;
+  border: 1px solid #e7eef6;
+  border-radius: 10px;
+  padding: 14px;
 }
 
 .toolbar-input {
