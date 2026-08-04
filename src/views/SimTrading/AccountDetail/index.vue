@@ -1253,6 +1253,63 @@
               :closable="false"
               show-icon
             />
+            <el-collapse
+              v-if="isRealAccount && currentQueryTabDiagnostics"
+              v-model="queryDiagnosticsCollapse"
+              class="query-diagnostics-collapse"
+            >
+              <el-collapse-item name="activity-diagnostics">
+                <template #title>
+                  <span class="query-diagnostics-title">查询数据诊断（当前Tab）</span>
+                </template>
+                <div
+                  class="query-diagnostics-summary"
+                  :class="getDiagnosticsSummaryClass(currentQueryTabDiagnostics)"
+                >
+                  <el-tag :type="getDiagnosticsAssessmentTagType(currentQueryTabDiagnostics)" effect="light">
+                    {{ getDiagnosticsAssessmentLabel(currentQueryTabDiagnostics) }}
+                  </el-tag>
+                  <p class="query-diagnostics-summary-text">{{ getDiagnosticsAssessmentSummary(currentQueryTabDiagnostics) }}</p>
+                  <div
+                    v-if="getDiagnosticsAssessmentReasons(currentQueryTabDiagnostics).length"
+                    class="query-diagnostics-reasons"
+                  >
+                    <p
+                      v-for="(item, index) in getDiagnosticsAssessmentReasons(currentQueryTabDiagnostics)"
+                      :key="`diag-reason-${index}`"
+                    >
+                      {{ `${index + 1}. ${item}` }}
+                    </p>
+                  </div>
+                  <div
+                    v-if="getDiagnosticsAssessmentSuggestions(currentQueryTabDiagnostics).length"
+                    class="query-diagnostics-suggestions"
+                  >
+                    <strong>后续建议：</strong>
+                    <p
+                      v-for="(item, index) in getDiagnosticsAssessmentSuggestions(currentQueryTabDiagnostics)"
+                      :key="`diag-suggestion-${index}`"
+                    >
+                      {{ `${index + 1}. ${item}` }}
+                    </p>
+                  </div>
+                </div>
+                <div class="query-diagnostics-grid">
+                  <div class="query-diagnostics-card">
+                    <h4>{{ currentQueryTabDiagnosticsTitle }}</h4>
+                    <p>当前Tab记录数：{{ getDiagnosticsValue(currentQueryTabRowCount) }}</p>
+                    <p>券商原始条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.broker_raw_count) }}</p>
+                    <p>校验成功条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_success_count) }}</p>
+                    <p>校验失败条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_failed_count) }}</p>
+                    <p>本地缓存条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.local_cached_count) }}</p>
+                    <p>合并后条数：{{ getDiagnosticsValue(currentQueryTabMergedCount) }}</p>
+                    <p>冲突条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.conflict_count) }}</p>
+                    <p>当日条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.today_count) }}</p>
+                    <p>历史条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.history_count) }}</p>
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
             <div v-if="activeQueryTab !== 'qmt-reconcile'" class="query-toolbar">
               <el-input
                 v-model="queryForm.keyword"
@@ -1323,7 +1380,13 @@
             </div>
 
             <el-tabs v-model="activeQueryTab" class="query-inner-tabs">
-              <el-tab-pane label="当日委托" name="today-orders" lazy>
+              <el-tab-pane name="today-orders" lazy>
+                <template #label>
+                  <span class="query-tab-label">
+                    当日委托
+                    <el-tag v-if="isQueryTabDiagnosticsWarn('today-orders')" type="warning" effect="light" size="small">警告</el-tag>
+                  </span>
+                </template>
                 <el-table :data="pagedTodayOrders" border>
                   <el-table-column
                     prop="order_no"
@@ -1468,6 +1531,9 @@
                       </el-tag>
                     </template>
                   </el-table-column>
+                  <el-table-column label="已存储到本地" width="130">
+                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1481,7 +1547,13 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="当日成交" name="today-trades" lazy>
+              <el-tab-pane name="today-trades" lazy>
+                <template #label>
+                  <span class="query-tab-label">
+                    当日成交
+                    <el-tag v-if="isQueryTabDiagnosticsWarn('today-trades')" type="warning" effect="light" size="small">警告</el-tag>
+                  </span>
+                </template>
                 <el-table :data="pagedTodayTrades" border>
                   <el-table-column
                     prop="trade_no"
@@ -1620,6 +1692,9 @@
                       </el-tag>
                     </template>
                   </el-table-column>
+                  <el-table-column label="已存储到本地" width="130">
+                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1633,7 +1708,13 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史委托" name="history-orders" lazy>
+              <el-tab-pane name="history-orders" lazy>
+                <template #label>
+                  <span class="query-tab-label">
+                    历史委托
+                    <el-tag v-if="isQueryTabDiagnosticsWarn('history-orders')" type="warning" effect="light" size="small">警告</el-tag>
+                  </span>
+                </template>
                 <el-table :data="pagedHistoryOrders" border>
                   <el-table-column
                     prop="order_no"
@@ -1778,6 +1859,9 @@
                       </el-tag>
                     </template>
                   </el-table-column>
+                  <el-table-column label="已存储到本地" width="130">
+                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1795,7 +1879,13 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史成交" name="history-trades" lazy>
+              <el-tab-pane name="history-trades" lazy>
+                <template #label>
+                  <span class="query-tab-label">
+                    历史成交
+                    <el-tag v-if="isQueryTabDiagnosticsWarn('history-trades')" type="warning" effect="light" size="small">警告</el-tag>
+                  </span>
+                </template>
                 <el-table :data="pagedHistoryTrades" border>
                   <el-table-column
                     prop="trade_no"
@@ -1933,6 +2023,9 @@
                         {{ getActivityStorageSourceLabel(scope.row) }}
                       </el-tag>
                     </template>
+                  </el-table-column>
+                  <el-table-column label="已存储到本地" width="130">
+                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
                   </el-table-column>
                 </el-table>
                 <div class="table-pagination">
@@ -2315,6 +2408,8 @@ const allOrders = ref([]);
 const conditionOrders = ref([]);
 const trades = ref([]);
 const cashFlows = ref([]);
+const activityDiagnostics = ref(null);
+const queryDiagnosticsCollapse = ref([]);
 const activeQueryTab = ref('today-orders');
 const activeQmtReconcileTab = ref('auto');
 const strategyLogJumpSignal = ref(null);
@@ -3011,6 +3106,128 @@ function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(2)}%`;
 }
 
+function getDiagnosticsValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '--';
+  }
+  return String(value);
+}
+
+function resolveQueryTabAssessment(tabName) {
+  const mapping = activityDiagnostics.value?.tab_assessments || {};
+  return mapping?.[tabName] || null;
+}
+
+function isQueryTabDiagnosticsTarget(tabName) {
+  return ['today-orders', 'history-orders', 'today-trades', 'history-trades'].includes(String(tabName || ''));
+}
+
+function isQueryTabDiagnosticsWarn(tabName) {
+  const assessment = resolveQueryTabAssessment(tabName);
+  if (!assessment) {
+    return false;
+  }
+  return String(assessment.status || '').toUpperCase() === 'WARN';
+}
+
+const currentQueryTabDiagnostics = computed(() => {
+  if (!isQueryTabDiagnosticsTarget(activeQueryTab.value)) {
+    return null;
+  }
+  return resolveQueryTabAssessment(activeQueryTab.value);
+});
+
+const currentQueryTabDataDiagnostics = computed(() => {
+  if (!activityDiagnostics.value) {
+    return null;
+  }
+  if (['today-orders', 'history-orders'].includes(activeQueryTab.value)) {
+    return activityDiagnostics.value?.orders || null;
+  }
+  if (['today-trades', 'history-trades'].includes(activeQueryTab.value)) {
+    return activityDiagnostics.value?.trades || null;
+  }
+  return null;
+});
+
+const currentQueryTabDiagnosticsTitle = computed(() => {
+  const map = {
+    'today-orders': '当日委托诊断',
+    'today-trades': '当日成交诊断',
+    'history-orders': '历史委托诊断',
+    'history-trades': '历史成交诊断',
+  };
+  return map[activeQueryTab.value] || '查询诊断';
+});
+
+const currentQueryTabRowCount = computed(() => {
+  const assessmentCount = Number(currentQueryTabDiagnostics.value?.current_tab_count || 0);
+  if (assessmentCount > 0) {
+    return assessmentCount;
+  }
+  if (activeQueryTab.value === 'today-orders') {
+    return filteredTodayOrders.value.length;
+  }
+  if (activeQueryTab.value === 'history-orders') {
+    return filteredHistoryOrders.value.length;
+  }
+  if (activeQueryTab.value === 'today-trades') {
+    return filteredTodayTrades.value.length;
+  }
+  if (activeQueryTab.value === 'history-trades') {
+    return filteredHistoryTrades.value.length;
+  }
+  return 0;
+});
+
+const currentQueryTabMergedCount = computed(() => {
+  const diag = currentQueryTabDataDiagnostics.value || {};
+  if (Object.prototype.hasOwnProperty.call(diag, 'merged_count_after_filter')) {
+    return diag.merged_count_after_filter;
+  }
+  if (Object.prototype.hasOwnProperty.call(diag, 'merged_count')) {
+    return diag.merged_count;
+  }
+  return '--';
+});
+
+function getDiagnosticsAssessment(activityDiag) {
+  return activityDiag?.assessment || null;
+}
+
+function getDiagnosticsAssessmentStatus(activityDiag) {
+  const status = String(getDiagnosticsAssessment(activityDiag)?.status || '').toUpperCase();
+  return status === 'WARN' ? 'WARN' : 'PASS';
+}
+
+function getDiagnosticsAssessmentLabel(activityDiag) {
+  return getDiagnosticsAssessment(activityDiag)?.label || (getDiagnosticsAssessmentStatus(activityDiag) === 'WARN' ? '诊断异常' : '诊断正常');
+}
+
+function getDiagnosticsAssessmentSummary(activityDiag) {
+  return getDiagnosticsAssessment(activityDiag)?.summary || '--';
+}
+
+function getDiagnosticsAssessmentReasons(activityDiag) {
+  const items = getDiagnosticsAssessment(activityDiag)?.reasons;
+  return Array.isArray(items) ? items : [];
+}
+
+function getDiagnosticsAssessmentSuggestions(activityDiag) {
+  const items = getDiagnosticsAssessment(activityDiag)?.suggestions;
+  return Array.isArray(items) ? items : [];
+}
+
+function getDiagnosticsAssessmentTagType(activityDiag) {
+  return getDiagnosticsAssessmentStatus(activityDiag) === 'WARN' ? 'warning' : 'success';
+}
+
+function getDiagnosticsSummaryClass(activityDiag) {
+  return getDiagnosticsAssessmentStatus(activityDiag) === 'WARN'
+    ? 'query-diagnostics-summary--warn'
+    : 'query-diagnostics-summary--pass';
+}
+
 function formatTradeReason(value) {
   const text = String(value || '').trim();
   return text || '--';
@@ -3522,6 +3739,10 @@ function getActivityStorageSourceLabel(row) {
 
 function getActivityStorageSourceTagType(row) {
   return isLocalStoredActivity(row) ? 'success' : 'warning';
+}
+
+function getActivityStoredLocalText(row) {
+  return isLocalStoredActivity(row) ? '是' : '否';
 }
 
 function normalizeStockFromApi(stock) {
@@ -4829,6 +5050,7 @@ function clearAccountScopedState() {
   conditionOrders.value = [];
   trades.value = [];
   cashFlows.value = [];
+  activityDiagnostics.value = null;
   selectedOpenOrderIds.value = [];
   activityLoadedAccountId.value = '';
   cashFlowLoadedAccountId.value = '';
@@ -5035,6 +5257,7 @@ function applyActivitySnapshot(payload) {
   );
   allOrders.value = orderItems;
   trades.value = payload?.trades?.items || [];
+  activityDiagnostics.value = payload?.diagnostics || null;
   conditionOrders.value = supportsConditionOrder.value
     ? payload?.condition_orders?.items || []
     : [];
@@ -5125,6 +5348,7 @@ async function loadActivityPanels(accountId = activeAccountId.value) {
       console.warn('loadAccountActivitySnapshot fallback', error);
     }
   }
+  activityDiagnostics.value = null;
   await Promise.all([
     loadLegacyOrders(true, accountId),
     loadLegacyOrders(false, accountId),
@@ -6112,6 +6336,81 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.query-diagnostics-collapse {
+  margin-bottom: 12px;
+}
+
+.query-diagnostics-title {
+  font-weight: 600;
+  color: #23415f;
+}
+
+.query-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.query-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.query-diagnostics-summary {
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #d8e6d1;
+  background: #f3fbef;
+}
+
+.query-diagnostics-summary--warn {
+  border-color: #f0d9a6;
+  background: #fff9eb;
+}
+
+.query-diagnostics-summary--pass {
+  border-color: #d8e6d1;
+  background: #f3fbef;
+}
+
+.query-diagnostics-summary-text {
+  margin: 8px 0;
+  color: #2f3e50;
+  font-size: 13px;
+}
+
+.query-diagnostics-reasons p,
+.query-diagnostics-suggestions p {
+  margin: 4px 0;
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.query-diagnostics-suggestions {
+  margin-top: 8px;
+}
+
+.query-diagnostics-card {
+  border: 1px solid #e7eef6;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.query-diagnostics-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #1d3a56;
+}
+
+.query-diagnostics-card p {
+  margin: 4px 0;
+  font-size: 12px;
+  color: #5f6b7a;
 }
 
 .qmt-reconcile-shell {
