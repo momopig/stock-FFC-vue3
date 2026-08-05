@@ -25,6 +25,10 @@ export const PermissionCodes = {
   STRATEGY_INTRADAY_CONSTRAINT_WRITE: 'strategy:intraday_constraint:write',
   SIM_TRADING_ACCOUNT_READ: 'sim_trading:account:read',
   SIM_TRADING_ACCOUNT_WRITE: 'sim_trading:account:write',
+  SIM_TRADING_ORDER_UPDATE: 'sim_trading:order:update',
+  SIM_TRADING_ORDER_DELETE: 'sim_trading:order:delete',
+  SIM_TRADING_TRADE_UPDATE: 'sim_trading:trade:update',
+  SIM_TRADING_TRADE_DELETE: 'sim_trading:trade:delete',
   STOCK_POOL_STRATEGY_READ: 'stock_pool:strategy:read',
   STOCK_POOL_SELF_SELECTED_READ: 'stock_pool:self_selected:read',
 }

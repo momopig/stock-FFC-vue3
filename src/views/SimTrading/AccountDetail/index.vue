@@ -928,9 +928,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="创建时间" min-width="180">
-                  <template #default="scope">{{
-                    formatDateTime(scope.row.created_time)
-                  }}</template>
+                  <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
                 </el-table-column>
                 <el-table-column label="操作" width="90" fixed="right">
                   <template #default="scope">
@@ -1388,6 +1386,15 @@
                 :disabled="querySearchLoading"
                 >{{ querySearchLoading ? '搜索中...' : '搜索' }}</el-button
               >
+              <el-button
+                v-if="activityBatchDeleteEnabled"
+                type="danger"
+                :loading="activityBatchDeleteLoading"
+                :disabled="activityBatchDeleteLoading || selectedActivityRowCountForActiveTab <= 0"
+                @click="batchDeleteActivityRows"
+              >
+                批量删除（{{ selectedActivityRowCountForActiveTab }}）
+              </el-button>
               <el-button @click="resetQueryFilters">重置</el-button>
             </div>
 
@@ -1399,7 +1406,12 @@
                     <el-tag v-if="isQueryTabDiagnosticsWarn('today-orders')" type="warning" effect="light" size="small">警告</el-tag>
                   </span>
                 </template>
-                <el-table :data="pagedTodayOrders" border>
+                <el-table :data="pagedTodayOrders" border @selection-change="(rows) => onActivitySelectionChange('today-orders', rows)">
+                  <el-table-column
+                    v-if="canDeleteActivityOrder"
+                    type="selection"
+                    width="48"
+                  />
                   <el-table-column
                     prop="order_no"
                     label="订单号"
@@ -1407,7 +1419,7 @@
                   />
                   <el-table-column
                     prop="broker_order_id"
-                    label="合同编号"
+                    label="QMT合同编号"
                     min-width="120"
                   >
                     <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
@@ -1553,6 +1565,24 @@
                   <el-table-column label="已存储到本地" width="130">
                     <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
                   </el-table-column>
+                  <el-table-column v-if="canOperateActivityOrders" label="操作" width="170" fixed="right">
+                    <template #default="scope">
+                      <el-button
+                        v-if="canUpdateActivityOrder"
+                        link
+                        type="primary"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="openOrderEditDialog(scope.row)"
+                      >编辑</el-button>
+                      <el-button
+                        v-if="canDeleteActivityOrder"
+                        link
+                        type="danger"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="deleteActivityOrderRow(scope.row)"
+                      >删除</el-button>
+                    </template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1573,7 +1603,12 @@
                     <el-tag v-if="isQueryTabDiagnosticsWarn('today-trades')" type="warning" effect="light" size="small">警告</el-tag>
                   </span>
                 </template>
-                <el-table :data="pagedTodayTrades" border>
+                <el-table :data="pagedTodayTrades" border @selection-change="(rows) => onActivitySelectionChange('today-trades', rows)">
+                  <el-table-column
+                    v-if="canDeleteActivityTrade"
+                    type="selection"
+                    width="48"
+                  />
                   <el-table-column
                     prop="trade_no"
                     label="交易号"
@@ -1581,10 +1616,17 @@
                   />
                   <el-table-column
                     prop="broker_order_id"
-                    label="合同编号"
+                    label="QMT合同编号"
                     min-width="120"
                   >
                     <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
+                  <el-table-column
+                    prop="broker_deal_id"
+                    label="QMT成交编号"
+                    min-width="160"
+                  >
+                    <template #default="scope">{{ scope.row.broker_deal_id || '--' }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -1721,6 +1763,24 @@
                   <el-table-column label="已存储到本地" width="130">
                     <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
                   </el-table-column>
+                  <el-table-column v-if="canOperateActivityTrades" label="操作" width="170" fixed="right">
+                    <template #default="scope">
+                      <el-button
+                        v-if="canUpdateActivityTrade"
+                        link
+                        type="primary"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="openTradeEditDialog(scope.row)"
+                      >编辑</el-button>
+                      <el-button
+                        v-if="canDeleteActivityTrade"
+                        link
+                        type="danger"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="deleteActivityTradeRow(scope.row)"
+                      >删除</el-button>
+                    </template>
+                  </el-table-column>
                 </el-table>
                 <div class="table-pagination">
                   <el-pagination
@@ -1741,7 +1801,12 @@
                     <el-tag v-if="isQueryTabDiagnosticsWarn('history-orders')" type="warning" effect="light" size="small">警告</el-tag>
                   </span>
                 </template>
-                <el-table :data="pagedHistoryOrders" border>
+                <el-table :data="pagedHistoryOrders" border @selection-change="(rows) => onActivitySelectionChange('history-orders', rows)">
+                  <el-table-column
+                    v-if="canDeleteActivityOrder"
+                    type="selection"
+                    width="48"
+                  />
                   <el-table-column
                     prop="order_no"
                     label="订单号"
@@ -1749,7 +1814,7 @@
                   />
                   <el-table-column
                     prop="broker_order_id"
-                    label="合同编号"
+                    label="QMT合同编号"
                     min-width="120"
                   >
                     <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
@@ -1894,6 +1959,24 @@
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
                     <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                  </el-table-column>
+                  <el-table-column v-if="canOperateActivityOrders" label="操作" width="170" fixed="right">
+                    <template #default="scope">
+                      <el-button
+                        v-if="canUpdateActivityOrder"
+                        link
+                        type="primary"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="openOrderEditDialog(scope.row)"
+                      >编辑</el-button>
+                      <el-button
+                        v-if="canDeleteActivityOrder"
+                        link
+                        type="danger"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="deleteActivityOrderRow(scope.row)"
+                      >删除</el-button>
+                    </template>
                   </el-table-column>
                 </el-table>
                 <div class="table-pagination">
@@ -1919,7 +2002,12 @@
                     <el-tag v-if="isQueryTabDiagnosticsWarn('history-trades')" type="warning" effect="light" size="small">警告</el-tag>
                   </span>
                 </template>
-                <el-table :data="pagedHistoryTrades" border>
+                <el-table :data="pagedHistoryTrades" border @selection-change="(rows) => onActivitySelectionChange('history-trades', rows)">
+                  <el-table-column
+                    v-if="canDeleteActivityTrade"
+                    type="selection"
+                    width="48"
+                  />
                   <el-table-column
                     prop="trade_no"
                     label="交易号"
@@ -1927,10 +2015,17 @@
                   />
                   <el-table-column
                     prop="broker_order_id"
-                    label="合同编号"
+                    label="QMT合同编号"
                     min-width="120"
                   >
                     <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
+                  <el-table-column
+                    prop="broker_deal_id"
+                    label="QMT成交编号"
+                    min-width="160"
+                  >
+                    <template #default="scope">{{ scope.row.broker_deal_id || '--' }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -2066,6 +2161,24 @@
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
                     <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                  </el-table-column>
+                  <el-table-column v-if="canOperateActivityTrades" label="操作" width="170" fixed="right">
+                    <template #default="scope">
+                      <el-button
+                        v-if="canUpdateActivityTrade"
+                        link
+                        type="primary"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="openTradeEditDialog(scope.row)"
+                      >编辑</el-button>
+                      <el-button
+                        v-if="canDeleteActivityTrade"
+                        link
+                        type="danger"
+                        :disabled="!canOperateActivityRow(scope.row)"
+                        @click="deleteActivityTradeRow(scope.row)"
+                      >删除</el-button>
+                    </template>
                   </el-table-column>
                 </el-table>
                 <div class="table-pagination">
@@ -2374,6 +2487,46 @@
           <el-button @click="frozenCashDetailVisible = false">关闭</el-button>
         </template>
       </el-dialog>
+
+      <el-dialog
+        v-model="activityEditDialogVisible"
+        :title="activityEditType === 'order' ? '编辑委托记录' : '编辑成交记录'"
+        width="720px"
+      >
+        <el-form label-width="110px">
+          <el-form-item label="QMT合同编号">
+            <el-input
+              v-model="activityEditForm.broker_order_id"
+              placeholder="为空时可清空为 null"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item v-if="activityEditType === 'trade'" label="QMT成交编号">
+            <el-input
+              v-model="activityEditForm.broker_deal_id"
+              placeholder="为空时可清空为 null"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="交易原因">
+            <el-input
+              v-model="activityEditForm.trade_reason"
+              type="textarea"
+              :rows="5"
+              placeholder="可选，留空表示清空"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="activityEditDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="activityEditSubmitting"
+            :disabled="activityEditSubmitting"
+            @click="submitActivityEdit"
+          >保存</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
@@ -2404,6 +2557,8 @@ import {
   cancelSimTradingOrder,
   createSimTradingConditionOrder,
   createSimTradingOrder,
+  deleteSimTradingActivityOrder,
+  deleteSimTradingActivityTrade,
   generateSimTradingAccountChipPrices,
   getSimTradingAccountActivity,
   depositSimTradingAccount,
@@ -2420,6 +2575,8 @@ import {
   reorderSimTradingAccounts,
   updateSimTradingQmtReconcileSettings,
   updateSimTradingAccount,
+  updateSimTradingActivityOrder,
+  updateSimTradingActivityTrade,
   updateSimTradingMaxAvailableCashSettings,
   updateSimTradingPosition,
   getSimTradingTrades,
@@ -2428,10 +2585,13 @@ import {
 } from '@/api/modules/simTrading';
 import { getAccountStrategyBindings } from '@/api/modules/simTradingStrategy';
 import { useTabsStore } from '@/composables/useTabsStore';
+import { PermissionCodes } from '@/config/permissionCodes';
+import { UserStore } from '@/state/user';
 
 const route = useRoute();
 const router = useRouter();
 const { updateTabTitle } = useTabsStore();
+const userStore = UserStore();
 const pageRoutePath = String(route.path || '');
 const ACCOUNTS_CACHE_TTL_MS = 60 * 1000;
 
@@ -2471,6 +2631,22 @@ const maxAvailableCashFormDirty = ref(false);
 const frozenCashDetailVisible = ref(false);
 const frozenCashDetailLoading = ref(false);
 const frozenCashOrderItems = ref([]);
+const activityEditDialogVisible = ref(false);
+const activityEditSubmitting = ref(false);
+const activityBatchDeleteLoading = ref(false);
+const activityEditType = ref('order');
+const activityEditForm = reactive({
+  id: 0,
+  broker_order_id: '',
+  broker_deal_id: '',
+  trade_reason: '',
+});
+const selectedActivityRows = reactive({
+  'today-orders': [],
+  'today-trades': [],
+  'history-orders': [],
+  'history-trades': [],
+});
 let maxAvailableCashRequestSeq = 0;
 const debugModeSwitchLoading = ref(false);
 const positionRefreshLoading = ref(false);
@@ -2627,6 +2803,37 @@ const supportsTradeExecutorTab = computed(() => isRealAccount.value);
 const showTransferTab = computed(() => true);
 const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
+);
+const isSuperAdmin = computed(() => Boolean(userStore.userInfo?.is_superuser));
+const canUpdateActivityOrder = computed(() =>
+  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_UPDATE)
+);
+const canDeleteActivityOrder = computed(() =>
+  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_DELETE)
+);
+const canUpdateActivityTrade = computed(() =>
+  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_UPDATE)
+);
+const canDeleteActivityTrade = computed(() =>
+  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_DELETE)
+);
+const canOperateActivityOrders = computed(() => canUpdateActivityOrder.value || canDeleteActivityOrder.value);
+const canOperateActivityTrades = computed(() => canUpdateActivityTrade.value || canDeleteActivityTrade.value);
+const activityBatchDeleteEnabled = computed(() => {
+  if (['today-orders', 'history-orders'].includes(activeQueryTab.value)) {
+    return canDeleteActivityOrder.value;
+  }
+  if (['today-trades', 'history-trades'].includes(activeQueryTab.value)) {
+    return canDeleteActivityTrade.value;
+  }
+  return false;
+});
+const selectedActivityRowsForActiveTab = computed(() => {
+  const rows = selectedActivityRows[activeQueryTab.value];
+  return Array.isArray(rows) ? rows : [];
+});
+const selectedActivityRowCountForActiveTab = computed(() =>
+  selectedActivityRowsForActiveTab.value.length
 );
 const capabilityNotices = computed(
   () => accountCapabilities.value?.notices || {}
@@ -3795,6 +4002,216 @@ function getActivityStorageSourceTagType(row) {
 
 function getActivityStoredLocalText(row) {
   return isLocalStoredActivity(row) ? '是' : '否';
+}
+
+function canOperateActivityRow(row) {
+  return isQmtAccount.value && isLocalStoredActivity(row);
+}
+
+function getActivityIdSet(list = []) {
+  return new Set((Array.isArray(list) ? list : []).map((item) => Number(item?.id || 0)).filter((id) => id > 0));
+}
+
+function pruneSelectedActivityRows() {
+  const orderIds = getActivityIdSet(allOrders.value);
+  const tradeIds = getActivityIdSet(trades.value);
+  selectedActivityRows['today-orders'] = selectedActivityRows['today-orders'].filter((row) => orderIds.has(Number(row?.id || 0)));
+  selectedActivityRows['history-orders'] = selectedActivityRows['history-orders'].filter((row) => orderIds.has(Number(row?.id || 0)));
+  selectedActivityRows['today-trades'] = selectedActivityRows['today-trades'].filter((row) => tradeIds.has(Number(row?.id || 0)));
+  selectedActivityRows['history-trades'] = selectedActivityRows['history-trades'].filter((row) => tradeIds.has(Number(row?.id || 0)));
+}
+
+function onActivitySelectionChange(tabName, rows = []) {
+  if (!Object.prototype.hasOwnProperty.call(selectedActivityRows, tabName)) {
+    return;
+  }
+  selectedActivityRows[tabName] = Array.isArray(rows) ? rows : [];
+}
+
+async function batchDeleteActivityRows() {
+  if (!activeAccountId.value || activityBatchDeleteLoading.value || !activityBatchDeleteEnabled.value) {
+    return;
+  }
+  const selectedRows = [...selectedActivityRowsForActiveTab.value];
+  if (!selectedRows.length) {
+    ElMessage.warning('请先勾选要删除的记录');
+    return;
+  }
+  const operableRows = selectedRows.filter((row) => canOperateActivityRow(row));
+  const skippedCount = selectedRows.length - operableRows.length;
+  if (!operableRows.length) {
+    ElMessage.warning('当前勾选记录均不支持删除，仅可删除已存储到本地的QMT同步数据');
+    return;
+  }
+  const isOrderTab = ['today-orders', 'history-orders'].includes(activeQueryTab.value);
+  const targetText = isOrderTab ? '委托记录' : '成交记录';
+  const confirmText = skippedCount > 0
+    ? `已勾选 ${selectedRows.length} 条，将删除其中可操作的 ${operableRows.length} 条${targetText}（跳过 ${skippedCount} 条不可操作记录）。是否继续？`
+    : `已勾选 ${selectedRows.length} 条，确定批量删除这些${targetText}吗？`;
+
+  try {
+    await ElMessageBox.confirm(confirmText, '批量删除确认', {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+    });
+  } catch {
+    return;
+  }
+
+  activityBatchDeleteLoading.value = true;
+  try {
+    const accountId = Number(activeAccountId.value);
+    const tasks = operableRows.map((row) => {
+      if (isOrderTab) {
+        return deleteSimTradingActivityOrder(accountId, Number(row.id));
+      }
+      return deleteSimTradingActivityTrade(accountId, Number(row.id));
+    });
+    const results = await Promise.allSettled(tasks);
+    const successCount = results.filter((item) => item.status === 'fulfilled' && item.value?.success).length;
+    const failedCount = operableRows.length - successCount;
+    if (successCount > 0) {
+      await loadActivityPanels(activeAccountId.value);
+    }
+    if (failedCount <= 0) {
+      ElMessage.success(`批量删除成功，共删除 ${successCount} 条${targetText}`);
+    } else if (successCount > 0) {
+      ElMessage.warning(`批量删除部分成功：成功 ${successCount} 条，失败 ${failedCount} 条${targetText}`);
+    } else {
+      ElMessage.error(`批量删除失败：${targetText}全部删除未成功`);
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '批量删除失败');
+  } finally {
+    activityBatchDeleteLoading.value = false;
+  }
+}
+
+function openOrderEditDialog(row) {
+  if (!canOperateActivityRow(row)) {
+    ElMessage.warning('仅支持编辑已存储到本地的QMT同步委托');
+    return;
+  }
+  activityEditType.value = 'order';
+  activityEditForm.id = Number(row?.id || 0);
+  activityEditForm.broker_order_id = String(row?.broker_order_id || '');
+  activityEditForm.broker_deal_id = '';
+  activityEditForm.trade_reason = String(row?.trade_reason || '');
+  activityEditDialogVisible.value = true;
+}
+
+function openTradeEditDialog(row) {
+  if (!canOperateActivityRow(row)) {
+    ElMessage.warning('仅支持编辑已存储到本地的QMT同步成交');
+    return;
+  }
+  activityEditType.value = 'trade';
+  activityEditForm.id = Number(row?.id || 0);
+  activityEditForm.broker_order_id = String(row?.broker_order_id || '');
+  activityEditForm.broker_deal_id = String(row?.broker_deal_id || '');
+  activityEditForm.trade_reason = String(row?.trade_reason || '');
+  activityEditDialogVisible.value = true;
+}
+
+async function submitActivityEdit() {
+  if (!activeAccountId.value || !activityEditForm.id || activityEditSubmitting.value) {
+    return;
+  }
+  activityEditSubmitting.value = true;
+  try {
+    const accountId = Number(activeAccountId.value);
+    if (activityEditType.value === 'order') {
+      const payload = {
+        broker_order_id: String(activityEditForm.broker_order_id || '').trim() || null,
+        trade_reason: String(activityEditForm.trade_reason || '').trim() || null,
+      };
+      const res = await updateSimTradingActivityOrder(accountId, Number(activityEditForm.id), payload);
+      if (!res?.success) {
+        throw new Error(res?.message || '更新委托失败');
+      }
+      ElMessage.success('委托更新成功');
+    } else {
+      const payload = {
+        broker_order_id: String(activityEditForm.broker_order_id || '').trim() || null,
+        broker_deal_id: String(activityEditForm.broker_deal_id || '').trim() || null,
+        trade_reason: String(activityEditForm.trade_reason || '').trim() || null,
+      };
+      const res = await updateSimTradingActivityTrade(accountId, Number(activityEditForm.id), payload);
+      if (!res?.success) {
+        throw new Error(res?.message || '更新成交失败');
+      }
+      ElMessage.success('成交更新成功');
+    }
+    activityEditDialogVisible.value = false;
+    await loadActivityPanels(activeAccountId.value);
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '保存失败');
+  } finally {
+    activityEditSubmitting.value = false;
+  }
+}
+
+async function deleteActivityOrderRow(row) {
+  if (!canOperateActivityRow(row)) {
+    ElMessage.warning('仅支持删除已存储到本地的QMT同步委托');
+    return;
+  }
+  if (!activeAccountId.value || !row?.id) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm('删除后无法恢复，确定删除该委托记录吗？', '删除确认', {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+    });
+  } catch {
+    return;
+  }
+  try {
+    const res = await deleteSimTradingActivityOrder(Number(activeAccountId.value), Number(row.id));
+    if (!res?.success) {
+      throw new Error(res?.message || '删除委托失败');
+    }
+    ElMessage.success('委托删除成功');
+    await loadActivityPanels(activeAccountId.value);
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '删除委托失败');
+  }
+}
+
+async function deleteActivityTradeRow(row) {
+  if (!canOperateActivityRow(row)) {
+    ElMessage.warning('仅支持删除已存储到本地的QMT同步成交');
+    return;
+  }
+  if (!activeAccountId.value || !row?.id) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm('删除后无法恢复，确定删除该成交记录吗？', '删除确认', {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+    });
+  } catch {
+    return;
+  }
+  try {
+    const res = await deleteSimTradingActivityTrade(Number(activeAccountId.value), Number(row.id));
+    if (!res?.success) {
+      throw new Error(res?.message || '删除成交失败');
+    }
+    ElMessage.success('成交删除成功');
+    await loadActivityPanels(activeAccountId.value);
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '删除成交失败');
+  }
 }
 
 function normalizeStockFromApi(stock) {
@@ -5133,6 +5550,10 @@ function clearAccountScopedState() {
   qmtReconcileForm.auto_enabled = false;
   qmtReconcileForm.auto_time = '15:10';
   activeQmtReconcileTab.value = 'auto';
+  selectedActivityRows['today-orders'] = [];
+  selectedActivityRows['today-trades'] = [];
+  selectedActivityRows['history-orders'] = [];
+  selectedActivityRows['history-trades'] = [];
 }
 
 function isSameActiveAccount(accountId) {
@@ -5355,6 +5776,7 @@ function applyActivitySnapshot(payload) {
   conditionOrders.value = supportsConditionOrder.value
     ? payload?.condition_orders?.items || []
     : [];
+  pruneSelectedActivityRows();
 }
 
 async function loadLegacyOrders(

@@ -215,6 +215,22 @@ export async function getSimTradingAccountActivity(accountId, params = {}) {
   );
 }
 
+export async function updateSimTradingActivityOrder(accountId, orderId, data = {}) {
+  return await request.patch(`${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`, data);
+}
+
+export async function deleteSimTradingActivityOrder(accountId, orderId) {
+  return await request.delete(`${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`);
+}
+
+export async function updateSimTradingActivityTrade(accountId, tradeId, data = {}) {
+  return await request.patch(`${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`, data);
+}
+
+export async function deleteSimTradingActivityTrade(accountId, tradeId) {
+  return await request.delete(`${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`);
+}
+
 export async function getSimTradingProfitAnalysisOverview(
   accountId,
   params = {}
