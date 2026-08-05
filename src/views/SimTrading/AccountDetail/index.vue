@@ -1254,7 +1254,7 @@
               show-icon
             />
             <el-collapse
-              v-if="isRealAccount && currentQueryTabDiagnostics"
+              v-if="isRealAccount && activeQueryTab !== 'qmt-reconcile'"
               v-model="queryDiagnosticsCollapse"
               class="query-diagnostics-collapse"
             >
@@ -1262,6 +1262,15 @@
                 <template #title>
                   <span class="query-diagnostics-title">查询数据诊断（当前Tab）</span>
                 </template>
+                <el-alert
+                  v-if="!currentQueryTabDiagnostics"
+                  title="当前未获取到诊断数据，请先执行一次查询刷新；若仍为空，请确认后端已升级并重启。"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  class="query-diagnostics-empty-alert"
+                />
+                <template v-else>
                 <div
                   class="query-diagnostics-summary"
                   :class="getDiagnosticsSummaryClass(currentQueryTabDiagnostics)"
@@ -1308,6 +1317,7 @@
                     <p>历史条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.history_count) }}</p>
                   </div>
                 </div>
+                </template>
               </el-collapse-item>
             </el-collapse>
             <div v-if="activeQueryTab !== 'qmt-reconcile'" class="query-toolbar">
@@ -1374,7 +1384,9 @@
                 class="toolbar-date-range"
               />
               <el-button type="primary" @click="applyQueryFilters"
-                >搜索</el-button
+                :loading="querySearchLoading"
+                :disabled="querySearchLoading"
+                >{{ querySearchLoading ? '搜索中...' : '搜索' }}</el-button
               >
               <el-button @click="resetQueryFilters">重置</el-button>
             </div>
@@ -1393,6 +1405,13 @@
                     label="订单号"
                     min-width="100"
                   />
+                  <el-table-column
+                    prop="broker_order_id"
+                    label="合同编号"
+                    min-width="120"
+                  >
+                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
                   <el-table-column
                     prop="stock_name"
                     label="股票名称"
@@ -1561,6 +1580,13 @@
                     min-width="100"
                   />
                   <el-table-column
+                    prop="broker_order_id"
+                    label="合同编号"
+                    min-width="120"
+                  >
+                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
+                  <el-table-column
                     prop="stock_name"
                     label="股票名称"
                     min-width="100"
@@ -1721,6 +1747,13 @@
                     label="订单号"
                     min-width="100"
                   />
+                  <el-table-column
+                    prop="broker_order_id"
+                    label="合同编号"
+                    min-width="120"
+                  >
+                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
                   <el-table-column
                     prop="stock_name"
                     label="股票名称"
@@ -1892,6 +1925,13 @@
                     label="交易号"
                     min-width="100"
                   />
+                  <el-table-column
+                    prop="broker_order_id"
+                    label="合同编号"
+                    min-width="120"
+                  >
+                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                  </el-table-column>
                   <el-table-column
                     prop="stock_name"
                     label="股票名称"
@@ -2439,6 +2479,7 @@ const runtimeActionLoading = ref(false);
 const qmtReconcileStatusLoading = ref(false);
 const qmtReconcileSaving = ref(false);
 const qmtReconcileRunning = ref(false);
+const querySearchLoading = ref(false);
 const qmtReconcileStatus = ref(null);
 const accountOrderSaving = ref(false);
 const AUTO_REFRESH_INTERVAL_MS = 15000;
@@ -3715,8 +3756,19 @@ function getFlowDirectionLabel(direction) {
   return map[direction] || direction || '--';
 }
 
+function isTruthyFlag(value) {
+  if (value === true || value === 1) {
+    return true;
+  }
+  const text = String(value || '').trim().toLowerCase();
+  return ['true', '1', 'yes', 'y'].includes(text);
+}
+
 function isLocalStoredActivity(row) {
   if (!isQmtAccount.value) {
+    return true;
+  }
+  if (isTruthyFlag(row?.is_local_synced)) {
     return true;
   }
   const sourceType = String(row?.source_type || '').trim().toUpperCase();
@@ -3878,16 +3930,33 @@ function resetAllQueryPages() {
   });
 }
 
-function applyQueryFilters() {
-  queryFilters.keyword = queryForm.keyword;
-  queryFilters.orderKeyword = queryForm.orderKeyword;
-  queryFilters.direction = queryForm.direction;
-  queryFilters.orderStatus = queryForm.orderStatus;
-  queryFilters.flowType = queryForm.flowType;
-  queryFilters.dateRange = Array.isArray(queryForm.dateRange)
-    ? [...queryForm.dateRange]
-    : [];
-  resetAllQueryPages();
+async function applyQueryFilters() {
+  if (querySearchLoading.value) {
+    return;
+  }
+  querySearchLoading.value = true;
+  try {
+    if (activeQueryTab.value === 'cash-flows') {
+      await loadCashFlows(activeAccountId.value);
+    } else {
+      await loadActivityPanels(activeAccountId.value);
+    }
+
+    queryFilters.keyword = queryForm.keyword;
+    queryFilters.orderKeyword = queryForm.orderKeyword;
+    queryFilters.direction = queryForm.direction;
+    queryFilters.orderStatus = queryForm.orderStatus;
+    queryFilters.flowType = queryForm.flowType;
+    queryFilters.dateRange = Array.isArray(queryForm.dateRange)
+      ? [...queryForm.dateRange]
+      : [];
+    resetAllQueryPages();
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '查询刷新失败');
+  } finally {
+    querySearchLoading.value = false;
+  }
 }
 
 function resetQueryFilters() {
@@ -5207,7 +5276,32 @@ async function runQmtReconcileNow() {
     }
     applyQmtReconcileStatus(res.payload || {});
     await loadActivityPanels(activeAccountId.value);
-    ElMessage.success('QMT当日对账完成');
+    const summary = res?.payload?.sync_summary || {};
+    const brokerOrderCount = Number(summary.broker_order_count || 0);
+    const brokerTradeCount = Number(summary.broker_trade_count || 0);
+    const localOrderCount = Number(summary.local_synced_order_count || 0);
+    const localTradeCount = Number(summary.local_synced_trade_count || 0);
+    const failedOrderCount = Number(summary.validation_failed_order_count || 0);
+    const failedTradeCount = Number(summary.validation_failed_trade_count || 0);
+    const updatedOrderCount = Number(summary.updated_order_count || 0);
+    const updatedTradeCount = Number(summary.updated_trade_count || 0);
+    const messageText =
+      `QMT当日对账完成：券商委托${brokerOrderCount}条，券商成交${brokerTradeCount}条，` +
+      `本地委托总数${localOrderCount}条，本地成交总数${localTradeCount}条，` +
+      `校验失败委托${failedOrderCount}条，校验失败成交${failedTradeCount}条，` +
+      `本次更新委托${updatedOrderCount}条，本次更新成交${updatedTradeCount}条`;
+
+    const hasValidationFailed = failedOrderCount > 0 || failedTradeCount > 0;
+    const hasSuspiciousGap =
+      (brokerOrderCount > 0 && localOrderCount <= 0) ||
+      (brokerTradeCount > 0 && localTradeCount <= 0);
+    if (hasSuspiciousGap) {
+      ElMessage.error(`${messageText}。请检查后端日志中的校验失败明细。`);
+    } else if (hasValidationFailed) {
+      ElMessage.warning(`${messageText}。存在部分数据校验失败，请关注诊断面板。`);
+    } else {
+      ElMessage.success(messageText);
+    }
   } catch (error) {
     console.error(error);
     ElMessage.error(error?.message || 'QMT当日对账失败');
@@ -6345,6 +6439,10 @@ onUnmounted(() => {
 .query-diagnostics-title {
   font-weight: 600;
   color: #23415f;
+}
+
+.query-diagnostics-empty-alert {
+  margin-bottom: 12px;
 }
 
 .query-tab-label {
