@@ -275,6 +275,25 @@ export async function getSimTradingProfitAnalysisCalendar(
   });
 }
 
+export async function getSimTradingTAnalysis(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  const cacheKey = `t-analysis:${Number(accountId)}:${query}`;
+  const cached = readHotCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  return await withInFlightRequest(cacheKey, async () => {
+    const result = await request.get(
+      `${API_PREFIX}/accounts/${accountId}/t-analysis${query ? `?${query}` : ''}`,
+      {
+        timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+      }
+    );
+    writeHotCache(cacheKey, result);
+    return result;
+  });
+}
+
 export async function createSimTradingOrder(data) {
   return await request.post(`${API_PREFIX}/orders`, data);
 }

@@ -2365,6 +2365,10 @@
             @view-history-trades="handleProfitRankingTradeHistory"
           />
         </el-tab-pane>
+
+        <el-tab-pane label="做T分析" name="t-analysis" lazy>
+          <TAnalysisPanel v-if="currentAccount" :account-id="activeAccountId" />
+        </el-tab-pane>
       </el-tabs>
 
       <el-dialog v-model="positionEditVisible" title="编辑持仓" width="560px">
@@ -2549,6 +2553,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import PositionTable from './PositionTable.vue';
 import ProfitAnalysisPanel from './ProfitAnalysisPanel.vue';
+import TAnalysisPanel from './TAnalysisPanel.vue';
 import StrategyPanel from './StrategyPanel.vue';
 import TradeExecutorPanel from './TradeExecutorPanel.vue';
 import TPositionMonitorPanel from './TPositionMonitorPanel.vue';
@@ -2717,10 +2722,11 @@ const VALID_ACCOUNT_DETAIL_TABS = [
   'transfer',
   'query',
   'profit-analysis',
+  't-analysis',
 ];
 
-const ACTIVITY_LAZY_TABS = ['condition', 'cancel', 'query', 'profit-analysis'];
-const CASH_FLOW_LAZY_TABS = ['transfer', 'profit-analysis'];
+const ACTIVITY_LAZY_TABS = ['condition', 'cancel', 'query', 'profit-analysis', 't-analysis'];
+const CASH_FLOW_LAZY_TABS = ['transfer', 'profit-analysis', 't-analysis'];
 
 const buyForm = reactive({
   stock_code: '',
