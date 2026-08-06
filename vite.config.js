@@ -101,6 +101,21 @@ export default defineConfig({
         // target: 'http://119.23.68.187:3004',
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        // 代理层超时应略大于前端登录超时，便于区分是前端取消还是后端无响应。
+        timeout: 30000,
+        proxyTimeout: 30000,
+        // 打印关键代理日志，便于排查登录请求是否到达 Vite 代理以及后端返回情况。
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            console.log(`[vite-proxy][req] ${req.method} ${req.url} -> ${proxyReq.protocol}//${proxyReq.host}${proxyReq.path}`);
+          });
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log(`[vite-proxy][res] ${req.method} ${req.url} <- ${proxyRes.statusCode}`);
+          });
+          proxy.on('error', (error, req) => {
+            console.error(`[vite-proxy][err] ${req.method} ${req.url}:`, error.message);
+          });
+        },
         rewrite: (path) => path.replace(/^\/stock-api/, ''),
       },
       // 使用正则表达式匹配需要代理的路径
