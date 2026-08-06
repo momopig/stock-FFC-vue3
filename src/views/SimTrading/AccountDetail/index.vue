@@ -1304,15 +1304,16 @@
                 <div class="query-diagnostics-grid">
                   <div class="query-diagnostics-card">
                     <h4>{{ currentQueryTabDiagnosticsTitle }}</h4>
-                    <p>当前Tab记录数：{{ getDiagnosticsValue(currentQueryTabRowCount) }}</p>
+                    <p>当前Tab记录数（分流后）：{{ getDiagnosticsValue(currentQueryTabRowCount) }}</p>
                     <p>券商原始条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.broker_raw_count) }}</p>
                     <p>校验成功条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_success_count) }}</p>
                     <p>校验失败条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_failed_count) }}</p>
                     <p>本地缓存条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.local_cached_count) }}</p>
-                    <p>合并后条数：{{ getDiagnosticsValue(currentQueryTabMergedCount) }}</p>
+                    <p>合并总条数（当日+历史）：{{ getDiagnosticsValue(currentQueryTabMergedCount) }}</p>
                     <p>冲突条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.conflict_count) }}</p>
                     <p>当日条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.today_count) }}</p>
                     <p>历史条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.history_count) }}</p>
+                    <p class="query-diagnostics-tip">{{ currentQueryTabSplitHint }}</p>
                   </div>
                 </div>
                 </template>
@@ -3437,6 +3438,26 @@ const currentQueryTabMergedCount = computed(() => {
     return diag.merged_count;
   }
   return '--';
+});
+
+const currentQueryTabSplitHint = computed(() => {
+  const tab = String(activeQueryTab.value || '');
+  const isHistoryTab = ['history-orders', 'history-trades'].includes(tab);
+  const mergedCount = Number(currentQueryTabMergedCount.value);
+  const todayCount = Number(currentQueryTabDataDiagnostics.value?.today_count || 0);
+  const historyCount = Number(currentQueryTabDataDiagnostics.value?.history_count || 0);
+
+  if (
+    isHistoryTab
+    && Number.isFinite(mergedCount)
+    && mergedCount > 0
+    && historyCount === 0
+    && todayCount > 0
+  ) {
+    return '当前数据全部被分流到“当日”Tab，历史Tab为空属于预期，不代表融合失败。';
+  }
+
+  return '提示：合并总条数用于核对后端融合结果；当前Tab记录数是按“当日/历史”分流并叠加筛选后的展示结果。';
 });
 
 function getDiagnosticsAssessment(activityDiag) {
@@ -6931,6 +6952,16 @@ onUnmounted(() => {
   margin: 4px 0;
   font-size: 12px;
   color: #5f6b7a;
+}
+
+.query-diagnostics-tip {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f7fafc;
+  border: 1px solid #e7eef6;
+  color: #38506a;
+  line-height: 1.5;
 }
 
 .qmt-reconcile-shell {
