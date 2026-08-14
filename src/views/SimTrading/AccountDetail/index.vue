@@ -1239,6 +1239,66 @@
                 />
               </div>
             </el-tab-pane>
+
+            <el-tab-pane v-if="isQmtAccount" label="手动录入资金流水" name="manual-cash-flow" lazy>
+              <div class="tab-toolbar">
+                <el-space>
+                  <el-button type="primary" @click="openManualCashFlowDialog()">手动录入</el-button>
+                  <el-select
+                    v-model="manualCashFlowFilters.flowType"
+                    clearable
+                    placeholder="类型筛选"
+                    style="width: 160px"
+                  >
+                    <el-option label="入金" value="DEPOSIT" />
+                    <el-option label="出金" value="WITHDRAW" />
+                    <el-option label="股票分红" value="DIVIDEND" />
+                    <el-option label="账户利息" value="INTEREST" />
+                  </el-select>
+                  <el-date-picker
+                    v-model="manualCashFlowFilters.dateRange"
+                    type="daterange"
+                    value-format="YYYY-MM-DD"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                  />
+                  <el-button type="primary" @click="searchManualCashFlows">查询</el-button>
+                </el-space>
+              </div>
+
+              <el-table :data="pagedManualCashFlows" border>
+                <el-table-column label="转账日期" min-width="160" sortable>
+                  <template #default="scope">{{ formatDate(scope.row.occurred_time) }}</template>
+                </el-table-column>
+                <el-table-column label="类型" width="140">
+                  <template #default="scope">{{ getFlowTypeLabel(scope.row.flow_type) }}</template>
+                </el-table-column>
+                <el-table-column label="金额" width="160" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
+                </el-table-column>
+                <el-table-column label="币种" width="130">
+                  <template #default="scope">{{ getCurrencyLabel(scope.row.currency) }}</template>
+                </el-table-column>
+                <el-table-column prop="reason" label="原因" min-width="220" />
+                <el-table-column label="操作" width="160" fixed="right">
+                  <template #default="scope">
+                    <el-button link type="primary" @click="openManualCashFlowDialog(scope.row)">编辑</el-button>
+                    <el-button link type="danger" @click="deleteManualCashFlowItem(scope.row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div class="table-pagination">
+                <el-pagination
+                  v-model:current-page="manualCashFlowPagination.page"
+                  v-model:page-size="manualCashFlowPagination.pageSize"
+                  background
+                  layout="total, sizes, prev, pager, next"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="manualCashFlows.length"
+                />
+              </div>
+            </el-tab-pane>
           </el-tabs>
         </el-tab-pane>
 
@@ -1367,6 +1427,8 @@
               >
                 <el-option label="入金" value="DEPOSIT" />
                 <el-option label="出金" value="WITHDRAW" />
+                <el-option label="股票分红" value="DIVIDEND" />
+                <el-option label="账户利息" value="INTEREST" />
                 <el-option label="冻结" value="FREEZE" />
                 <el-option label="解冻" value="UNFREEZE" />
                 <el-option label="买入结算" value="BUY_SETTLE" />
@@ -2351,14 +2413,14 @@
 
         <el-tab-pane label="盈亏分析" name="profit-analysis" lazy>
           <el-alert
-            v-if="profitAnalysisCapabilityNotice && !supportsProfitAnalysis"
+            v-if="profitAnalysisCapabilityNotice"
             :title="profitAnalysisCapabilityNotice"
-            type="warning"
+            :type="supportsProfitAnalysis ? 'info' : 'warning'"
             :closable="false"
             show-icon
           />
           <ProfitAnalysisPanel
-            v-else-if="currentAccount"
+            v-if="currentAccount"
             :account-id="activeAccountId"
             :trades="trades"
             :cash-flows="cashFlows"
@@ -2495,6 +2557,60 @@
       </el-dialog>
 
       <el-dialog
+        v-model="manualCashFlowDialogVisible"
+        :title="Number(manualCashFlowForm.id || 0) > 0 ? '编辑手工资金流水' : '手动录入资金流水'"
+        width="560px"
+      >
+        <el-form :model="manualCashFlowForm" label-width="110px">
+          <el-form-item label="类型">
+            <el-select v-model="manualCashFlowForm.flow_type" class="full-width">
+              <el-option label="入金" value="DEPOSIT" />
+              <el-option label="出金" value="WITHDRAW" />
+              <el-option label="股票分红" value="DIVIDEND" />
+              <el-option label="账户利息" value="INTEREST" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="转账日期">
+            <el-date-picker
+              v-model="manualCashFlowForm.occurred_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="请选择转账日期"
+              class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="币种">
+            <el-input v-model="manualCashFlowForm.currency" maxlength="16" class="full-width" />
+          </el-form-item>
+          <el-form-item label="金额">
+            <el-input-number
+              v-model="manualCashFlowForm.amount"
+              :min="0"
+              :precision="2"
+              class="full-width"
+            />
+          </el-form-item>
+          <el-form-item label="原因">
+            <el-input
+              v-model="manualCashFlowForm.reason"
+              type="textarea"
+              :rows="3"
+              placeholder="可选，建议填写备注原因"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="manualCashFlowDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="manualCashFlowSubmitting"
+            :disabled="manualCashFlowSubmitting"
+            @click="submitManualCashFlow"
+          >保存</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog
         v-model="activityEditDialogVisible"
         :title="activityEditType === 'order' ? '编辑委托记录' : '编辑成交记录'"
         width="720px"
@@ -2563,7 +2679,9 @@ import {
   cancelSimTradingConditionOrder,
   cancelSimTradingOrder,
   createSimTradingConditionOrder,
+  createSimTradingManualCashFlow,
   createSimTradingOrder,
+  deleteSimTradingManualCashFlow,
   deleteSimTradingActivityOrder,
   deleteSimTradingActivityTrade,
   generateSimTradingAccountChipPrices,
@@ -2575,6 +2693,7 @@ import {
   getSimTradingRuntimeHealth,
   getSimTradingMaxAvailableCashSettings,
   getSimTradingCashFlows,
+  getSimTradingManualCashFlows,
   getSimTradingConditionOrders,
   getSimTradingOrders,
   runSimTradingQmtReconcile,
@@ -2584,6 +2703,7 @@ import {
   updateSimTradingAccount,
   updateSimTradingActivityOrder,
   updateSimTradingActivityTrade,
+  updateSimTradingManualCashFlow,
   updateSimTradingMaxAvailableCashSettings,
   updateSimTradingPosition,
   getSimTradingTrades,
@@ -2632,6 +2752,9 @@ const positionEditVisible = ref(false);
 const positionEditSubmitting = ref(false);
 const editingPosition = ref(null);
 const activeFundManagementTab = ref('max-available-cash');
+const manualCashFlows = ref([]);
+const manualCashFlowDialogVisible = ref(false);
+const manualCashFlowSubmitting = ref(false);
 const maxAvailableCashLoading = ref(false);
 const maxAvailableCashSaving = ref(false);
 const maxAvailableCashFormDirty = ref(false);
@@ -2689,6 +2812,10 @@ const queryFilters = reactive({
   orderKeyword: '',
   direction: '',
   orderStatus: '',
+  flowType: '',
+  dateRange: [],
+});
+const manualCashFlowFilters = reactive({
   flowType: '',
   dateRange: [],
 });
@@ -2764,6 +2891,14 @@ const conditionForm = reactive({
 
 const depositForm = reactive({ amount: 10000, reason: '' });
 const withdrawForm = reactive({ amount: 1000, reason: '' });
+const manualCashFlowForm = reactive({
+  id: 0,
+  flow_type: 'DEPOSIT',
+  occurred_date: '',
+  currency: 'CNY',
+  amount: 0,
+  reason: '',
+});
 const positionEditForm = reactive({
   avg_cost_price: 0,
   total_quantity: 0,
@@ -3096,6 +3231,7 @@ const queryPagination = reactive({
   'cash-flows': { page: 1, pageSize: 10 },
 });
 const transferCashFlowPagination = reactive({ page: 1, pageSize: 10 });
+const manualCashFlowPagination = reactive({ page: 1, pageSize: 10 });
 const pagedTodayOrders = computed(() =>
   paginateList(filteredTodayOrders.value, queryPagination['today-orders'])
 );
@@ -3113,6 +3249,9 @@ const pagedQueryCashFlows = computed(() =>
 );
 const pagedTransferCashFlows = computed(() =>
   paginateList(cashFlows.value, transferCashFlowPagination)
+);
+const pagedManualCashFlows = computed(() =>
+  paginateList(manualCashFlows.value, manualCashFlowPagination)
 );
 
 const MAX_AVAILABLE_CASH_MODE_RATIO_MAP = {
@@ -3612,6 +3751,15 @@ function formatDateTime(value) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
+function formatDate(value) {
+  const date = normalizeDate(value);
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = padTimeNumber(date.getMonth() + 1);
+  const day = padTimeNumber(date.getDate());
+  return `${year}-${month}-${day}`;
+}
+
 function getCurrencyLabel(currency) {
   const map = {
     CNY: '人民币（CNY）',
@@ -3973,6 +4121,8 @@ function getFlowTypeLabel(flowType) {
   const map = {
     DEPOSIT: '入金',
     WITHDRAW: '出金',
+    DIVIDEND: '股票分红',
+    INTEREST: '账户利息',
     FREEZE: '冻结',
     UNFREEZE: '解冻',
     BUY_SETTLE: '买入结算',
@@ -5416,6 +5566,153 @@ async function submitTransfer(action) {
   }
 }
 
+function resetManualCashFlowForm() {
+  manualCashFlowForm.id = 0;
+  manualCashFlowForm.flow_type = 'DEPOSIT';
+  manualCashFlowForm.occurred_date = formatDate(new Date());
+  manualCashFlowForm.currency = String(currentAccount.value?.base_currency || 'CNY').trim() || 'CNY';
+  manualCashFlowForm.amount = 0;
+  manualCashFlowForm.reason = '';
+}
+
+function openManualCashFlowDialog(row = null) {
+  if (!isQmtAccount.value) {
+    ElMessage.warning('仅 QMT 账户支持手工资金流水');
+    return;
+  }
+  if (!row) {
+    resetManualCashFlowForm();
+  } else {
+    manualCashFlowForm.id = Number(row?.id || 0);
+    manualCashFlowForm.flow_type = String(row?.flow_type || 'DEPOSIT').toUpperCase();
+    manualCashFlowForm.occurred_date = formatDate(row?.occurred_time) || formatDate(new Date());
+    manualCashFlowForm.currency = String(row?.currency || currentAccount.value?.base_currency || 'CNY').trim() || 'CNY';
+    manualCashFlowForm.amount = Number(row?.amount || 0);
+    manualCashFlowForm.reason = String(row?.reason || '');
+  }
+  manualCashFlowDialogVisible.value = true;
+}
+
+function resetManualCashFlowFilters() {
+  manualCashFlowFilters.flowType = '';
+  manualCashFlowFilters.dateRange = [];
+  manualCashFlowPagination.page = 1;
+}
+
+async function loadManualCashFlows(accountId = activeAccountId.value, options = {}) {
+  if (!accountId || !isQmtAccount.value) {
+    manualCashFlows.value = [];
+    return;
+  }
+  const { useCurrentFilters = true } = options;
+  const requestParams = {
+    page: 1,
+    page_size: 500,
+  };
+  if (useCurrentFilters) {
+    if (manualCashFlowFilters.flowType) {
+      requestParams.flow_type = String(manualCashFlowFilters.flowType || '').trim().toUpperCase();
+    }
+    if (Array.isArray(manualCashFlowFilters.dateRange) && manualCashFlowFilters.dateRange.length === 2) {
+      requestParams.start_date = manualCashFlowFilters.dateRange[0];
+      requestParams.end_date = manualCashFlowFilters.dateRange[1];
+    }
+  }
+  const res = await getSimTradingManualCashFlows(Number(accountId), {
+    ...requestParams,
+  });
+  if (!isSameActiveAccount(accountId)) {
+    return;
+  }
+  if (!res?.success) {
+    throw new Error(res?.message || '加载手工资金流水失败');
+  }
+  manualCashFlows.value = res.payload?.items || [];
+  manualCashFlowPagination.page = 1;
+}
+
+async function searchManualCashFlows() {
+  try {
+    await loadManualCashFlows(activeAccountId.value, { useCurrentFilters: true });
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '查询手工资金流水失败');
+  }
+}
+
+async function submitManualCashFlow() {
+  if (!activeAccountId.value || manualCashFlowSubmitting.value) {
+    return;
+  }
+  if (!(Number(manualCashFlowForm.amount || 0) > 0)) {
+    ElMessage.warning('金额必须大于 0');
+    return;
+  }
+  if (!manualCashFlowForm.occurred_date) {
+    ElMessage.warning('请选择转账日期');
+    return;
+  }
+  manualCashFlowSubmitting.value = true;
+  try {
+    const payload = {
+      flow_type: String(manualCashFlowForm.flow_type || 'DEPOSIT').toUpperCase(),
+      occurred_date: String(manualCashFlowForm.occurred_date || ''),
+      currency: String(manualCashFlowForm.currency || currentAccount.value?.base_currency || 'CNY').trim() || 'CNY',
+      amount: Number(manualCashFlowForm.amount),
+      reason: String(manualCashFlowForm.reason || '').trim() || null,
+    };
+    const isEdit = Number(manualCashFlowForm.id || 0) > 0;
+    const res = isEdit
+      ? await updateSimTradingManualCashFlow(Number(activeAccountId.value), Number(manualCashFlowForm.id), payload)
+      : await createSimTradingManualCashFlow(Number(activeAccountId.value), payload);
+    if (!res?.success) {
+      throw new Error(res?.message || (isEdit ? '编辑手工资金流水失败' : '新增手工资金流水失败'));
+    }
+    ElMessage.success(isEdit ? '编辑手工资金流水成功' : '新增手工资金流水成功');
+    manualCashFlowDialogVisible.value = false;
+    await Promise.all([
+      loadManualCashFlows(activeAccountId.value),
+      loadCashFlows(activeAccountId.value),
+      loadAccountDetail(activeAccountId.value),
+    ]);
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '保存手工资金流水失败');
+  } finally {
+    manualCashFlowSubmitting.value = false;
+  }
+}
+
+async function deleteManualCashFlowItem(row) {
+  if (!activeAccountId.value || !row?.id) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm('删除后无法恢复，确认删除该手工资金流水吗？', '删除确认', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    });
+  } catch {
+    return;
+  }
+  try {
+    const res = await deleteSimTradingManualCashFlow(Number(activeAccountId.value), Number(row.id));
+    if (!res?.success) {
+      throw new Error(res?.message || '删除手工资金流水失败');
+    }
+    ElMessage.success('删除手工资金流水成功');
+    await Promise.all([
+      loadManualCashFlows(activeAccountId.value),
+      loadCashFlows(activeAccountId.value),
+      loadAccountDetail(activeAccountId.value),
+    ]);
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '删除手工资金流水失败');
+  }
+}
+
 async function handleDebugModeSwitch(nextValue) {
   if (!isSimulatedAccount.value) {
     return;
@@ -5565,6 +5862,8 @@ function clearAccountScopedState() {
   conditionOrders.value = [];
   trades.value = [];
   cashFlows.value = [];
+  manualCashFlows.value = [];
+  manualCashFlowDialogVisible.value = false;
   activityDiagnostics.value = null;
   selectedOpenOrderIds.value = [];
   activityLoadedAccountId.value = '';
@@ -5574,6 +5873,7 @@ function clearAccountScopedState() {
   frozenCashOrderItems.value = [];
   frozenCashDetailVisible.value = false;
   activeFundManagementTab.value = 'max-available-cash';
+  resetManualCashFlowFilters();
   maxAvailableCashRequestSeq += 1;
   qmtReconcileStatus.value = null;
   qmtReconcileForm.auto_enabled = false;
@@ -5981,6 +6281,14 @@ async function ensureActiveTabData(options = {}) {
     );
   }
 
+  if (
+    activeTab.value === 'transfer' &&
+    activeFundManagementTab.value === 'manual-cash-flow' &&
+    (force || !manualCashFlows.value.length)
+  ) {
+    jobs.push(loadManualCashFlows(accountId, { useCurrentFilters: true }));
+  }
+
   if (jobs.length) {
     await Promise.all(jobs);
   }
@@ -6156,6 +6464,13 @@ watch(activeFundManagementTab, (value) => {
   if (value === 'transfer-sub') {
     ensureActiveTabData().catch((error) => {
       console.error(error);
+    });
+    return;
+  }
+  if (value === 'manual-cash-flow') {
+    loadManualCashFlows(activeAccountId.value, { useCurrentFilters: true }).catch((error) => {
+      console.error(error);
+      ElMessage.error(error?.message || '加载手工资金流水失败');
     });
   }
 });

@@ -192,6 +192,33 @@ export async function getSimTradingCashFlows(accountId, params = {}) {
   );
 }
 
+export async function getSimTradingManualCashFlows(accountId, params = {}) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/manual-cash-flows${query ? `?${query}` : ''}`
+  );
+}
+
+export async function createSimTradingManualCashFlow(accountId, data) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/manual-cash-flows`,
+    data
+  );
+}
+
+export async function updateSimTradingManualCashFlow(accountId, cashFlowId, data) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/manual-cash-flows/${cashFlowId}`,
+    data
+  );
+}
+
+export async function deleteSimTradingManualCashFlow(accountId, cashFlowId) {
+  return await request.delete(
+    `${API_PREFIX}/accounts/${accountId}/fund-management/manual-cash-flows/${cashFlowId}`
+  );
+}
+
 export async function getSimTradingMaxAvailableCashSettings(accountId) {
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/fund-management/max-available-cash`
@@ -282,6 +309,19 @@ export async function getSimTradingProfitAnalysisDailyStocks(
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-stocks${query ? `?${query}` : ''}`,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
+  );
+}
+
+export async function getSimTradingProfitAnalysisDailyAccounts(
+  accountId,
+  params = {}
+) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-accounts${query ? `?${query}` : ''}`,
     {
       timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
     }

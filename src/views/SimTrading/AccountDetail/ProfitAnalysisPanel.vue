@@ -81,6 +81,7 @@
             <el-tabs v-model="activeOverviewContentTab">
               <el-tab-pane label="股票收益排行榜" name="ranking"  />
               <el-tab-pane label="股票每日盈亏列表" name="daily-stocks" lazy />
+              <el-tab-pane label="账号每日盈亏列表" name="daily-accounts" lazy />
               <el-tab-pane label="资产轨迹" name="curve" lazy />
             </el-tabs>
           </div>
@@ -283,7 +284,7 @@
             </section>
           </div>
 
-          <div v-else class="profit-module-grid daily-only-grid">
+          <div v-else-if="activeOverviewContentTab === 'daily-stocks'" class="profit-module-grid daily-only-grid">
             <section class="profit-card daily-stocks-card" v-loading="dailyStocksLoading">
               <div class="profit-card__header">
                 <div>
@@ -354,6 +355,75 @@
                   :page-sizes="[20, 50, 100, 200]"
                   @current-change="handleDailyStocksPageChange"
                   @size-change="handleDailyStocksPageSizeChange"
+                />
+              </div>
+            </section>
+          </div>
+
+          <div v-else class="profit-module-grid daily-only-grid">
+            <section class="profit-card daily-stocks-card" v-loading="dailyAccountsLoading">
+              <div class="profit-card__header">
+                <div>
+                  <h3>账号每日盈亏列表</h3>
+                  <p>按日展示账户快照核心字段：资产、净入金、已实现与未实现盈亏。</p>
+                </div>
+                <div class="daily-stocks-actions">
+                  <el-button @click="refreshDailyAccounts">刷新明细</el-button>
+                </div>
+              </div>
+
+              <el-table
+                :data="dailyAccounts.items"
+                border
+                :empty-text="dailyAccountsTableEmptyText"
+              >
+                <el-table-column prop="trade_date" label="日期" width="120" sortable />
+                <el-table-column prop="cash_balance" label="现金余额" width="140" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.cash_balance) }}</template>
+                </el-table-column>
+                <el-table-column prop="market_value_total" label="持仓市值" width="140" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.market_value_total) }}</template>
+                </el-table-column>
+                <el-table-column prop="total_asset" label="总资产" width="140" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.total_asset) }}</template>
+                </el-table-column>
+                <el-table-column prop="daily_net_capital_in" label="当日净入金" width="140" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.daily_net_capital_in) }}</template>
+                </el-table-column>
+                <el-table-column prop="cum_net_capital" label="累计净入金" width="140" sortable>
+                  <template #default="scope">{{ formatMoney(scope.row.cum_net_capital) }}</template>
+                </el-table-column>
+                <el-table-column prop="daily_realized_profit" label="当日已实现盈亏" width="160" sortable>
+                  <template #default="scope">
+                    <span :class="profitClass(scope.row.daily_realized_profit)">{{ formatMoney(scope.row.daily_realized_profit) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="daily_unrealized_change" label="当日浮盈浮亏变化" width="170" sortable>
+                  <template #default="scope">
+                    <span :class="profitClass(scope.row.daily_unrealized_change)">{{ formatMoney(scope.row.daily_unrealized_change) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="daily_total_profit" label="当日总盈亏" width="140" sortable>
+                  <template #default="scope">
+                    <div class="dual-line-cell">
+                      <span :class="profitClass(scope.row.daily_total_profit)">{{ formatMoney(scope.row.daily_total_profit) }}</span>
+                      <span :class="profitClass(scope.row.daily_total_profit)">{{ formatPercent(scope.row.daily_profit_rate) }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <div class="daily-stocks-footer">
+                <span class="daily-stocks-empty-tip">{{ dailyAccountsEmptyDescription }}</span>
+                <el-pagination
+                  background
+                  layout="total, prev, pager, next, sizes"
+                  :total="Number(dailyAccounts.total || 0)"
+                  :current-page="dailyAccounts.page"
+                  :page-size="dailyAccounts.page_size"
+                  :page-sizes="[20, 50, 100, 200]"
+                  @current-change="handleDailyAccountsPageChange"
+                  @size-change="handleDailyAccountsPageSizeChange"
                 />
               </div>
             </section>
@@ -568,8 +638,8 @@
           </div>
         </div>
       </el-tab-pane>
-
-      <el-tab-pane v-if="isSuperAdmin" label="手动补全盈亏数据" name="rebuild" lazy>
+      <!-- // v-if="isSuperAdmin" -->
+      <el-tab-pane  label="手动补全盈亏数据" name="rebuild" lazy>
         <div class="profit-content-shell rebuild-shell" v-loading="rebuildLoading">
           <el-tabs v-model="activeRebuildTab">
             <el-tab-pane label="指定日期生成" name="by-date" lazy>
@@ -652,6 +722,7 @@ import { ElMessage } from 'element-plus';
 
 import {
   getProfitRebuildTaskProgress,
+  getSimTradingProfitAnalysisDailyAccounts,
   getSimTradingProfitAnalysisDailyStocks,
   getSimTradingProfitAnalysisCalendar,
   getSimTradingProfitAnalysisOverview,
@@ -696,6 +767,7 @@ const overviewLoading = ref(false);
 const calendarType = ref('month');
 const calendarLoading = ref(false);
 const dailyStocksLoading = ref(false);
+const dailyAccountsLoading = ref(false);
 const rebuildLoading = ref(false);
 const rebuildMode = ref('single');
 const rebuildSingleDate = ref('');
@@ -721,6 +793,13 @@ const calendarData = reactive({
 });
 
 const dailyStocks = reactive({
+  total: 0,
+  page: 1,
+  page_size: 50,
+  items: [],
+});
+
+const dailyAccounts = reactive({
   total: 0,
   page: 1,
   page_size: 50,
@@ -866,6 +945,9 @@ const rankingEmptyText = computed(() => {
 const dailyStocksTableEmptyText = computed(() => {
   return hasAnyTradeOrCashFlow.value ? snapshotMissingHint : '暂无盈亏数据';
 });
+const dailyAccountsTableEmptyText = computed(() => {
+  return hasAnyTradeOrCashFlow.value ? snapshotMissingHint : '暂无盈亏数据';
+});
 const dailyStocksEmptyDescription = computed(() => {
   if (Number(dailyStocks.total || 0) > 0) {
     return '';
@@ -876,6 +958,14 @@ const dailyStocksEmptyDescription = computed(() => {
   return dailyStocksIncludeClosed.value
     ? '当前区间暂无盈亏明细（包含清仓记录）'
     : '当日盈亏快照未生成，或当前区间仅有清仓记录；可勾选“展示已清仓个股”或前往手动补全面板重建快照';
+});
+const dailyAccountsEmptyDescription = computed(() => {
+  if (Number(dailyAccounts.total || 0) > 0) {
+    return '';
+  }
+  return hasAnyTradeOrCashFlow.value
+    ? '当前区间未生成账号快照，请前往手动补全面板重建快照'
+    : '暂无盈亏数据';
 });
 const tradeEventsByDate = computed(() => {
   const map = new Map();
@@ -900,7 +990,7 @@ const cashFlowEventsByDate = computed(() => {
       continue;
     }
     if (
-      !['DEPOSIT', 'WITHDRAW', 'BUY_SETTLE', 'SELL_SETTLE', 'FEE'].includes(
+      !['DEPOSIT', 'WITHDRAW', 'DIVIDEND', 'INTEREST', 'BUY_SETTLE', 'SELL_SETTLE', 'FEE'].includes(
         String(item?.flow_type || '')
       )
     ) {
@@ -930,6 +1020,10 @@ watch(
     dailyStocks.page_size = 50;
     dailyStocks.items = [];
     dailyStocks.total = 0;
+    dailyAccounts.page = 1;
+    dailyAccounts.page_size = 50;
+    dailyAccounts.items = [];
+    dailyAccounts.total = 0;
     dailyStocksIncludeClosed.value = false;
     resetRebuildTask();
     await Promise.all([loadOverview(), loadCalendar()]);
@@ -965,6 +1059,8 @@ watch(
     ]);
     if (activeOverviewContentTab.value === 'daily-stocks') {
       await loadDailyStocks({ force: true });
+    } else if (activeOverviewContentTab.value === 'daily-accounts') {
+      await loadDailyAccounts({ force: true });
     }
   }
 );
@@ -974,6 +1070,8 @@ watch(
   async (value) => {
     if (value === 'daily-stocks') {
       await loadDailyStocks();
+    } else if (value === 'daily-accounts') {
+      await loadDailyAccounts();
     }
   }
 );
@@ -1145,9 +1243,56 @@ async function loadDailyStocks(options = {}) {
   }
 }
 
+async function loadDailyAccounts(options = {}) {
+  if (!props.accountId) {
+    return;
+  }
+  const { force = false } = options;
+  dailyAccountsLoading.value = true;
+  try {
+    const params = {
+      range_type: overviewRangeType.value,
+      page: Number(dailyAccounts.page || 1),
+      page_size: Number(dailyAccounts.page_size || 50),
+    };
+    if (
+      overviewRangeType.value === 'custom' &&
+      Array.isArray(overviewCustomDateRange.value) &&
+      overviewCustomDateRange.value.length === 2
+    ) {
+      params.start_date = overviewCustomDateRange.value[0];
+      params.end_date = overviewCustomDateRange.value[1];
+    }
+    if (force) {
+      params._ts = Date.now();
+    }
+    const res = await getSimTradingProfitAnalysisDailyAccounts(Number(props.accountId), params);
+    const payload = res?.payload || {
+      total: 0,
+      page: Number(params.page || 1),
+      page_size: Number(params.page_size || 50),
+      items: [],
+    };
+    dailyAccounts.total = Number(payload.total || 0);
+    dailyAccounts.page = Number(payload.page || 1);
+    dailyAccounts.page_size = Number(payload.page_size || 50);
+    dailyAccounts.items = Array.isArray(payload.items) ? payload.items : [];
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '获取账号每日盈亏明细失败');
+  } finally {
+    dailyAccountsLoading.value = false;
+  }
+}
+
 function refreshDailyStocks() {
   dailyStocks.page = 1;
   loadDailyStocks({ force: true });
+}
+
+function refreshDailyAccounts() {
+  dailyAccounts.page = 1;
+  loadDailyAccounts({ force: true });
 }
 
 function handleDailyStocksPageChange(page) {
@@ -1159,6 +1304,17 @@ function handleDailyStocksPageSizeChange(pageSize) {
   dailyStocks.page_size = Number(pageSize || 50);
   dailyStocks.page = 1;
   loadDailyStocks();
+}
+
+function handleDailyAccountsPageChange(page) {
+  dailyAccounts.page = Number(page || 1);
+  loadDailyAccounts();
+}
+
+function handleDailyAccountsPageSizeChange(pageSize) {
+  dailyAccounts.page_size = Number(pageSize || 50);
+  dailyAccounts.page = 1;
+  loadDailyAccounts();
 }
 
 function buildRebuildPayload(mode, dates = {}) {
@@ -1410,6 +1566,8 @@ function getFlowTypeLabel(flowType) {
   const map = {
     DEPOSIT: '入金',
     WITHDRAW: '出金',
+    DIVIDEND: '股票分红',
+    INTEREST: '账户利息',
     BUY_SETTLE: '买入结算',
     SELL_SETTLE: '卖出结算',
     FEE: '交易费用',
