@@ -2362,6 +2362,7 @@
             :account-id="activeAccountId"
             :trades="trades"
             :cash-flows="cashFlows"
+            :is-super-admin="isSuperAdmin"
             @view-history-trades="handleProfitRankingTradeHistory"
           />
         </el-tab-pane>
@@ -2864,7 +2865,8 @@ const supportsProfitAnalysis = computed(() => {
   if (!isQmtAccount.value) {
     return true;
   }
-  return accountCapabilities.value?.supports_profit_analysis === true;
+  // QMT 账号默认展示盈亏分析，只有后端显式返回 false 时才关闭。
+  return accountCapabilities.value?.supports_profit_analysis !== false;
 });
 const supportsConditionOrder = computed(() => isQmtAccount.value);
 const supportsStrategyAutomation = computed(() => {

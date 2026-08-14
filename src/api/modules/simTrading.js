@@ -275,6 +275,38 @@ export async function getSimTradingProfitAnalysisCalendar(
   });
 }
 
+export async function getSimTradingProfitAnalysisDailyStocks(
+  accountId,
+  params = {}
+) {
+  const query = qs.stringify(params, { skipNulls: true });
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-stocks${query ? `?${query}` : ''}`,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
+  );
+}
+
+export async function rebuildAccountProfitSnapshot(accountId, data = {}) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/rebuild-snapshot`,
+    data,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
+  );
+}
+
+export async function getProfitRebuildTaskProgress(accountId, taskId) {
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/rebuild-task/${taskId}`,
+    {
+      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+    }
+  );
+}
+
 export async function getSimTradingTAnalysis(accountId, params = {}) {
   const query = qs.stringify(params, { skipNulls: true });
   const cacheKey = `t-analysis:${Number(accountId)}:${query}`;

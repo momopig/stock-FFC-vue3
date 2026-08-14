@@ -17,6 +17,8 @@ export const PermissionCodes = {
   SYSTEM_STOCK_SEARCH_INDEX_SYNC: 'system:stock_search_index:sync',
   SYSTEM_STOCK_SEARCH_INDEX_EXPORT: 'system:stock_search_index:export',
   SYSTEM_FUTU_SUBSCRIPTION_READ: 'system:futu_subscription:read',
+  SYSTEM_PROFIT_STATISTICS_READ: 'system:profit_statistics:read',
+  SYSTEM_PROFIT_STATISTICS_WRITE: 'system:profit_statistics:write',
   STRATEGY_SIGNAL_READ: 'strategy:signal:read',
   STRATEGY_SIGNAL_WRITE: 'strategy:signal:write',
   STRATEGY_EXECUTION_READ: 'strategy:execution:read',

@@ -59,6 +59,13 @@ const routes = [
     ),
     meta: { permissionCodes: [PermissionCodes.SYSTEM_STOCK_SEARCH_INDEX_READ] },
   },
+  {
+    path: '/system/profit-statistics',
+    component: lazy(
+      () => import('@/views/System/ProfitStatisticsManagement/index.vue')
+    ),
+    meta: { permissionCodes: [PermissionCodes.SYSTEM_PROFIT_STATISTICS_READ] },
+  },
   { path: '/home', component: lazy(() => import('@/App.vue')) },
   {
     path: '/futu-opend-subscriptions',

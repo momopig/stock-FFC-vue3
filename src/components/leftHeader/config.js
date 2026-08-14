@@ -211,4 +211,11 @@ export const menuList = [
     path: '/futu-opend-subscriptions',
     permissionCodes: [PermissionCodes.SYSTEM_FUTU_SUBSCRIPTION_READ],
   },
+  {
+    name: '盈亏统计管理',
+    foldName: '盈亏统计',
+    icon: 'Clock',
+    path: '/system/profit-statistics',
+    permissionCodes: [PermissionCodes.SYSTEM_PROFIT_STATISTICS_READ],
+  },
 ]
