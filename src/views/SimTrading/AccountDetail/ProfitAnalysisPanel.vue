@@ -79,14 +79,21 @@
 
           <div class="overview-content-tabs">
             <el-tabs v-model="activeOverviewContentTab">
-              <el-tab-pane label="股票收益排行榜" name="ranking"  />
+              <el-tab-pane label="股票收益排行榜" name="ranking" />
               <el-tab-pane label="股票每日盈亏列表" name="daily-stocks" lazy />
-              <el-tab-pane label="账号每日盈亏列表" name="daily-accounts" lazy />
+              <el-tab-pane
+                label="账号每日盈亏列表"
+                name="daily-accounts"
+                lazy
+              />
               <el-tab-pane label="资产轨迹" name="curve" lazy />
             </el-tabs>
           </div>
 
-          <div v-if="activeOverviewContentTab === 'curve'" class="profit-module-grid">
+          <div
+            v-if="activeOverviewContentTab === 'curve'"
+            class="profit-module-grid"
+          >
             <section class="profit-card curve-card">
               <div class="profit-card__header">
                 <div>
@@ -186,10 +193,12 @@
                 :image-size="90"
               />
             </section>
-
           </div>
 
-          <div v-else-if="activeOverviewContentTab === 'ranking'" class="profit-module-grid ranking-only-grid">
+          <div
+            v-else-if="activeOverviewContentTab === 'ranking'"
+            class="profit-module-grid ranking-only-grid"
+          >
             <section class="profit-card ranking-card">
               <div class="profit-card__header">
                 <div>
@@ -216,7 +225,7 @@
                         class="ranking-link-button"
                         @click="openBaiduStockPage(scope.row)"
                       >
-                         <span>{{ formatRankingStockName(scope.row) }}</span>
+                        <span>{{ formatRankingStockName(scope.row) }}</span>
                       </button>
                     </div>
                   </template>
@@ -271,10 +280,7 @@
                       >
                         历史成交
                       </el-button>
-                      <el-button
-                        link
-                        @click="openBaiduStockPage(scope.row)"
-                      >
+                      <el-button link @click="openBaiduStockPage(scope.row)">
                         百度查股
                       </el-button>
                     </el-space>
@@ -284,18 +290,61 @@
             </section>
           </div>
 
-          <div v-else-if="activeOverviewContentTab === 'daily-stocks'" class="profit-module-grid daily-only-grid">
-            <section class="profit-card daily-stocks-card" v-loading="dailyStocksLoading">
+          <div
+            v-else-if="activeOverviewContentTab === 'daily-stocks'"
+            class="profit-module-grid daily-only-grid"
+          >
+            <section
+              class="profit-card daily-stocks-card"
+              v-loading="dailyStocksLoading"
+            >
               <div class="profit-card__header">
                 <div>
                   <h3>股票每日盈亏列表</h3>
-                  <p>按日展示个股持仓、盈亏、手续费与清仓记录（可切换展示）。</p>
+                  <p>
+                    按日展示个股持仓、盈亏、手续费与清仓记录（可切换展示）。
+                  </p>
                 </div>
                 <div class="daily-stocks-actions">
-                  <el-checkbox v-model="dailyStocksIncludeClosed" @change="refreshDailyStocks">
-                    展示已清仓个股
-                  </el-checkbox>
-                  <el-button @click="refreshDailyStocks">刷新明细</el-button>
+                  <div class="daily-stocks-toggle-actions">
+                    <el-checkbox
+                      v-model="dailyStocksIncludeClosed"
+                      @change="refreshDailyStocks"
+                    >
+                      展示已清仓个股
+                    </el-checkbox>
+                    <el-button @click="refreshDailyStocks">刷新明细</el-button>
+                  </div>
+                  <div class="daily-stocks-filter-actions">
+                    <el-date-picker
+                      v-model="dailyStocksFilters.trade_date"
+                      type="date"
+                      value-format="YYYY-MM-DD"
+                      placeholder="日期"
+                      clearable
+                    />
+                    <el-input
+                      v-model="dailyStocksFilters.stock_name"
+                      placeholder="股票名称"
+                      clearable
+                    />
+                    <el-input
+                      v-model="dailyStocksFilters.stock_code"
+                      placeholder="股票代码"
+                      clearable
+                    />
+                    <el-input-number
+                      v-model="dailyStocksFilters.holding_days"
+                      :min="0"
+                      :precision="0"
+                      placeholder="持仓天数"
+                      controls-position="right"
+                    />
+                    <el-button type="primary" @click="applyDailyStocksFilters"
+                      >查询</el-button
+                    >
+                    <el-button @click="resetDailyStocksFilters">重置</el-button>
+                  </div>
                 </div>
               </div>
 
@@ -304,48 +353,137 @@
                 border
                 :empty-text="dailyStocksTableEmptyText"
               >
-                <el-table-column prop="trade_date" label="日期" width="120" sortable />
-                <el-table-column prop="stock_name" label="股票名称" min-width="130" />
-                <el-table-column prop="stock_code" label="股票代码" width="120" />
-                <el-table-column prop="hold_quantity" label="持仓数量" width="110" sortable />
-                <el-table-column prop="avg_cost_price" label="持仓成本" width="120" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.avg_cost_price) }}</template>
+                <el-table-column
+                  prop="trade_date"
+                  label="日期"
+                  width="120"
+                  sortable
+                  :filters="dailyStockDateColumnFilters"
+                  :filter-method="filterDailyStockTradeDate"
+                  column-key="trade_date"
+                />
+                <el-table-column
+                  prop="stock_name"
+                  label="股票名称"
+                  min-width="130"
+                  :filters="dailyStockNameColumnFilters"
+                  :filter-method="filterDailyStockName"
+                  column-key="stock_name"
+                />
+                <el-table-column
+                  prop="stock_code"
+                  label="股票代码"
+                  width="120"
+                />
+                <el-table-column
+                  prop="hold_quantity"
+                  label="持仓数量"
+                  width="110"
+                  sortable
+                />
+                <el-table-column
+                  prop="avg_cost_price"
+                  label="持仓成本"
+                  width="120"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.avg_cost_price)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="close_price" label="收盘价" width="110" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.close_price) }}</template>
+                <el-table-column
+                  prop="close_price"
+                  label="收盘价"
+                  width="110"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.close_price)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="day_profit_amount" label="当日盈亏" width="150" sortable>
+                <el-table-column
+                  prop="day_profit_amount"
+                  label="当日盈亏"
+                  width="150"
+                  sortable
+                >
                   <template #default="scope">
                     <div class="dual-line-cell">
-                      <span :class="profitClass(scope.row.day_profit_amount)">{{ formatMoney(scope.row.day_profit_amount) }}</span>
-                      <span :class="profitClass(scope.row.day_profit_amount)">{{ formatPercent(scope.row.day_profit_rate) }}</span>
+                      <span :class="profitClass(scope.row.day_profit_amount)">{{
+                        formatMoney(scope.row.day_profit_amount)
+                      }}</span>
+                      <span :class="profitClass(scope.row.day_profit_amount)">{{
+                        formatPercent(scope.row.day_profit_rate)
+                      }}</span>
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="holding_days" label="持仓天数" width="110" sortable>
-                  <template #default="scope">{{ formatHoldingDays(scope.row.holding_days) }}</template>
+                <el-table-column
+                  prop="holding_days"
+                  label="持仓天数"
+                  width="110"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatHoldingDays(scope.row.holding_days)
+                  }}</template>
                 </el-table-column>
                 <el-table-column label="持仓日期区间" min-width="210">
-                  <template #default="scope">{{ formatHoldingDateRange(scope.row) }}</template>
+                  <template #default="scope">{{
+                    formatHoldingDateRange(scope.row)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="position_ratio" label="持仓占比" width="110" sortable>
-                  <template #default="scope">{{ formatPercent(scope.row.position_ratio) }}</template>
+                <el-table-column
+                  prop="position_ratio"
+                  label="持仓占比"
+                  width="110"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatPercent(scope.row.position_ratio)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="loss_to_asset_ratio" label="浮亏占总资产" width="130" sortable>
+                <el-table-column
+                  prop="loss_to_asset_ratio"
+                  label="浮亏占总资产"
+                  width="130"
+                  sortable
+                >
                   <template #default="scope">
-                    <span :class="profitClass(-Number(scope.row.loss_to_asset_ratio || 0))">{{ formatPercent(scope.row.loss_to_asset_ratio) }}</span>
+                    <span
+                      :class="
+                        profitClass(-Number(scope.row.loss_to_asset_ratio || 0))
+                      "
+                      >{{ formatPercent(scope.row.loss_to_asset_ratio) }}</span
+                    >
                   </template>
                 </el-table-column>
-                <el-table-column prop="daily_fee" label="当日手续费" width="120" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.daily_fee) }}</template>
+                <el-table-column
+                  prop="daily_fee"
+                  label="当日手续费"
+                  width="120"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.daily_fee)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="market_value" label="持仓市值" width="130" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.market_value) }}</template>
+                <el-table-column
+                  prop="market_value"
+                  label="持仓市值"
+                  width="130"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.market_value)
+                  }}</template>
                 </el-table-column>
               </el-table>
 
               <div class="daily-stocks-footer">
-                <span class="daily-stocks-empty-tip">{{ dailyStocksEmptyDescription }}</span>
+                <span class="daily-stocks-empty-tip">{{
+                  dailyStocksEmptyDescription
+                }}</span>
                 <el-pagination
                   background
                   layout="total, prev, pager, next, sizes"
@@ -361,11 +499,16 @@
           </div>
 
           <div v-else class="profit-module-grid daily-only-grid">
-            <section class="profit-card daily-stocks-card" v-loading="dailyAccountsLoading">
+            <section
+              class="profit-card daily-stocks-card"
+              v-loading="dailyAccountsLoading"
+            >
               <div class="profit-card__header">
                 <div>
                   <h3>账号每日盈亏列表</h3>
-                  <p>按日展示账户快照核心字段：资产、净入金、已实现与未实现盈亏。</p>
+                  <p>
+                    按日展示账户快照核心字段：资产、净入金、已实现与未实现盈亏。
+                  </p>
                 </div>
                 <div class="daily-stocks-actions">
                   <el-button @click="refreshDailyAccounts">刷新明细</el-button>
@@ -377,44 +520,115 @@
                 border
                 :empty-text="dailyAccountsTableEmptyText"
               >
-                <el-table-column prop="trade_date" label="日期" width="120" sortable />
-                <el-table-column prop="cash_balance" label="现金余额" width="140" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.cash_balance) }}</template>
+                <el-table-column
+                  prop="trade_date"
+                  label="日期"
+                  width="120"
+                  sortable
+                />
+                <el-table-column
+                  prop="cash_balance"
+                  label="现金余额"
+                  width="140"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.cash_balance)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="market_value_total" label="持仓市值" width="140" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.market_value_total) }}</template>
+                <el-table-column
+                  prop="market_value_total"
+                  label="持仓市值"
+                  width="140"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.market_value_total)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="total_asset" label="总资产" width="140" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.total_asset) }}</template>
+                <el-table-column
+                  prop="total_asset"
+                  label="总资产"
+                  width="140"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.total_asset)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="daily_net_capital_in" label="当日净入金" width="140" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.daily_net_capital_in) }}</template>
+                <el-table-column
+                  prop="daily_net_capital_in"
+                  label="当日净入金"
+                  width="140"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.daily_net_capital_in)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="cum_net_capital" label="累计净入金" width="140" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.cum_net_capital) }}</template>
+                <el-table-column
+                  prop="cum_net_capital"
+                  label="累计净入金"
+                  width="140"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatMoney(scope.row.cum_net_capital)
+                  }}</template>
                 </el-table-column>
-                <el-table-column prop="daily_realized_profit" label="当日已实现盈亏" width="160" sortable>
+                <el-table-column
+                  prop="daily_realized_profit"
+                  label="当日已实现盈亏"
+                  width="160"
+                  sortable
+                >
                   <template #default="scope">
-                    <span :class="profitClass(scope.row.daily_realized_profit)">{{ formatMoney(scope.row.daily_realized_profit) }}</span>
+                    <span
+                      :class="profitClass(scope.row.daily_realized_profit)"
+                      >{{ formatMoney(scope.row.daily_realized_profit) }}</span
+                    >
                   </template>
                 </el-table-column>
-                <el-table-column prop="daily_unrealized_change" label="当日浮盈浮亏变化" width="170" sortable>
+                <el-table-column
+                  prop="daily_unrealized_change"
+                  label="当日浮盈浮亏变化"
+                  width="170"
+                  sortable
+                >
                   <template #default="scope">
-                    <span :class="profitClass(scope.row.daily_unrealized_change)">{{ formatMoney(scope.row.daily_unrealized_change) }}</span>
+                    <span
+                      :class="profitClass(scope.row.daily_unrealized_change)"
+                      >{{
+                        formatMoney(scope.row.daily_unrealized_change)
+                      }}</span
+                    >
                   </template>
                 </el-table-column>
-                <el-table-column prop="daily_total_profit" label="当日总盈亏" width="140" sortable>
+                <el-table-column
+                  prop="daily_total_profit"
+                  label="当日总盈亏"
+                  width="140"
+                  sortable
+                >
                   <template #default="scope">
                     <div class="dual-line-cell">
-                      <span :class="profitClass(scope.row.daily_total_profit)">{{ formatMoney(scope.row.daily_total_profit) }}</span>
-                      <span :class="profitClass(scope.row.daily_total_profit)">{{ formatPercent(scope.row.daily_profit_rate) }}</span>
+                      <span
+                        :class="profitClass(scope.row.daily_total_profit)"
+                        >{{ formatMoney(scope.row.daily_total_profit) }}</span
+                      >
+                      <span
+                        :class="profitClass(scope.row.daily_total_profit)"
+                        >{{ formatPercent(scope.row.daily_profit_rate) }}</span
+                      >
                     </div>
                   </template>
                 </el-table-column>
               </el-table>
 
               <div class="daily-stocks-footer">
-                <span class="daily-stocks-empty-tip">{{ dailyAccountsEmptyDescription }}</span>
+                <span class="daily-stocks-empty-tip">{{
+                  dailyAccountsEmptyDescription
+                }}</span>
                 <el-pagination
                   background
                   layout="total, prev, pager, next, sizes"
@@ -639,8 +853,11 @@
         </div>
       </el-tab-pane>
       <!-- // v-if="isSuperAdmin" -->
-      <el-tab-pane  label="手动补全盈亏数据" name="rebuild" lazy>
-        <div class="profit-content-shell rebuild-shell" v-loading="rebuildLoading">
+      <el-tab-pane label="手动补全盈亏数据" name="rebuild" lazy>
+        <div
+          class="profit-content-shell rebuild-shell"
+          v-loading="rebuildLoading"
+        >
           <el-tabs v-model="activeRebuildTab">
             <el-tab-pane label="指定日期生成" name="by-date" lazy>
               <el-form label-width="120px" class="rebuild-form">
@@ -652,10 +869,23 @@
                   </el-radio-group>
                 </el-form-item>
                 <el-form-item v-if="rebuildMode === 'single'" label="选择日期">
-                  <el-date-picker v-model="rebuildSingleDate" type="date" value-format="YYYY-MM-DD" placeholder="选择交易日" />
+                  <el-date-picker
+                    v-model="rebuildSingleDate"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    placeholder="选择交易日"
+                  />
                 </el-form-item>
-                <el-form-item v-else-if="rebuildMode === 'multiple'" label="选择日期">
-                  <el-date-picker v-model="rebuildMultiDates" type="dates" value-format="YYYY-MM-DD" placeholder="可多选交易日" />
+                <el-form-item
+                  v-else-if="rebuildMode === 'multiple'"
+                  label="选择日期"
+                >
+                  <el-date-picker
+                    v-model="rebuildMultiDates"
+                    type="dates"
+                    value-format="YYYY-MM-DD"
+                    placeholder="可多选交易日"
+                  />
                 </el-form-item>
                 <el-form-item v-else label="日期区间">
                   <el-date-picker
@@ -668,7 +898,12 @@
                   />
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" :loading="rebuildLoading" @click="submitRebuildByDate">开始生成</el-button>
+                  <el-button
+                    type="primary"
+                    :loading="rebuildLoading"
+                    @click="submitRebuildByDate"
+                    >开始生成</el-button
+                  >
                 </el-form-item>
               </el-form>
             </el-tab-pane>
@@ -680,8 +915,22 @@
                 :closable="false"
                 show-icon
               />
-              <el-button style="margin-top: 12px" type="danger" :loading="rebuildLoading" @click="submitRebuildAll">
+              <el-button
+                style="margin-top: 12px"
+                type="danger"
+                :loading="rebuildLoading || rebuildTaskRunning"
+                :disabled="rebuildTaskRunning"
+                @click="submitRebuildAll"
+              >
                 全量生成每日盈亏记录
+              </el-button>
+              <el-button
+                style="margin-top: 12px; margin-left: 8px"
+                :loading="rebuildRefreshing"
+                :disabled="!rebuildTask.task_id"
+                @click="refreshRebuildTaskProgress"
+              >
+                刷新进度
               </el-button>
             </el-tab-pane>
           </el-tabs>
@@ -690,14 +939,26 @@
             <div class="rebuild-task-summary">
               <span>任务ID：{{ rebuildTask.task_id }}</span>
               <span>状态：{{ rebuildTask.status || '--' }}</span>
-              <span>进度：{{ rebuildTask.processed_dates || 0 }} / {{ rebuildTask.total_dates || 0 }}</span>
+              <span
+                >进度：{{ rebuildTask.processed_dates || 0 }} /
+                {{ rebuildTask.total_dates || 0 }}</span
+              >
               <span>成功：{{ rebuildTask.success_dates || 0 }}</span>
               <span>失败：{{ rebuildTask.failed_dates || 0 }}</span>
             </div>
-            <el-table :data="rebuildTask.items || []" border size="small" empty-text="暂无任务明细">
+            <el-table
+              :data="rebuildTask.items || []"
+              border
+              size="small"
+              empty-text="暂无任务明细"
+            >
               <el-table-column prop="trade_date" label="日期" width="130" />
               <el-table-column prop="status" label="状态" width="100" />
-              <el-table-column prop="message" label="结果说明" min-width="280" />
+              <el-table-column
+                prop="message"
+                label="结果说明"
+                min-width="280"
+              />
               <el-table-column label="操作" width="120">
                 <template #default="scope">
                   <el-button
@@ -705,7 +966,8 @@
                     link
                     type="primary"
                     @click="retryRebuildForDate(scope.row.trade_date)"
-                  >重试</el-button>
+                    >重试</el-button
+                  >
                 </template>
               </el-table-column>
             </el-table>
@@ -769,6 +1031,7 @@ const calendarLoading = ref(false);
 const dailyStocksLoading = ref(false);
 const dailyAccountsLoading = ref(false);
 const rebuildLoading = ref(false);
+const rebuildRefreshing = ref(false);
 const rebuildMode = ref('single');
 const rebuildSingleDate = ref('');
 const rebuildMultiDates = ref([]);
@@ -799,6 +1062,13 @@ const dailyStocks = reactive({
   items: [],
 });
 
+const dailyStocksFilters = reactive({
+  stock_name: '',
+  stock_code: '',
+  trade_date: '',
+  holding_days: null,
+});
+
 const dailyAccounts = reactive({
   total: 0,
   page: 1,
@@ -821,6 +1091,10 @@ const rebuildTask = reactive({
 
 const dailyStocksIncludeClosed = ref(false);
 const isSuperAdmin = computed(() => Boolean(props.isSuperAdmin));
+const rebuildTaskRunning = computed(() => {
+  const status = String(rebuildTask.status || '').toLowerCase();
+  return status === 'pending' || status === 'running';
+});
 
 const overviewSummary = computed(() => overviewData.summary || {});
 const overviewRangeLabel = computed(
@@ -931,7 +1205,9 @@ const calendarTotalLabel = computed(
 );
 const hasAnyTradeOrCashFlow = computed(() => {
   const tradeCount = Array.isArray(props.trades) ? props.trades.length : 0;
-  const cashFlowCount = Array.isArray(props.cashFlows) ? props.cashFlows.length : 0;
+  const cashFlowCount = Array.isArray(props.cashFlows)
+    ? props.cashFlows.length
+    : 0;
   return tradeCount > 0 || cashFlowCount > 0;
 });
 const snapshotMissingHint =
@@ -967,6 +1243,26 @@ const dailyAccountsEmptyDescription = computed(() => {
     ? '当前区间未生成账号快照，请前往手动补全面板重建快照'
     : '暂无盈亏数据';
 });
+const dailyStockDateColumnFilters = computed(() => {
+  const uniqueValues = Array.from(
+    new Set(
+      (dailyStocks.items || [])
+        .map((item) => String(item?.trade_date || '').trim())
+        .filter(Boolean)
+    )
+  );
+  return uniqueValues.map((value) => ({ text: value, value }));
+});
+const dailyStockNameColumnFilters = computed(() => {
+  const uniqueValues = Array.from(
+    new Set(
+      (dailyStocks.items || [])
+        .map((item) => String(item?.stock_name || '').trim())
+        .filter(Boolean)
+    )
+  );
+  return uniqueValues.map((value) => ({ text: value, value }));
+});
 const tradeEventsByDate = computed(() => {
   const map = new Map();
   for (const item of props.trades || []) {
@@ -990,9 +1286,15 @@ const cashFlowEventsByDate = computed(() => {
       continue;
     }
     if (
-      !['DEPOSIT', 'WITHDRAW', 'DIVIDEND', 'INTEREST', 'BUY_SETTLE', 'SELL_SETTLE', 'FEE'].includes(
-        String(item?.flow_type || '')
-      )
+      ![
+        'DEPOSIT',
+        'WITHDRAW',
+        'DIVIDEND',
+        'INTEREST',
+        'BUY_SETTLE',
+        'SELL_SETTLE',
+        'FEE',
+      ].includes(String(item?.flow_type || ''))
     ) {
       continue;
     }
@@ -1020,6 +1322,10 @@ watch(
     dailyStocks.page_size = 50;
     dailyStocks.items = [];
     dailyStocks.total = 0;
+    dailyStocksFilters.stock_name = '';
+    dailyStocksFilters.stock_code = '';
+    dailyStocksFilters.trade_date = '';
+    dailyStocksFilters.holding_days = null;
     dailyAccounts.page = 1;
     dailyAccounts.page_size = 50;
     dailyAccounts.items = [];
@@ -1213,6 +1519,28 @@ async function loadDailyStocks(options = {}) {
       page: Number(dailyStocks.page || 1),
       page_size: Number(dailyStocks.page_size || 50),
     };
+    const normalizedStockName = String(
+      dailyStocksFilters.stock_name || ''
+    ).trim();
+    if (normalizedStockName) {
+      params.stock_name = normalizedStockName;
+    }
+    const normalizedStockCode = String(
+      dailyStocksFilters.stock_code || ''
+    ).trim();
+    if (normalizedStockCode) {
+      params.stock_code = normalizedStockCode;
+    }
+    if (dailyStocksFilters.trade_date) {
+      params.trade_date = dailyStocksFilters.trade_date;
+    }
+    if (
+      dailyStocksFilters.holding_days !== null &&
+      dailyStocksFilters.holding_days !== undefined &&
+      dailyStocksFilters.holding_days !== ''
+    ) {
+      params.holding_days = Number(dailyStocksFilters.holding_days);
+    }
     if (
       overviewRangeType.value === 'custom' &&
       Array.isArray(overviewCustomDateRange.value) &&
@@ -1224,7 +1552,10 @@ async function loadDailyStocks(options = {}) {
     if (force) {
       params._ts = Date.now();
     }
-    const res = await getSimTradingProfitAnalysisDailyStocks(Number(props.accountId), params);
+    const res = await getSimTradingProfitAnalysisDailyStocks(
+      Number(props.accountId),
+      params
+    );
     const payload = res?.payload || {
       total: 0,
       page: Number(params.page || 1),
@@ -1266,7 +1597,10 @@ async function loadDailyAccounts(options = {}) {
     if (force) {
       params._ts = Date.now();
     }
-    const res = await getSimTradingProfitAnalysisDailyAccounts(Number(props.accountId), params);
+    const res = await getSimTradingProfitAnalysisDailyAccounts(
+      Number(props.accountId),
+      params
+    );
     const payload = res?.payload || {
       total: 0,
       page: Number(params.page || 1),
@@ -1288,6 +1622,28 @@ async function loadDailyAccounts(options = {}) {
 function refreshDailyStocks() {
   dailyStocks.page = 1;
   loadDailyStocks({ force: true });
+}
+
+function applyDailyStocksFilters() {
+  dailyStocks.page = 1;
+  loadDailyStocks({ force: true });
+}
+
+function resetDailyStocksFilters() {
+  dailyStocksFilters.stock_name = '';
+  dailyStocksFilters.stock_code = '';
+  dailyStocksFilters.trade_date = '';
+  dailyStocksFilters.holding_days = null;
+  dailyStocks.page = 1;
+  loadDailyStocks({ force: true });
+}
+
+function filterDailyStockTradeDate(value, row) {
+  return String(row?.trade_date || '') === String(value || '');
+}
+
+function filterDailyStockName(value, row) {
+  return String(row?.stock_name || '').trim() === String(value || '').trim();
 }
 
 function refreshDailyAccounts() {
@@ -1361,7 +1717,10 @@ async function pullRebuildTaskProgress(taskId) {
   if (!props.accountId || !taskId) {
     return;
   }
-  const res = await getProfitRebuildTaskProgress(Number(props.accountId), String(taskId));
+  const res = await getProfitRebuildTaskProgress(
+    Number(props.accountId),
+    String(taskId)
+  );
   const payload = res?.payload || {};
   rebuildTask.task_id = String(payload.task_id || '');
   rebuildTask.account_id = Number(payload.account_id || 0);
@@ -1375,13 +1734,63 @@ async function pullRebuildTaskProgress(taskId) {
   rebuildTask.items = Array.isArray(payload.items) ? payload.items : [];
 }
 
+function stopRebuildTaskPolling() {
+  if (rebuildTaskTimer) {
+    clearTimeout(rebuildTaskTimer);
+    rebuildTaskTimer = null;
+  }
+}
+
+function startRebuildTaskPolling(taskId) {
+  stopRebuildTaskPolling();
+  const tick = async () => {
+    try {
+      await pullRebuildTaskProgress(taskId);
+      if (rebuildTaskRunning.value) {
+        rebuildTaskTimer = setTimeout(tick, 1500);
+      } else {
+        rebuildTaskTimer = null;
+      }
+    } catch (error) {
+      console.error(error);
+      rebuildTaskTimer = setTimeout(tick, 3000);
+    }
+  };
+  rebuildTaskTimer = setTimeout(tick, 1500);
+}
+
+async function refreshRebuildTaskProgress() {
+  if (!rebuildTask.task_id || !props.accountId) {
+    return;
+  }
+  rebuildRefreshing.value = true;
+  try {
+    await pullRebuildTaskProgress(rebuildTask.task_id);
+    if (rebuildTaskRunning.value) {
+      startRebuildTaskPolling(rebuildTask.task_id);
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '刷新任务进度失败');
+  } finally {
+    rebuildRefreshing.value = false;
+  }
+}
+
 async function submitRebuild(payload) {
   if (!props.accountId) {
     return;
   }
+  if (rebuildTaskRunning.value) {
+    ElMessage.warning('当前已有重建任务进行中，请稍后再试');
+    return;
+  }
   rebuildLoading.value = true;
   try {
-    const res = await rebuildAccountProfitSnapshot(Number(props.accountId), payload);
+    const res = await rebuildAccountProfitSnapshot(
+      Number(props.accountId),
+      payload
+    );
     const taskPayload = res?.payload || {};
     const taskId = String(taskPayload.task_id || '');
     if (!taskId) {
@@ -1394,17 +1803,8 @@ async function submitRebuild(payload) {
     if (activeOverviewContentTab.value === 'daily-stocks') {
       await loadDailyStocks({ force: true });
     }
-    if (rebuildTask.status === 'running' || rebuildTask.status === 'pending') {
-      if (rebuildTaskTimer) {
-        clearTimeout(rebuildTaskTimer);
-      }
-      rebuildTaskTimer = setTimeout(async () => {
-        try {
-          await pullRebuildTaskProgress(taskId);
-        } catch (error) {
-          console.error(error);
-        }
-      }, 1500);
+    if (rebuildTaskRunning.value) {
+      startRebuildTaskPolling(taskId);
     }
     ElMessage.success('盈亏快照重建任务已执行');
   } catch (error) {
@@ -1421,18 +1821,28 @@ async function submitRebuildByDate() {
       ElMessage.warning('请选择重建日期');
       return;
     }
-    await submitRebuild(buildRebuildPayload('single', { trade_date: rebuildSingleDate.value }));
+    await submitRebuild(
+      buildRebuildPayload('single', { trade_date: rebuildSingleDate.value })
+    );
     return;
   }
   if (rebuildMode.value === 'multiple') {
-    if (!Array.isArray(rebuildMultiDates.value) || !rebuildMultiDates.value.length) {
+    if (
+      !Array.isArray(rebuildMultiDates.value) ||
+      !rebuildMultiDates.value.length
+    ) {
       ElMessage.warning('请至少选择一个日期');
       return;
     }
-    await submitRebuild(buildRebuildPayload('multiple', { trade_dates: rebuildMultiDates.value }));
+    await submitRebuild(
+      buildRebuildPayload('multiple', { trade_dates: rebuildMultiDates.value })
+    );
     return;
   }
-  if (!Array.isArray(rebuildDateRange.value) || rebuildDateRange.value.length !== 2) {
+  if (
+    !Array.isArray(rebuildDateRange.value) ||
+    rebuildDateRange.value.length !== 2
+  ) {
     ElMessage.warning('请选择完整日期区间');
     return;
   }
@@ -1840,8 +2250,26 @@ function formatDayNumber(value) {
 
 .daily-stocks-actions {
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-direction: column;
+}
+
+.daily-stocks-toggle-actions,
+.daily-stocks-filter-actions {
+  display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.daily-stocks-filter-actions :deep(.el-input),
+.daily-stocks-filter-actions :deep(.el-date-editor) {
+  width: 160px;
+}
+
+.daily-stocks-filter-actions :deep(.el-input-number) {
+  width: 130px;
 }
 
 .dual-line-cell {
@@ -2173,6 +2601,10 @@ function formatDayNumber(value) {
   .daily-stocks-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .daily-stocks-filter-actions {
+    width: 100%;
   }
 }
 </style>
