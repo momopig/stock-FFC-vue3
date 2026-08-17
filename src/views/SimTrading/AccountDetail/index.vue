@@ -69,7 +69,9 @@
               <span class="help-dot">?</span>
             </el-tooltip>
           </span>
-          <strong>{{ formatMoney(summary.non_tradable_available_cash) }}</strong>
+          <strong>{{
+            formatMoney(summary.non_tradable_available_cash)
+          }}</strong>
         </div>
         <div class="overview-card">
           <span>
@@ -138,12 +140,18 @@
 
       <div class="account-risk-overview-card">
         <template v-if="!accountRiskOverview.enabled">
-          <div class="account-risk-overview-header account-risk-overview-header--unbound">
+          <div
+            class="account-risk-overview-header account-risk-overview-header--unbound"
+          >
             <div>
               <h3>账号风控概览</h3>
-              <p>当前交易账号未绑定“账号风控策略”，处于无人值守状态，存在风险！！！</p>
+              <p>
+                当前交易账号未绑定“账号风控策略”，处于无人值守状态，存在风险！！！
+              </p>
             </div>
-            <el-button type="danger" @click="goToAccountRiskStrategy">去绑定账号风控策略</el-button>
+            <el-button type="danger" @click="goToAccountRiskStrategy"
+              >去绑定账号风控策略</el-button
+            >
           </div>
           <el-alert
             title="未绑定账号风控策略时，手动交易与自动化策略均缺少账号级仓位、预算、持仓数量和浮亏边界约束。"
@@ -153,83 +161,85 @@
           />
         </template>
         <template v-else>
-        <div class="account-risk-overview-header">
-          <div>
-            <h3>账号风控概览</h3>
-            <p>
-              当前账号已绑定
-              EXEC_ACCOUNT_RISK_BASE，以下关键参数会同时约束手动交易与自动化策略。
-            </p>
+          <div class="account-risk-overview-header">
+            <div>
+              <h3>账号风控概览</h3>
+              <p>
+                当前账号已绑定
+                EXEC_ACCOUNT_RISK_BASE，以下关键参数会同时约束手动交易与自动化策略。
+              </p>
+            </div>
           </div>
-        </div>
-        <div class="account-risk-overview-sections">
-          <section class="account-risk-overview-section">
-            <div class="account-risk-overview-section__header">
-              <h4>风控边界</h4>
-              <p>
-                这些是账号风控策略本身设定的边界参数，决定下面那些余量是如何计算出来的。
-              </p>
-            </div>
-            <div class="account-risk-overview-grid">
-              <div
-                v-for="item in accountRiskOverview.boundaryItems"
-                :key="item.label"
-                class="account-risk-overview-item"
-                :class="{ 'is-loss-threshold': item.type === 'loss-threshold' }"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
+          <div class="account-risk-overview-sections">
+            <section class="account-risk-overview-section">
+              <div class="account-risk-overview-section__header">
+                <h4>风控边界</h4>
+                <p>
+                  这些是账号风控策略本身设定的边界参数，决定下面那些余量是如何计算出来的。
+                </p>
               </div>
-            </div>
-          </section>
-
-          <section class="account-risk-overview-section">
-            <div class="account-risk-overview-section__header">
-              <h4>当前可操作余量</h4>
-              <p>
-                把当前还能不能开仓、还能用多少预算，以及买入卖出做T是否可执行，放到更靠近下方操作区的位置。
-              </p>
-            </div>
-            <div class="account-risk-permission-list">
-              <div
-                v-for="item in accountRiskOverview.permissionItems"
-                :key="item.label"
-                class="account-risk-permission-chip"
-                :class="item.allowed ? 'is-allowed' : 'is-blocked'"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-            <div class="account-risk-overview-grid">
-              <div
-                v-for="item in accountRiskOverview.capacityItems"
-                :key="item.label"
-                class="account-risk-overview-item"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-                <small
-                  v-if="item.description"
-                  class="account-risk-overview-item__desc"
-                  >{{ item.description }}</small
+              <div class="account-risk-overview-grid">
+                <div
+                  v-for="item in accountRiskOverview.boundaryItems"
+                  :key="item.label"
+                  class="account-risk-overview-item"
+                  :class="{
+                    'is-loss-threshold': item.type === 'loss-threshold',
+                  }"
                 >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
               </div>
-            </div>
-            <div
-              v-if="accountRiskOverview.warnings.length"
-              class="account-risk-warning-list"
-            >
+            </section>
+
+            <section class="account-risk-overview-section">
+              <div class="account-risk-overview-section__header">
+                <h4>当前可操作余量</h4>
+                <p>
+                  把当前还能不能开仓、还能用多少预算，以及买入卖出做T是否可执行，放到更靠近下方操作区的位置。
+                </p>
+              </div>
+              <div class="account-risk-permission-list">
+                <div
+                  v-for="item in accountRiskOverview.permissionItems"
+                  :key="item.label"
+                  class="account-risk-permission-chip"
+                  :class="item.allowed ? 'is-allowed' : 'is-blocked'"
+                >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+              <div class="account-risk-overview-grid">
+                <div
+                  v-for="item in accountRiskOverview.capacityItems"
+                  :key="item.label"
+                  class="account-risk-overview-item"
+                >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                  <small
+                    v-if="item.description"
+                    class="account-risk-overview-item__desc"
+                    >{{ item.description }}</small
+                  >
+                </div>
+              </div>
               <div
-                v-for="warning in accountRiskOverview.warnings"
-                :key="warning"
-                class="account-risk-warning-item"
+                v-if="accountRiskOverview.warnings.length"
+                class="account-risk-warning-list"
               >
-                {{ warning }}
+                <div
+                  v-for="warning in accountRiskOverview.warnings"
+                  :key="warning"
+                  class="account-risk-warning-item"
+                >
+                  {{ warning }}
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
         </template>
       </div>
 
@@ -928,7 +938,9 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="创建时间" min-width="180">
-                  <template #default="scope">{{ formatDateTime(scope.row.created_time) }}</template>
+                  <template #default="scope">{{
+                    formatDateTime(scope.row.created_time)
+                  }}</template>
                 </el-table-column>
                 <el-table-column label="操作" width="90" fixed="right">
                   <template #default="scope">
@@ -1073,30 +1085,67 @@
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showTransferTab" label="资金管理" name="transfer" lazy>
-          <el-tabs v-model="activeFundManagementTab" class="fund-management-tabs">
+        <el-tab-pane
+          v-if="showTransferTab"
+          label="资金管理"
+          name="transfer"
+          lazy
+        >
+          <el-tabs
+            v-model="activeFundManagementTab"
+            class="fund-management-tabs"
+          >
             <el-tab-pane label="最大可用资金" name="max-available-cash" lazy>
               <div class="fund-limit-panel" v-loading="maxAvailableCashLoading">
                 <div class="fund-limit-metrics">
                   <div class="fund-limit-metric-item">
                     <span class="metric-label">实际可用资金</span>
-                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.actual_available_cash) }}</span>
+                    <span class="metric-value"
+                      >¥
+                      {{
+                        formatMoney(
+                          maxAvailableCashOverview.actual_available_cash
+                        )
+                      }}</span
+                    >
                   </div>
                   <div class="fund-limit-metric-item">
                     <span class="metric-label">当前可用资金</span>
-                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.available_cash) }}</span>
+                    <span class="metric-value"
+                      >¥
+                      {{
+                        formatMoney(maxAvailableCashOverview.available_cash)
+                      }}</span
+                    >
                   </div>
                   <div class="fund-limit-metric-item">
                     <span class="metric-label">不可交易可用资金</span>
-                    <span class="metric-value">¥ {{ formatMoney(maxAvailableCashOverview.non_tradable_available_cash) }}</span>
+                    <span class="metric-value"
+                      >¥
+                      {{
+                        formatMoney(
+                          maxAvailableCashOverview.non_tradable_available_cash
+                        )
+                      }}</span
+                    >
                   </div>
                 </div>
-                <el-form :model="maxAvailableCashForm" label-width="140px" class="fund-limit-form">
+                <el-form
+                  :model="maxAvailableCashForm"
+                  label-width="140px"
+                  class="fund-limit-form"
+                >
                   <el-form-item label="启用最大可用资金">
-                    <el-switch v-model="maxAvailableCashForm.enabled" @change="markMaxAvailableCashFormDirty" />
+                    <el-switch
+                      v-model="maxAvailableCashForm.enabled"
+                      @change="markMaxAvailableCashFormDirty"
+                    />
                   </el-form-item>
                   <el-form-item label="快捷额度">
-                    <el-radio-group v-model="maxAvailableCashForm.mode" @change="handleMaxAvailableCashModeChange">
+                    <el-radio-group
+                      v-model="maxAvailableCashForm.mode"
+                      @change="handleMaxAvailableCashModeChange"
+                    >
                       <el-radio label="CUSTOM">自定义</el-radio>
                       <el-radio label="RATIO_1_2">1/2</el-radio>
                       <el-radio label="RATIO_1_3">1/3</el-radio>
@@ -1110,11 +1159,18 @@
                       :min="0"
                       :precision="2"
                       @change="markMaxAvailableCashFormDirty"
-                      :disabled="!maxAvailableCashForm.enabled || maxAvailableCashForm.mode !== 'CUSTOM'"
+                      :disabled="
+                        !maxAvailableCashForm.enabled ||
+                        maxAvailableCashForm.mode !== 'CUSTOM'
+                      "
                       class="full-width"
                     />
                     <div class="amount-chinese-hint">
-                      金额大写：{{ formatChineseMoney(maxAvailableCashForm.max_available_cash) }}
+                      金额大写：{{
+                        formatChineseMoney(
+                          maxAvailableCashForm.max_available_cash
+                        )
+                      }}
                     </div>
                   </el-form-item>
                   <el-form-item>
@@ -1138,60 +1194,60 @@
 
             <el-tab-pane label="转账" name="transfer-sub" lazy>
               <div class="transfer-grid">
-            <div class="form-panel">
-              <h3>入金</h3>
-              <el-form :model="depositForm" label-width="100px">
-                <el-form-item label="金额">
-                  <el-input-number
-                    v-model="depositForm.amount"
-                    :min="0"
-                    :precision="2"
-                    class="full-width"
-                  />
-                  <div class="amount-chinese-hint">
-                    金额大写：{{ formatChineseMoney(depositForm.amount) }}
-                  </div>
-                </el-form-item>
-                <el-form-item label="原因">
-                  <el-input v-model="depositForm.reason" />
-                </el-form-item>
-                <el-form-item>
-                  <el-button
-                    type="primary"
-                    :loading="actionLoading"
-                    @click="submitTransfer('deposit')"
-                    >确认入金</el-button
-                  >
-                </el-form-item>
-              </el-form>
-            </div>
-            <div class="form-panel">
-              <h3>出金</h3>
-              <el-form :model="withdrawForm" label-width="100px">
-                <el-form-item label="金额">
-                  <el-input-number
-                    v-model="withdrawForm.amount"
-                    :min="0"
-                    :precision="2"
-                    class="full-width"
-                  />
-                  <div class="amount-chinese-hint">
-                    金额大写：{{ formatChineseMoney(withdrawForm.amount) }}
-                  </div>
-                </el-form-item>
-                <el-form-item label="原因">
-                  <el-input v-model="withdrawForm.reason" />
-                </el-form-item>
-                <el-form-item>
-                  <el-button
-                    type="warning"
-                    :loading="actionLoading"
-                    @click="submitTransfer('withdraw')"
-                    >确认出金</el-button
-                  >
-                </el-form-item>
-              </el-form>
-            </div>
+                <div class="form-panel">
+                  <h3>入金</h3>
+                  <el-form :model="depositForm" label-width="100px">
+                    <el-form-item label="金额">
+                      <el-input-number
+                        v-model="depositForm.amount"
+                        :min="0"
+                        :precision="2"
+                        class="full-width"
+                      />
+                      <div class="amount-chinese-hint">
+                        金额大写：{{ formatChineseMoney(depositForm.amount) }}
+                      </div>
+                    </el-form-item>
+                    <el-form-item label="原因">
+                      <el-input v-model="depositForm.reason" />
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button
+                        type="primary"
+                        :loading="actionLoading"
+                        @click="submitTransfer('deposit')"
+                        >确认入金</el-button
+                      >
+                    </el-form-item>
+                  </el-form>
+                </div>
+                <div class="form-panel">
+                  <h3>出金</h3>
+                  <el-form :model="withdrawForm" label-width="100px">
+                    <el-form-item label="金额">
+                      <el-input-number
+                        v-model="withdrawForm.amount"
+                        :min="0"
+                        :precision="2"
+                        class="full-width"
+                      />
+                      <div class="amount-chinese-hint">
+                        金额大写：{{ formatChineseMoney(withdrawForm.amount) }}
+                      </div>
+                    </el-form-item>
+                    <el-form-item label="原因">
+                      <el-input v-model="withdrawForm.reason" />
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button
+                        type="warning"
+                        :loading="actionLoading"
+                        @click="submitTransfer('withdraw')"
+                        >确认出金</el-button
+                      >
+                    </el-form-item>
+                  </el-form>
+                </div>
               </div>
 
               <el-table :data="pagedTransferCashFlows" border>
@@ -1240,10 +1296,17 @@
               </div>
             </el-tab-pane>
 
-            <el-tab-pane v-if="isQmtAccount" label="手动录入资金流水" name="manual-cash-flow" lazy>
+            <el-tab-pane
+              v-if="isQmtAccount"
+              label="手动录入资金流水"
+              name="manual-cash-flow"
+              lazy
+            >
               <div class="tab-toolbar">
                 <el-space>
-                  <el-button type="primary" @click="openManualCashFlowDialog()">手动录入</el-button>
+                  <el-button type="primary" @click="openManualCashFlowDialog()"
+                    >手动录入</el-button
+                  >
                   <el-select
                     v-model="manualCashFlowFilters.flowType"
                     clearable
@@ -1263,28 +1326,48 @@
                     start-placeholder="开始日期"
                     end-placeholder="结束日期"
                   />
-                  <el-button type="primary" @click="searchManualCashFlows">查询</el-button>
+                  <el-button type="primary" @click="searchManualCashFlows"
+                    >查询</el-button
+                  >
                 </el-space>
               </div>
 
               <el-table :data="pagedManualCashFlows" border>
                 <el-table-column label="转账日期" min-width="160" sortable>
-                  <template #default="scope">{{ formatDate(scope.row.occurred_time) }}</template>
+                  <template #default="scope">{{
+                    formatDate(scope.row.occurred_time)
+                  }}</template>
                 </el-table-column>
                 <el-table-column label="类型" width="140">
-                  <template #default="scope">{{ getFlowTypeLabel(scope.row.flow_type) }}</template>
+                  <template #default="scope">{{
+                    getFlowTypeLabel(scope.row.flow_type)
+                  }}</template>
                 </el-table-column>
                 <el-table-column label="金额" width="160" sortable>
-                  <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
+                  <template #default="scope">{{
+                    formatMoney(scope.row.amount)
+                  }}</template>
                 </el-table-column>
                 <el-table-column label="币种" width="130">
-                  <template #default="scope">{{ getCurrencyLabel(scope.row.currency) }}</template>
+                  <template #default="scope">{{
+                    getCurrencyLabel(scope.row.currency)
+                  }}</template>
                 </el-table-column>
                 <el-table-column prop="reason" label="原因" min-width="220" />
                 <el-table-column label="操作" width="160" fixed="right">
                   <template #default="scope">
-                    <el-button link type="primary" @click="openManualCashFlowDialog(scope.row)">编辑</el-button>
-                    <el-button link type="danger" @click="deleteManualCashFlowItem(scope.row)">删除</el-button>
+                    <el-button
+                      link
+                      type="primary"
+                      @click="openManualCashFlowDialog(scope.row)"
+                      >编辑</el-button
+                    >
+                    <el-button
+                      link
+                      type="danger"
+                      @click="deleteManualCashFlowItem(scope.row)"
+                      >删除</el-button
+                    >
                   </template>
                 </el-table-column>
               </el-table>
@@ -1318,7 +1401,9 @@
             >
               <el-collapse-item name="activity-diagnostics">
                 <template #title>
-                  <span class="query-diagnostics-title">查询数据诊断（当前Tab）</span>
+                  <span class="query-diagnostics-title"
+                    >查询数据诊断（当前Tab）</span
+                  >
                 </template>
                 <el-alert
                   v-if="!currentQueryTabDiagnostics"
@@ -1329,57 +1414,145 @@
                   class="query-diagnostics-empty-alert"
                 />
                 <template v-else>
-                <div
-                  class="query-diagnostics-summary"
-                  :class="getDiagnosticsSummaryClass(currentQueryTabDiagnostics)"
-                >
-                  <el-tag :type="getDiagnosticsAssessmentTagType(currentQueryTabDiagnostics)" effect="light">
-                    {{ getDiagnosticsAssessmentLabel(currentQueryTabDiagnostics) }}
-                  </el-tag>
-                  <p class="query-diagnostics-summary-text">{{ getDiagnosticsAssessmentSummary(currentQueryTabDiagnostics) }}</p>
                   <div
-                    v-if="getDiagnosticsAssessmentReasons(currentQueryTabDiagnostics).length"
-                    class="query-diagnostics-reasons"
+                    class="query-diagnostics-summary"
+                    :class="
+                      getDiagnosticsSummaryClass(currentQueryTabDiagnostics)
+                    "
                   >
-                    <p
-                      v-for="(item, index) in getDiagnosticsAssessmentReasons(currentQueryTabDiagnostics)"
-                      :key="`diag-reason-${index}`"
+                    <el-tag
+                      :type="
+                        getDiagnosticsAssessmentTagType(
+                          currentQueryTabDiagnostics
+                        )
+                      "
+                      effect="light"
                     >
-                      {{ `${index + 1}. ${item}` }}
+                      {{
+                        getDiagnosticsAssessmentLabel(
+                          currentQueryTabDiagnostics
+                        )
+                      }}
+                    </el-tag>
+                    <p class="query-diagnostics-summary-text">
+                      {{
+                        getDiagnosticsAssessmentSummary(
+                          currentQueryTabDiagnostics
+                        )
+                      }}
                     </p>
-                  </div>
-                  <div
-                    v-if="getDiagnosticsAssessmentSuggestions(currentQueryTabDiagnostics).length"
-                    class="query-diagnostics-suggestions"
-                  >
-                    <strong>后续建议：</strong>
-                    <p
-                      v-for="(item, index) in getDiagnosticsAssessmentSuggestions(currentQueryTabDiagnostics)"
-                      :key="`diag-suggestion-${index}`"
+                    <div
+                      v-if="
+                        getDiagnosticsAssessmentReasons(
+                          currentQueryTabDiagnostics
+                        ).length
+                      "
+                      class="query-diagnostics-reasons"
                     >
-                      {{ `${index + 1}. ${item}` }}
-                    </p>
+                      <p
+                        v-for="(item, index) in getDiagnosticsAssessmentReasons(
+                          currentQueryTabDiagnostics
+                        )"
+                        :key="`diag-reason-${index}`"
+                      >
+                        {{ `${index + 1}. ${item}` }}
+                      </p>
+                    </div>
+                    <div
+                      v-if="
+                        getDiagnosticsAssessmentSuggestions(
+                          currentQueryTabDiagnostics
+                        ).length
+                      "
+                      class="query-diagnostics-suggestions"
+                    >
+                      <strong>后续建议：</strong>
+                      <p
+                        v-for="(
+                          item, index
+                        ) in getDiagnosticsAssessmentSuggestions(
+                          currentQueryTabDiagnostics
+                        )"
+                        :key="`diag-suggestion-${index}`"
+                      >
+                        {{ `${index + 1}. ${item}` }}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div class="query-diagnostics-grid">
-                  <div class="query-diagnostics-card">
-                    <h4>{{ currentQueryTabDiagnosticsTitle }}</h4>
-                    <p>当前Tab记录数（分流后）：{{ getDiagnosticsValue(currentQueryTabRowCount) }}</p>
-                    <p>券商原始条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.broker_raw_count) }}</p>
-                    <p>校验成功条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_success_count) }}</p>
-                    <p>校验失败条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.validation_failed_count) }}</p>
-                    <p>本地缓存条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.local_cached_count) }}</p>
-                    <p>合并总条数（当日+历史）：{{ getDiagnosticsValue(currentQueryTabMergedCount) }}</p>
-                    <p>冲突条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.conflict_count) }}</p>
-                    <p>当日条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.today_count) }}</p>
-                    <p>历史条数：{{ getDiagnosticsValue(currentQueryTabDataDiagnostics?.history_count) }}</p>
-                    <p class="query-diagnostics-tip">{{ currentQueryTabSplitHint }}</p>
+                  <div class="query-diagnostics-grid">
+                    <div class="query-diagnostics-card">
+                      <h4>{{ currentQueryTabDiagnosticsTitle }}</h4>
+                      <p>
+                        当前Tab记录数（分流后）：{{
+                          getDiagnosticsValue(currentQueryTabRowCount)
+                        }}
+                      </p>
+                      <p>
+                        券商原始条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.broker_raw_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        校验成功条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.validation_success_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        校验失败条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.validation_failed_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        本地缓存条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.local_cached_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        合并总条数（当日+历史）：{{
+                          getDiagnosticsValue(currentQueryTabMergedCount)
+                        }}
+                      </p>
+                      <p>
+                        冲突条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.conflict_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        当日条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.today_count
+                          )
+                        }}
+                      </p>
+                      <p>
+                        历史条数：{{
+                          getDiagnosticsValue(
+                            currentQueryTabDataDiagnostics?.history_count
+                          )
+                        }}
+                      </p>
+                      <p class="query-diagnostics-tip">
+                        {{ currentQueryTabSplitHint }}
+                      </p>
+                    </div>
                   </div>
-                </div>
                 </template>
               </el-collapse-item>
             </el-collapse>
-            <div v-if="activeQueryTab !== 'qmt-reconcile'" class="query-toolbar">
+            <div
+              v-if="activeQueryTab !== 'qmt-reconcile'"
+              class="query-toolbar"
+            >
               <el-input
                 v-model="queryForm.keyword"
                 clearable
@@ -1444,7 +1617,9 @@
                 value-format="YYYY-MM-DD"
                 class="toolbar-date-range"
               />
-              <el-button type="primary" @click="applyQueryFilters"
+              <el-button
+                type="primary"
+                @click="applyQueryFilters"
                 :loading="querySearchLoading"
                 :disabled="querySearchLoading"
                 >{{ querySearchLoading ? '搜索中...' : '搜索' }}</el-button
@@ -1453,7 +1628,10 @@
                 v-if="activityBatchDeleteEnabled"
                 type="danger"
                 :loading="activityBatchDeleteLoading"
-                :disabled="activityBatchDeleteLoading || selectedActivityRowCountForActiveTab <= 0"
+                :disabled="
+                  activityBatchDeleteLoading ||
+                  selectedActivityRowCountForActiveTab <= 0
+                "
                 @click="batchDeleteActivityRows"
               >
                 批量删除（{{ selectedActivityRowCountForActiveTab }}）
@@ -1466,10 +1644,22 @@
                 <template #label>
                   <span class="query-tab-label">
                     当日委托
-                    <el-tag v-if="isQueryTabDiagnosticsWarn('today-orders')" type="warning" effect="light" size="small">警告</el-tag>
+                    <el-tag
+                      v-if="isQueryTabDiagnosticsWarn('today-orders')"
+                      type="warning"
+                      effect="light"
+                      size="small"
+                      >警告</el-tag
+                    >
                   </span>
                 </template>
-                <el-table :data="pagedTodayOrders" border @selection-change="(rows) => onActivitySelectionChange('today-orders', rows)">
+                <el-table
+                  :data="pagedTodayOrders"
+                  border
+                  @selection-change="
+                    (rows) => onActivitySelectionChange('today-orders', rows)
+                  "
+                >
                   <el-table-column
                     v-if="canDeleteActivityOrder"
                     type="selection"
@@ -1485,7 +1675,9 @@
                     label="QMT合同编号"
                     min-width="120"
                   >
-                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_order_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -1626,9 +1818,16 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
-                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                    <template #default="scope">{{
+                      getActivityStoredLocalText(scope.row)
+                    }}</template>
                   </el-table-column>
-                  <el-table-column v-if="canOperateActivityOrders" label="操作" width="170" fixed="right">
+                  <el-table-column
+                    v-if="canOperateActivityOrders"
+                    label="操作"
+                    width="170"
+                    fixed="right"
+                  >
                     <template #default="scope">
                       <el-button
                         v-if="canUpdateActivityOrder"
@@ -1636,14 +1835,16 @@
                         type="primary"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="openOrderEditDialog(scope.row)"
-                      >编辑</el-button>
+                        >编辑</el-button
+                      >
                       <el-button
                         v-if="canDeleteActivityOrder"
                         link
                         type="danger"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="deleteActivityOrderRow(scope.row)"
-                      >删除</el-button>
+                        >删除</el-button
+                      >
                     </template>
                   </el-table-column>
                 </el-table>
@@ -1663,10 +1864,22 @@
                 <template #label>
                   <span class="query-tab-label">
                     当日成交
-                    <el-tag v-if="isQueryTabDiagnosticsWarn('today-trades')" type="warning" effect="light" size="small">警告</el-tag>
+                    <el-tag
+                      v-if="isQueryTabDiagnosticsWarn('today-trades')"
+                      type="warning"
+                      effect="light"
+                      size="small"
+                      >警告</el-tag
+                    >
                   </span>
                 </template>
-                <el-table :data="pagedTodayTrades" border @selection-change="(rows) => onActivitySelectionChange('today-trades', rows)">
+                <el-table
+                  :data="pagedTodayTrades"
+                  border
+                  @selection-change="
+                    (rows) => onActivitySelectionChange('today-trades', rows)
+                  "
+                >
                   <el-table-column
                     v-if="canDeleteActivityTrade"
                     type="selection"
@@ -1682,14 +1895,18 @@
                     label="QMT合同编号"
                     min-width="120"
                   >
-                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_order_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="broker_deal_id"
                     label="QMT成交编号"
                     min-width="160"
                   >
-                    <template #default="scope">{{ scope.row.broker_deal_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_deal_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -1824,9 +2041,16 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
-                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                    <template #default="scope">{{
+                      getActivityStoredLocalText(scope.row)
+                    }}</template>
                   </el-table-column>
-                  <el-table-column v-if="canOperateActivityTrades" label="操作" width="170" fixed="right">
+                  <el-table-column
+                    v-if="canOperateActivityTrades"
+                    label="操作"
+                    width="170"
+                    fixed="right"
+                  >
                     <template #default="scope">
                       <el-button
                         v-if="canUpdateActivityTrade"
@@ -1834,14 +2058,16 @@
                         type="primary"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="openTradeEditDialog(scope.row)"
-                      >编辑</el-button>
+                        >编辑</el-button
+                      >
                       <el-button
                         v-if="canDeleteActivityTrade"
                         link
                         type="danger"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="deleteActivityTradeRow(scope.row)"
-                      >删除</el-button>
+                        >删除</el-button
+                      >
                     </template>
                   </el-table-column>
                 </el-table>
@@ -1861,10 +2087,22 @@
                 <template #label>
                   <span class="query-tab-label">
                     历史委托
-                    <el-tag v-if="isQueryTabDiagnosticsWarn('history-orders')" type="warning" effect="light" size="small">警告</el-tag>
+                    <el-tag
+                      v-if="isQueryTabDiagnosticsWarn('history-orders')"
+                      type="warning"
+                      effect="light"
+                      size="small"
+                      >警告</el-tag
+                    >
                   </span>
                 </template>
-                <el-table :data="pagedHistoryOrders" border @selection-change="(rows) => onActivitySelectionChange('history-orders', rows)">
+                <el-table
+                  :data="pagedHistoryOrders"
+                  border
+                  @selection-change="
+                    (rows) => onActivitySelectionChange('history-orders', rows)
+                  "
+                >
                   <el-table-column
                     v-if="canDeleteActivityOrder"
                     type="selection"
@@ -1880,7 +2118,9 @@
                     label="QMT合同编号"
                     min-width="120"
                   >
-                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_order_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -2021,9 +2261,16 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
-                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                    <template #default="scope">{{
+                      getActivityStoredLocalText(scope.row)
+                    }}</template>
                   </el-table-column>
-                  <el-table-column v-if="canOperateActivityOrders" label="操作" width="170" fixed="right">
+                  <el-table-column
+                    v-if="canOperateActivityOrders"
+                    label="操作"
+                    width="170"
+                    fixed="right"
+                  >
                     <template #default="scope">
                       <el-button
                         v-if="canUpdateActivityOrder"
@@ -2031,14 +2278,16 @@
                         type="primary"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="openOrderEditDialog(scope.row)"
-                      >编辑</el-button>
+                        >编辑</el-button
+                      >
                       <el-button
                         v-if="canDeleteActivityOrder"
                         link
                         type="danger"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="deleteActivityOrderRow(scope.row)"
-                      >删除</el-button>
+                        >删除</el-button
+                      >
                     </template>
                   </el-table-column>
                 </el-table>
@@ -2062,10 +2311,22 @@
                 <template #label>
                   <span class="query-tab-label">
                     历史成交
-                    <el-tag v-if="isQueryTabDiagnosticsWarn('history-trades')" type="warning" effect="light" size="small">警告</el-tag>
+                    <el-tag
+                      v-if="isQueryTabDiagnosticsWarn('history-trades')"
+                      type="warning"
+                      effect="light"
+                      size="small"
+                      >警告</el-tag
+                    >
                   </span>
                 </template>
-                <el-table :data="pagedHistoryTrades" border @selection-change="(rows) => onActivitySelectionChange('history-trades', rows)">
+                <el-table
+                  :data="pagedHistoryTrades"
+                  border
+                  @selection-change="
+                    (rows) => onActivitySelectionChange('history-trades', rows)
+                  "
+                >
                   <el-table-column
                     v-if="canDeleteActivityTrade"
                     type="selection"
@@ -2081,14 +2342,18 @@
                     label="QMT合同编号"
                     min-width="120"
                   >
-                    <template #default="scope">{{ scope.row.broker_order_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_order_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="broker_deal_id"
                     label="QMT成交编号"
                     min-width="160"
                   >
-                    <template #default="scope">{{ scope.row.broker_deal_id || '--' }}</template>
+                    <template #default="scope">{{
+                      scope.row.broker_deal_id || '--'
+                    }}</template>
                   </el-table-column>
                   <el-table-column
                     prop="stock_name"
@@ -2223,9 +2488,16 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="已存储到本地" width="130">
-                    <template #default="scope">{{ getActivityStoredLocalText(scope.row) }}</template>
+                    <template #default="scope">{{
+                      getActivityStoredLocalText(scope.row)
+                    }}</template>
                   </el-table-column>
-                  <el-table-column v-if="canOperateActivityTrades" label="操作" width="170" fixed="right">
+                  <el-table-column
+                    v-if="canOperateActivityTrades"
+                    label="操作"
+                    width="170"
+                    fixed="right"
+                  >
                     <template #default="scope">
                       <el-button
                         v-if="canUpdateActivityTrade"
@@ -2233,14 +2505,16 @@
                         type="primary"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="openTradeEditDialog(scope.row)"
-                      >编辑</el-button>
+                        >编辑</el-button
+                      >
                       <el-button
                         v-if="canDeleteActivityTrade"
                         link
                         type="danger"
                         :disabled="!canOperateActivityRow(scope.row)"
                         @click="deleteActivityTradeRow(scope.row)"
-                      >删除</el-button>
+                        >删除</el-button
+                      >
                     </template>
                   </el-table-column>
                 </el-table>
@@ -2325,10 +2599,16 @@
                     <div>
                       <strong>QMT当日对账中心</strong>
                       <p>
-                        最近对账时间：{{ qmtReconcileLastTimeText }}（{{ qmtReconcileSourceText }}）
+                        最近对账时间：{{ qmtReconcileLastTimeText }}（{{
+                          qmtReconcileSourceText
+                        }}）
                       </p>
                     </div>
-                    <el-tag type="info" effect="light" v-if="qmtReconcileStatus?.auto_enabled">
+                    <el-tag
+                      type="info"
+                      effect="light"
+                      v-if="qmtReconcileStatus?.auto_enabled"
+                    >
                       自动对账 {{ qmtReconcileForm.auto_time }}
                     </el-tag>
                     <el-tag type="warning" effect="light" v-else>
@@ -2336,12 +2616,17 @@
                     </el-tag>
                   </div>
 
-                  <el-tabs v-model="activeQmtReconcileTab" class="qmt-reconcile-tabs">
+                  <el-tabs
+                    v-model="activeQmtReconcileTab"
+                    class="qmt-reconcile-tabs"
+                  >
                     <el-tab-pane label="自动对账" name="auto" lazy>
                       <div class="qmt-reconcile-panel">
                         <el-form label-width="130px">
                           <el-form-item label="是否开启自动对账">
-                            <el-radio-group v-model="qmtReconcileForm.auto_enabled">
+                            <el-radio-group
+                              v-model="qmtReconcileForm.auto_enabled"
+                            >
                               <el-radio :label="true">是</el-radio>
                               <el-radio :label="false">否</el-radio>
                             </el-radio-group>
@@ -2363,7 +2648,8 @@
                               :loading="qmtReconcileSaving"
                               :disabled="qmtReconcileStatusLoading"
                               @click="saveQmtReconcileSettings"
-                            >保存配置</el-button>
+                              >保存配置</el-button
+                            >
                           </el-form-item>
                         </el-form>
                       </div>
@@ -2383,11 +2669,13 @@
                             :loading="qmtReconcileRunning"
                             :disabled="qmtReconcileStatusLoading"
                             @click="runQmtReconcileNow"
-                          >当日对账(当日委托、当日成交)</el-button>
+                            >当日对账(当日委托、当日成交)</el-button
+                          >
                           <el-button
                             :loading="qmtReconcileStatusLoading"
                             @click="loadQmtReconcileStatus"
-                          >刷新对账状态</el-button>
+                            >刷新对账状态</el-button
+                          >
                         </el-space>
                       </div>
                     </el-tab-pane>
@@ -2400,8 +2688,11 @@
                           :closable="false"
                           show-icon
                         />
-                        <el-button style="margin-top: 12px" @click="showQmtImportBillComingSoon"
-                          >导入账单（待开发）</el-button>
+                        <el-button
+                          style="margin-top: 12px"
+                          @click="showQmtImportBillComingSoon"
+                          >导入账单（待开发）</el-button
+                        >
                       </div>
                     </el-tab-pane>
                   </el-tabs>
@@ -2425,6 +2716,10 @@
             :trades="trades"
             :cash-flows="cashFlows"
             :is-super-admin="isSuperAdmin"
+            :can-update-daily-stock="canUpdateActivityTrade"
+            :can-delete-daily-stock="canDeleteActivityTrade"
+            :can-update-daily-account="canUpdateActivityOrder"
+            :can-delete-daily-account="canDeleteActivityOrder"
             @view-history-trades="handleProfitRankingTradeHistory"
           />
         </el-tab-pane>
@@ -2487,7 +2782,9 @@
           <el-form-item label="数量校验">
             <el-input
               :model-value="positionEditQuantityValidationText"
-              :class="positionEditQuantityValidationPass ? 'value-pass' : 'value-fail'"
+              :class="
+                positionEditQuantityValidationPass ? 'value-pass' : 'value-fail'
+              "
               disabled
             />
           </el-form-item>
@@ -2508,7 +2805,9 @@
           <el-form-item label="亏损占总资产(%)">
             <el-input
               :model-value="formatPercent(positionEditPreview.lossToAssetRatio)"
-              :class="profitClass(-Number(positionEditPreview.lossToAssetRatio || 0))"
+              :class="
+                profitClass(-Number(positionEditPreview.lossToAssetRatio || 0))
+              "
               disabled
             />
           </el-form-item>
@@ -2524,31 +2823,52 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="frozenCashDetailVisible" title="冻结资金明细" width="980px">
+      <el-dialog
+        v-model="frozenCashDetailVisible"
+        title="冻结资金明细"
+        width="980px"
+      >
         <div class="tab-toolbar">
           <el-space>
-            <el-button :loading="frozenCashDetailLoading" @click="loadFrozenCashDetail">刷新冻结清单</el-button>
+            <el-button
+              :loading="frozenCashDetailLoading"
+              @click="loadFrozenCashDetail"
+              >刷新冻结清单</el-button
+            >
           </el-space>
         </div>
-        <el-table :data="frozenCashOrderItems" border v-loading="frozenCashDetailLoading">
+        <el-table
+          :data="frozenCashOrderItems"
+          border
+          v-loading="frozenCashDetailLoading"
+        >
           <el-table-column prop="order_no" label="委托号" min-width="180" />
           <el-table-column prop="stock_name" label="股票名称" min-width="120" />
           <el-table-column prop="stock_code" label="股票代码" width="120" />
           <el-table-column label="方向" width="90">
-            <template #default="scope">{{ getDirectionLabel(scope.row.direction) }}</template>
+            <template #default="scope">{{
+              getDirectionLabel(scope.row.direction)
+            }}</template>
           </el-table-column>
           <el-table-column label="状态" width="120">
             <template #default="scope">
-              <el-tag :type="getOrderStatusTagType(scope.row.order_status)" effect="light">
+              <el-tag
+                :type="getOrderStatusTagType(scope.row.order_status)"
+                effect="light"
+              >
                 {{ getOrderStatusLabel(scope.row.order_status) }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="冻结金额" width="150">
-            <template #default="scope">{{ formatMoney(scope.row.frozen_cash) }}</template>
+            <template #default="scope">{{
+              formatMoney(scope.row.frozen_cash)
+            }}</template>
           </el-table-column>
           <el-table-column label="委托时间" min-width="180">
-            <template #default="scope">{{ formatDateTime(scope.row.placed_time) }}</template>
+            <template #default="scope">{{
+              formatDateTime(scope.row.placed_time)
+            }}</template>
           </el-table-column>
         </el-table>
         <template #footer>
@@ -2558,12 +2878,19 @@
 
       <el-dialog
         v-model="manualCashFlowDialogVisible"
-        :title="Number(manualCashFlowForm.id || 0) > 0 ? '编辑手工资金流水' : '手动录入资金流水'"
+        :title="
+          Number(manualCashFlowForm.id || 0) > 0
+            ? '编辑手工资金流水'
+            : '手动录入资金流水'
+        "
         width="560px"
       >
         <el-form :model="manualCashFlowForm" label-width="110px">
           <el-form-item label="类型">
-            <el-select v-model="manualCashFlowForm.flow_type" class="full-width">
+            <el-select
+              v-model="manualCashFlowForm.flow_type"
+              class="full-width"
+            >
               <el-option label="入金" value="DEPOSIT" />
               <el-option label="出金" value="WITHDRAW" />
               <el-option label="股票分红" value="DIVIDEND" />
@@ -2580,7 +2907,11 @@
             />
           </el-form-item>
           <el-form-item label="币种">
-            <el-input v-model="manualCashFlowForm.currency" maxlength="16" class="full-width" />
+            <el-input
+              v-model="manualCashFlowForm.currency"
+              maxlength="16"
+              class="full-width"
+            />
           </el-form-item>
           <el-form-item label="金额">
             <el-input-number
@@ -2600,13 +2931,16 @@
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button @click="manualCashFlowDialogVisible = false">取消</el-button>
+          <el-button @click="manualCashFlowDialogVisible = false"
+            >取消</el-button
+          >
           <el-button
             type="primary"
             :loading="manualCashFlowSubmitting"
             :disabled="manualCashFlowSubmitting"
             @click="submitManualCashFlow"
-          >保存</el-button>
+            >保存</el-button
+          >
         </template>
       </el-dialog>
 
@@ -2646,7 +2980,8 @@
             :loading="activityEditSubmitting"
             :disabled="activityEditSubmitting"
             @click="submitActivityEdit"
-          >保存</el-button>
+            >保存</el-button
+          >
         </template>
       </el-dialog>
     </template>
@@ -2853,7 +3188,13 @@ const VALID_ACCOUNT_DETAIL_TABS = [
   't-analysis',
 ];
 
-const ACTIVITY_LAZY_TABS = ['condition', 'cancel', 'query', 'profit-analysis', 't-analysis'];
+const ACTIVITY_LAZY_TABS = [
+  'condition',
+  'cancel',
+  'query',
+  'profit-analysis',
+  't-analysis',
+];
 const CASH_FLOW_LAZY_TABS = ['transfer', 'profit-analysis', 't-analysis'];
 
 const buyForm = reactive({
@@ -2936,7 +3277,9 @@ const isQmtAccount = computed(
   () => String(detailAccount.value?.account_type || '').toUpperCase() === 'QMT'
 );
 const isRealAccount = computed(() => {
-  const accountType = String(detailAccount.value?.account_type || '').toUpperCase();
+  const accountType = String(
+    detailAccount.value?.account_type || ''
+  ).toUpperCase();
   if (!accountType) {
     return false;
   }
@@ -2948,20 +3291,32 @@ const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
 );
 const isSuperAdmin = computed(() => Boolean(userStore.userInfo?.is_superuser));
-const canUpdateActivityOrder = computed(() =>
-  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_UPDATE)
+const canUpdateActivityOrder = computed(
+  () =>
+    isSuperAdmin.value ||
+    userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_UPDATE)
 );
-const canDeleteActivityOrder = computed(() =>
-  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_DELETE)
+const canDeleteActivityOrder = computed(
+  () =>
+    isSuperAdmin.value ||
+    userStore.hasPermission(PermissionCodes.SIM_TRADING_ORDER_DELETE)
 );
-const canUpdateActivityTrade = computed(() =>
-  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_UPDATE)
+const canUpdateActivityTrade = computed(
+  () =>
+    isSuperAdmin.value ||
+    userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_UPDATE)
 );
-const canDeleteActivityTrade = computed(() =>
-  isSuperAdmin.value || userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_DELETE)
+const canDeleteActivityTrade = computed(
+  () =>
+    isSuperAdmin.value ||
+    userStore.hasPermission(PermissionCodes.SIM_TRADING_TRADE_DELETE)
 );
-const canOperateActivityOrders = computed(() => canUpdateActivityOrder.value || canDeleteActivityOrder.value);
-const canOperateActivityTrades = computed(() => canUpdateActivityTrade.value || canDeleteActivityTrade.value);
+const canOperateActivityOrders = computed(
+  () => canUpdateActivityOrder.value || canDeleteActivityOrder.value
+);
+const canOperateActivityTrades = computed(
+  () => canUpdateActivityTrade.value || canDeleteActivityTrade.value
+);
 const activityBatchDeleteEnabled = computed(() => {
   if (['today-orders', 'history-orders'].includes(activeQueryTab.value)) {
     return canDeleteActivityOrder.value;
@@ -2975,8 +3330,8 @@ const selectedActivityRowsForActiveTab = computed(() => {
   const rows = selectedActivityRows[activeQueryTab.value];
   return Array.isArray(rows) ? rows : [];
 });
-const selectedActivityRowCountForActiveTab = computed(() =>
-  selectedActivityRowsForActiveTab.value.length
+const selectedActivityRowCountForActiveTab = computed(
+  () => selectedActivityRowsForActiveTab.value.length
 );
 const capabilityNotices = computed(
   () => accountCapabilities.value?.notices || {}
@@ -3031,7 +3386,9 @@ const qmtReconcileLastTimeText = computed(() => {
   return raw ? formatDateTime(raw) : '--';
 });
 const qmtReconcileSourceText = computed(() => {
-  const source = String(qmtReconcileStatus.value?.last_reconcile_source || '').toUpperCase();
+  const source = String(
+    qmtReconcileStatus.value?.last_reconcile_source || ''
+  ).toUpperCase();
   if (source === 'MANUAL') {
     return '手动';
   }
@@ -3106,10 +3463,13 @@ const visibleOpenOrders = computed(() =>
 
 const summary = computed(() => detailPayload.value?.summary || {});
 const maxAvailableCashOverview = computed(() => {
-  const actualAvailableCash = Number(summary.value.actual_available_cash ?? summary.value.available_cash ?? 0);
+  const actualAvailableCash = Number(
+    summary.value.actual_available_cash ?? summary.value.available_cash ?? 0
+  );
   const availableCash = Number(summary.value.available_cash || 0);
   const nonTradableAvailableCash = Number(
-    summary.value.non_tradable_available_cash ?? Math.max(actualAvailableCash - availableCash, 0)
+    summary.value.non_tradable_available_cash ??
+      Math.max(actualAvailableCash - availableCash, 0)
   );
   return {
     actual_available_cash: actualAvailableCash,
@@ -3121,7 +3481,10 @@ const canSaveMaxAvailableCashSettings = computed(() => {
   if (maxAvailableCashSaving.value || !maxAvailableCashFormDirty.value) {
     return false;
   }
-  if (maxAvailableCashForm.enabled && Number(maxAvailableCashForm.max_available_cash || 0) <= 0) {
+  if (
+    maxAvailableCashForm.enabled &&
+    Number(maxAvailableCashForm.max_available_cash || 0) <= 0
+  ) {
     return false;
   }
   return true;
@@ -3147,7 +3510,8 @@ const positionEditPreview = computed(() => {
   const avgCostPrice = Number(positionEditForm.avg_cost_price || 0);
   const totalQuantity = Number(positionEditForm.total_quantity || 0);
   const unrealizedPnl = (currentPrice - avgCostPrice) * totalQuantity;
-  const pnlRate = avgCostPrice > 0 ? (currentPrice - avgCostPrice) / avgCostPrice : 0;
+  const pnlRate =
+    avgCostPrice > 0 ? (currentPrice - avgCostPrice) / avgCostPrice : 0;
   const currentTotalAsset = Number(summary.value?.current_total_asset || 0);
   const lossToAssetRatio =
     unrealizedPnl < 0 && currentTotalAsset > 0
@@ -3266,7 +3630,9 @@ function applyMaxAvailableCashForm(payload = {}) {
   const mode = payload.mode ?? payload.max_available_cash_mode;
   maxAvailableCashForm.enabled = Boolean(enabled);
   maxAvailableCashForm.mode = String(mode || 'CUSTOM').toUpperCase();
-  maxAvailableCashForm.max_available_cash = Number(payload.max_available_cash || 0);
+  maxAvailableCashForm.max_available_cash = Number(
+    payload.max_available_cash || 0
+  );
 }
 
 function applyQmtReconcileStatus(payload = {}) {
@@ -3286,8 +3652,12 @@ function fillMaxAvailableCashByMode(mode) {
   if (!ratio) {
     return;
   }
-  const actualAvailableCash = Number(summary.value.actual_available_cash || summary.value.available_cash || 0);
-  maxAvailableCashForm.max_available_cash = Number((actualAvailableCash * ratio).toFixed(2));
+  const actualAvailableCash = Number(
+    summary.value.actual_available_cash || summary.value.available_cash || 0
+  );
+  maxAvailableCashForm.max_available_cash = Number(
+    (actualAvailableCash * ratio).toFixed(2)
+  );
 }
 
 function handleMaxAvailableCashModeChange(value) {
@@ -3339,12 +3709,19 @@ async function openFrozenCashDetail() {
   await loadFrozenCashDetail(activeAccountId.value);
 }
 
-async function loadMaxAvailableCashSettings(accountId = activeAccountId.value, options = {}) {
+async function loadMaxAvailableCashSettings(
+  accountId = activeAccountId.value,
+  options = {}
+) {
   if (!accountId) {
     return;
   }
   const { force = false } = options;
-  if (!force && maxAvailableCashFormDirty.value && !maxAvailableCashSaving.value) {
+  if (
+    !force &&
+    maxAvailableCashFormDirty.value &&
+    !maxAvailableCashSaving.value
+  ) {
     return;
   }
   const requestSeq = ++maxAvailableCashRequestSeq;
@@ -3378,7 +3755,9 @@ async function loadMaxAvailableCashSettings(accountId = activeAccountId.value, o
   }
   applyMaxAvailableCashForm({
     enabled: Boolean(summary.value.max_available_cash_enabled),
-    mode: String(summary.value.max_available_cash_mode || 'CUSTOM').toUpperCase(),
+    mode: String(
+      summary.value.max_available_cash_mode || 'CUSTOM'
+    ).toUpperCase(),
     max_available_cash: Number(summary.value.max_available_cash || 0),
   });
   maxAvailableCashFormDirty.value = false;
@@ -3388,7 +3767,10 @@ async function saveMaxAvailableCashSettings() {
   if (!activeAccountId.value || maxAvailableCashSaving.value) {
     return;
   }
-  if (maxAvailableCashForm.enabled && Number(maxAvailableCashForm.max_available_cash || 0) <= 0) {
+  if (
+    maxAvailableCashForm.enabled &&
+    Number(maxAvailableCashForm.max_available_cash || 0) <= 0
+  ) {
     ElMessage.warning('开启最大可用资金时，额度必须大于0');
     return;
   }
@@ -3402,7 +3784,10 @@ async function saveMaxAvailableCashSettings() {
           ? Number(maxAvailableCashForm.max_available_cash || 0)
           : Number(maxAvailableCashForm.max_available_cash || 0),
     };
-    const res = await updateSimTradingMaxAvailableCashSettings(Number(activeAccountId.value), payload);
+    const res = await updateSimTradingMaxAvailableCashSettings(
+      Number(activeAccountId.value),
+      payload
+    );
     if (!res?.success) {
       throw new Error(res?.message || '保存最大可用资金设置失败');
     }
@@ -3515,7 +3900,12 @@ function resolveQueryTabAssessment(tabName) {
 }
 
 function isQueryTabDiagnosticsTarget(tabName) {
-  return ['today-orders', 'history-orders', 'today-trades', 'history-trades'].includes(String(tabName || ''));
+  return [
+    'today-orders',
+    'history-orders',
+    'today-trades',
+    'history-trades',
+  ].includes(String(tabName || ''));
 }
 
 function isQueryTabDiagnosticsWarn(tabName) {
@@ -3557,7 +3947,9 @@ const currentQueryTabDiagnosticsTitle = computed(() => {
 });
 
 const currentQueryTabRowCount = computed(() => {
-  const assessmentCount = Number(currentQueryTabDiagnostics.value?.current_tab_count || 0);
+  const assessmentCount = Number(
+    currentQueryTabDiagnostics.value?.current_tab_count || 0
+  );
   if (assessmentCount > 0) {
     return assessmentCount;
   }
@@ -3591,15 +3983,19 @@ const currentQueryTabSplitHint = computed(() => {
   const tab = String(activeQueryTab.value || '');
   const isHistoryTab = ['history-orders', 'history-trades'].includes(tab);
   const mergedCount = Number(currentQueryTabMergedCount.value);
-  const todayCount = Number(currentQueryTabDataDiagnostics.value?.today_count || 0);
-  const historyCount = Number(currentQueryTabDataDiagnostics.value?.history_count || 0);
+  const todayCount = Number(
+    currentQueryTabDataDiagnostics.value?.today_count || 0
+  );
+  const historyCount = Number(
+    currentQueryTabDataDiagnostics.value?.history_count || 0
+  );
 
   if (
-    isHistoryTab
-    && Number.isFinite(mergedCount)
-    && mergedCount > 0
-    && historyCount === 0
-    && todayCount > 0
+    isHistoryTab &&
+    Number.isFinite(mergedCount) &&
+    mergedCount > 0 &&
+    historyCount === 0 &&
+    todayCount > 0
   ) {
     return '当前数据全部被分流到“当日”Tab，历史Tab为空属于预期，不代表融合失败。';
   }
@@ -3612,12 +4008,19 @@ function getDiagnosticsAssessment(activityDiag) {
 }
 
 function getDiagnosticsAssessmentStatus(activityDiag) {
-  const status = String(getDiagnosticsAssessment(activityDiag)?.status || '').toUpperCase();
+  const status = String(
+    getDiagnosticsAssessment(activityDiag)?.status || ''
+  ).toUpperCase();
   return status === 'WARN' ? 'WARN' : 'PASS';
 }
 
 function getDiagnosticsAssessmentLabel(activityDiag) {
-  return getDiagnosticsAssessment(activityDiag)?.label || (getDiagnosticsAssessmentStatus(activityDiag) === 'WARN' ? '诊断异常' : '诊断正常');
+  return (
+    getDiagnosticsAssessment(activityDiag)?.label ||
+    (getDiagnosticsAssessmentStatus(activityDiag) === 'WARN'
+      ? '诊断异常'
+      : '诊断正常')
+  );
 }
 
 function getDiagnosticsAssessmentSummary(activityDiag) {
@@ -3635,7 +4038,9 @@ function getDiagnosticsAssessmentSuggestions(activityDiag) {
 }
 
 function getDiagnosticsAssessmentTagType(activityDiag) {
-  return getDiagnosticsAssessmentStatus(activityDiag) === 'WARN' ? 'warning' : 'success';
+  return getDiagnosticsAssessmentStatus(activityDiag) === 'WARN'
+    ? 'warning'
+    : 'success';
 }
 
 function getDiagnosticsSummaryClass(activityDiag) {
@@ -4024,7 +4429,9 @@ function getTradeContextItems(row) {
 }
 
 function resolveTradeOrderType(row) {
-  const tradeOrderType = String(row?.order_type || '').trim().toUpperCase();
+  const tradeOrderType = String(row?.order_type || '')
+    .trim()
+    .toUpperCase();
   if (tradeOrderType) {
     return tradeOrderType;
   }
@@ -4033,7 +4440,9 @@ function resolveTradeOrderType(row) {
     const matchedById = allOrders.value.find(
       (item) => Number(item?.id || 0) === orderId
     );
-    const matchedByIdType = String(matchedById?.order_type || '').trim().toUpperCase();
+    const matchedByIdType = String(matchedById?.order_type || '')
+      .trim()
+      .toUpperCase();
     if (matchedByIdType) {
       return matchedByIdType;
     }
@@ -4043,7 +4452,9 @@ function resolveTradeOrderType(row) {
     const matchedByNo = allOrders.value.find(
       (item) => String(item?.order_no || '').trim() === orderNo
     );
-    const matchedByNoType = String(matchedByNo?.order_type || '').trim().toUpperCase();
+    const matchedByNoType = String(matchedByNo?.order_type || '')
+      .trim()
+      .toUpperCase();
     if (matchedByNoType) {
       return matchedByNoType;
     }
@@ -4146,7 +4557,9 @@ function isTruthyFlag(value) {
   if (value === true || value === 1) {
     return true;
   }
-  const text = String(value || '').trim().toLowerCase();
+  const text = String(value || '')
+    .trim()
+    .toLowerCase();
   return ['true', '1', 'yes', 'y'].includes(text);
 }
 
@@ -4157,7 +4570,9 @@ function isLocalStoredActivity(row) {
   if (isTruthyFlag(row?.is_local_synced)) {
     return true;
   }
-  const sourceType = String(row?.source_type || '').trim().toUpperCase();
+  const sourceType = String(row?.source_type || '')
+    .trim()
+    .toUpperCase();
   if (sourceType === 'BROKER_QMT_SYNC') {
     return true;
   }
@@ -4188,16 +4603,28 @@ function canOperateActivityRow(row) {
 }
 
 function getActivityIdSet(list = []) {
-  return new Set((Array.isArray(list) ? list : []).map((item) => Number(item?.id || 0)).filter((id) => id > 0));
+  return new Set(
+    (Array.isArray(list) ? list : [])
+      .map((item) => Number(item?.id || 0))
+      .filter((id) => id > 0)
+  );
 }
 
 function pruneSelectedActivityRows() {
   const orderIds = getActivityIdSet(allOrders.value);
   const tradeIds = getActivityIdSet(trades.value);
-  selectedActivityRows['today-orders'] = selectedActivityRows['today-orders'].filter((row) => orderIds.has(Number(row?.id || 0)));
-  selectedActivityRows['history-orders'] = selectedActivityRows['history-orders'].filter((row) => orderIds.has(Number(row?.id || 0)));
-  selectedActivityRows['today-trades'] = selectedActivityRows['today-trades'].filter((row) => tradeIds.has(Number(row?.id || 0)));
-  selectedActivityRows['history-trades'] = selectedActivityRows['history-trades'].filter((row) => tradeIds.has(Number(row?.id || 0)));
+  selectedActivityRows['today-orders'] = selectedActivityRows[
+    'today-orders'
+  ].filter((row) => orderIds.has(Number(row?.id || 0)));
+  selectedActivityRows['history-orders'] = selectedActivityRows[
+    'history-orders'
+  ].filter((row) => orderIds.has(Number(row?.id || 0)));
+  selectedActivityRows['today-trades'] = selectedActivityRows[
+    'today-trades'
+  ].filter((row) => tradeIds.has(Number(row?.id || 0)));
+  selectedActivityRows['history-trades'] = selectedActivityRows[
+    'history-trades'
+  ].filter((row) => tradeIds.has(Number(row?.id || 0)));
 }
 
 function onActivitySelectionChange(tabName, rows = []) {
@@ -4208,7 +4635,11 @@ function onActivitySelectionChange(tabName, rows = []) {
 }
 
 async function batchDeleteActivityRows() {
-  if (!activeAccountId.value || activityBatchDeleteLoading.value || !activityBatchDeleteEnabled.value) {
+  if (
+    !activeAccountId.value ||
+    activityBatchDeleteLoading.value ||
+    !activityBatchDeleteEnabled.value
+  ) {
     return;
   }
   const selectedRows = [...selectedActivityRowsForActiveTab.value];
@@ -4219,14 +4650,19 @@ async function batchDeleteActivityRows() {
   const operableRows = selectedRows.filter((row) => canOperateActivityRow(row));
   const skippedCount = selectedRows.length - operableRows.length;
   if (!operableRows.length) {
-    ElMessage.warning('当前勾选记录均不支持删除，仅可删除已存储到本地的QMT同步数据');
+    ElMessage.warning(
+      '当前勾选记录均不支持删除，仅可删除已存储到本地的QMT同步数据'
+    );
     return;
   }
-  const isOrderTab = ['today-orders', 'history-orders'].includes(activeQueryTab.value);
+  const isOrderTab = ['today-orders', 'history-orders'].includes(
+    activeQueryTab.value
+  );
   const targetText = isOrderTab ? '委托记录' : '成交记录';
-  const confirmText = skippedCount > 0
-    ? `已勾选 ${selectedRows.length} 条，将删除其中可操作的 ${operableRows.length} 条${targetText}（跳过 ${skippedCount} 条不可操作记录）。是否继续？`
-    : `已勾选 ${selectedRows.length} 条，确定批量删除这些${targetText}吗？`;
+  const confirmText =
+    skippedCount > 0
+      ? `已勾选 ${selectedRows.length} 条，将删除其中可操作的 ${operableRows.length} 条${targetText}（跳过 ${skippedCount} 条不可操作记录）。是否继续？`
+      : `已勾选 ${selectedRows.length} 条，确定批量删除这些${targetText}吗？`;
 
   try {
     await ElMessageBox.confirm(confirmText, '批量删除确认', {
@@ -4248,7 +4684,9 @@ async function batchDeleteActivityRows() {
       return deleteSimTradingActivityTrade(accountId, Number(row.id));
     });
     const results = await Promise.allSettled(tasks);
-    const successCount = results.filter((item) => item.status === 'fulfilled' && item.value?.success).length;
+    const successCount = results.filter(
+      (item) => item.status === 'fulfilled' && item.value?.success
+    ).length;
     const failedCount = operableRows.length - successCount;
     if (successCount > 0) {
       await loadActivityPanels(activeAccountId.value);
@@ -4256,7 +4694,9 @@ async function batchDeleteActivityRows() {
     if (failedCount <= 0) {
       ElMessage.success(`批量删除成功，共删除 ${successCount} 条${targetText}`);
     } else if (successCount > 0) {
-      ElMessage.warning(`批量删除部分成功：成功 ${successCount} 条，失败 ${failedCount} 条${targetText}`);
+      ElMessage.warning(
+        `批量删除部分成功：成功 ${successCount} 条，失败 ${failedCount} 条${targetText}`
+      );
     } else {
       ElMessage.error(`批量删除失败：${targetText}全部删除未成功`);
     }
@@ -4295,7 +4735,11 @@ function openTradeEditDialog(row) {
 }
 
 async function submitActivityEdit() {
-  if (!activeAccountId.value || !activityEditForm.id || activityEditSubmitting.value) {
+  if (
+    !activeAccountId.value ||
+    !activityEditForm.id ||
+    activityEditSubmitting.value
+  ) {
     return;
   }
   activityEditSubmitting.value = true;
@@ -4303,21 +4747,34 @@ async function submitActivityEdit() {
     const accountId = Number(activeAccountId.value);
     if (activityEditType.value === 'order') {
       const payload = {
-        broker_order_id: String(activityEditForm.broker_order_id || '').trim() || null,
-        trade_reason: String(activityEditForm.trade_reason || '').trim() || null,
+        broker_order_id:
+          String(activityEditForm.broker_order_id || '').trim() || null,
+        trade_reason:
+          String(activityEditForm.trade_reason || '').trim() || null,
       };
-      const res = await updateSimTradingActivityOrder(accountId, Number(activityEditForm.id), payload);
+      const res = await updateSimTradingActivityOrder(
+        accountId,
+        Number(activityEditForm.id),
+        payload
+      );
       if (!res?.success) {
         throw new Error(res?.message || '更新委托失败');
       }
       ElMessage.success('委托更新成功');
     } else {
       const payload = {
-        broker_order_id: String(activityEditForm.broker_order_id || '').trim() || null,
-        broker_deal_id: String(activityEditForm.broker_deal_id || '').trim() || null,
-        trade_reason: String(activityEditForm.trade_reason || '').trim() || null,
+        broker_order_id:
+          String(activityEditForm.broker_order_id || '').trim() || null,
+        broker_deal_id:
+          String(activityEditForm.broker_deal_id || '').trim() || null,
+        trade_reason:
+          String(activityEditForm.trade_reason || '').trim() || null,
       };
-      const res = await updateSimTradingActivityTrade(accountId, Number(activityEditForm.id), payload);
+      const res = await updateSimTradingActivityTrade(
+        accountId,
+        Number(activityEditForm.id),
+        payload
+      );
       if (!res?.success) {
         throw new Error(res?.message || '更新成交失败');
       }
@@ -4342,16 +4799,23 @@ async function deleteActivityOrderRow(row) {
     return;
   }
   try {
-    await ElMessageBox.confirm('删除后无法恢复，确定删除该委托记录吗？', '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
-    });
+    await ElMessageBox.confirm(
+      '删除后无法恢复，确定删除该委托记录吗？',
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+      }
+    );
   } catch {
     return;
   }
   try {
-    const res = await deleteSimTradingActivityOrder(Number(activeAccountId.value), Number(row.id));
+    const res = await deleteSimTradingActivityOrder(
+      Number(activeAccountId.value),
+      Number(row.id)
+    );
     if (!res?.success) {
       throw new Error(res?.message || '删除委托失败');
     }
@@ -4372,16 +4836,23 @@ async function deleteActivityTradeRow(row) {
     return;
   }
   try {
-    await ElMessageBox.confirm('删除后无法恢复，确定删除该成交记录吗？', '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
-    });
+    await ElMessageBox.confirm(
+      '删除后无法恢复，确定删除该成交记录吗？',
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+      }
+    );
   } catch {
     return;
   }
   try {
-    const res = await deleteSimTradingActivityTrade(Number(activeAccountId.value), Number(row.id));
+    const res = await deleteSimTradingActivityTrade(
+      Number(activeAccountId.value),
+      Number(row.id)
+    );
     if (!res?.success) {
       throw new Error(res?.message || '删除成交失败');
     }
@@ -4893,7 +5364,9 @@ function buildAccountRiskOverview() {
 
 function goToAccountRiskStrategy() {
   // 跳转至“自动化策略”tab页，方便用户查看当前账号的风控策略配置
-  router.push(`/sim-trading/account-detail?accountId=${currentAccount?.value?.id}&tab=strategy`);
+  router.push(
+    `/sim-trading/account-detail?accountId=${currentAccount?.value?.id}&tab=strategy`
+  );
 }
 
 function buildBuyRiskSummary() {
@@ -5139,7 +5612,9 @@ async function submitPositionEdit() {
       Number(activeAccountId.value),
       editingPosition.value.id,
       {
-        avg_cost_price: Number(Number(positionEditForm.avg_cost_price).toFixed(2)),
+        avg_cost_price: Number(
+          Number(positionEditForm.avg_cost_price).toFixed(2)
+        ),
         total_quantity: Number(positionEditForm.total_quantity),
         sellable_quantity: Number(positionEditForm.sellable_quantity),
         frozen_quantity: Number(positionEditForm.frozen_quantity),
@@ -5301,7 +5776,9 @@ function handleTradeExecutorJumpStrategy(payload) {
   activeTab.value = 'strategy';
   strategyLogJumpSignal.value = {
     keyword: strategyName,
-    strategyCategory: String(payload?.strategyCategory || '').trim().toUpperCase(),
+    strategyCategory: String(payload?.strategyCategory || '')
+      .trim()
+      .toUpperCase(),
     token: Date.now(),
   };
 }
@@ -5570,7 +6047,8 @@ function resetManualCashFlowForm() {
   manualCashFlowForm.id = 0;
   manualCashFlowForm.flow_type = 'DEPOSIT';
   manualCashFlowForm.occurred_date = formatDate(new Date());
-  manualCashFlowForm.currency = String(currentAccount.value?.base_currency || 'CNY').trim() || 'CNY';
+  manualCashFlowForm.currency =
+    String(currentAccount.value?.base_currency || 'CNY').trim() || 'CNY';
   manualCashFlowForm.amount = 0;
   manualCashFlowForm.reason = '';
 }
@@ -5584,9 +6062,15 @@ function openManualCashFlowDialog(row = null) {
     resetManualCashFlowForm();
   } else {
     manualCashFlowForm.id = Number(row?.id || 0);
-    manualCashFlowForm.flow_type = String(row?.flow_type || 'DEPOSIT').toUpperCase();
-    manualCashFlowForm.occurred_date = formatDate(row?.occurred_time) || formatDate(new Date());
-    manualCashFlowForm.currency = String(row?.currency || currentAccount.value?.base_currency || 'CNY').trim() || 'CNY';
+    manualCashFlowForm.flow_type = String(
+      row?.flow_type || 'DEPOSIT'
+    ).toUpperCase();
+    manualCashFlowForm.occurred_date =
+      formatDate(row?.occurred_time) || formatDate(new Date());
+    manualCashFlowForm.currency =
+      String(
+        row?.currency || currentAccount.value?.base_currency || 'CNY'
+      ).trim() || 'CNY';
     manualCashFlowForm.amount = Number(row?.amount || 0);
     manualCashFlowForm.reason = String(row?.reason || '');
   }
@@ -5599,7 +6083,10 @@ function resetManualCashFlowFilters() {
   manualCashFlowPagination.page = 1;
 }
 
-async function loadManualCashFlows(accountId = activeAccountId.value, options = {}) {
+async function loadManualCashFlows(
+  accountId = activeAccountId.value,
+  options = {}
+) {
   if (!accountId || !isQmtAccount.value) {
     manualCashFlows.value = [];
     return;
@@ -5611,9 +6098,14 @@ async function loadManualCashFlows(accountId = activeAccountId.value, options = 
   };
   if (useCurrentFilters) {
     if (manualCashFlowFilters.flowType) {
-      requestParams.flow_type = String(manualCashFlowFilters.flowType || '').trim().toUpperCase();
+      requestParams.flow_type = String(manualCashFlowFilters.flowType || '')
+        .trim()
+        .toUpperCase();
     }
-    if (Array.isArray(manualCashFlowFilters.dateRange) && manualCashFlowFilters.dateRange.length === 2) {
+    if (
+      Array.isArray(manualCashFlowFilters.dateRange) &&
+      manualCashFlowFilters.dateRange.length === 2
+    ) {
       requestParams.start_date = manualCashFlowFilters.dateRange[0];
       requestParams.end_date = manualCashFlowFilters.dateRange[1];
     }
@@ -5633,7 +6125,9 @@ async function loadManualCashFlows(accountId = activeAccountId.value, options = 
 
 async function searchManualCashFlows() {
   try {
-    await loadManualCashFlows(activeAccountId.value, { useCurrentFilters: true });
+    await loadManualCashFlows(activeAccountId.value, {
+      useCurrentFilters: true,
+    });
   } catch (error) {
     console.error(error);
     ElMessage.error(error?.message || '查询手工资金流水失败');
@@ -5655,18 +6149,35 @@ async function submitManualCashFlow() {
   manualCashFlowSubmitting.value = true;
   try {
     const payload = {
-      flow_type: String(manualCashFlowForm.flow_type || 'DEPOSIT').toUpperCase(),
+      flow_type: String(
+        manualCashFlowForm.flow_type || 'DEPOSIT'
+      ).toUpperCase(),
       occurred_date: String(manualCashFlowForm.occurred_date || ''),
-      currency: String(manualCashFlowForm.currency || currentAccount.value?.base_currency || 'CNY').trim() || 'CNY',
+      currency:
+        String(
+          manualCashFlowForm.currency ||
+            currentAccount.value?.base_currency ||
+            'CNY'
+        ).trim() || 'CNY',
       amount: Number(manualCashFlowForm.amount),
       reason: String(manualCashFlowForm.reason || '').trim() || null,
     };
     const isEdit = Number(manualCashFlowForm.id || 0) > 0;
     const res = isEdit
-      ? await updateSimTradingManualCashFlow(Number(activeAccountId.value), Number(manualCashFlowForm.id), payload)
-      : await createSimTradingManualCashFlow(Number(activeAccountId.value), payload);
+      ? await updateSimTradingManualCashFlow(
+          Number(activeAccountId.value),
+          Number(manualCashFlowForm.id),
+          payload
+        )
+      : await createSimTradingManualCashFlow(
+          Number(activeAccountId.value),
+          payload
+        );
     if (!res?.success) {
-      throw new Error(res?.message || (isEdit ? '编辑手工资金流水失败' : '新增手工资金流水失败'));
+      throw new Error(
+        res?.message ||
+          (isEdit ? '编辑手工资金流水失败' : '新增手工资金流水失败')
+      );
     }
     ElMessage.success(isEdit ? '编辑手工资金流水成功' : '新增手工资金流水成功');
     manualCashFlowDialogVisible.value = false;
@@ -5688,16 +6199,23 @@ async function deleteManualCashFlowItem(row) {
     return;
   }
   try {
-    await ElMessageBox.confirm('删除后无法恢复，确认删除该手工资金流水吗？', '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确认删除',
-      cancelButtonText: '取消',
-    });
+    await ElMessageBox.confirm(
+      '删除后无法恢复，确认删除该手工资金流水吗？',
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      }
+    );
   } catch {
     return;
   }
   try {
-    const res = await deleteSimTradingManualCashFlow(Number(activeAccountId.value), Number(row.id));
+    const res = await deleteSimTradingManualCashFlow(
+      Number(activeAccountId.value),
+      Number(row.id)
+    );
     if (!res?.success) {
       throw new Error(res?.message || '删除手工资金流水失败');
     }
@@ -5832,7 +6350,8 @@ async function loadAccounts(options = {}) {
   ) {
     if (!activeAccountId.value) {
       activeAccountId.value =
-        routeAccountId || (accounts.value[0] ? String(accounts.value[0].id) : '');
+        routeAccountId ||
+        (accounts.value[0] ? String(accounts.value[0].id) : '');
     }
     return;
   }
@@ -5849,7 +6368,8 @@ async function loadAccounts(options = {}) {
   );
   activeAccountId.value = currentActiveExists
     ? String(activeAccountId.value)
-    : routeAccountId || (fetchedAccounts[0] ? String(fetchedAccounts[0].id) : '');
+    : routeAccountId ||
+      (fetchedAccounts[0] ? String(fetchedAccounts[0].id) : '');
   await nextTick();
   initAccountTabsSortable();
 }
@@ -5956,7 +6476,9 @@ async function recoverActiveRuntime() {
       throw new Error(res?.message || '恢复连接失败');
     }
     const reconnectSuccess = Boolean(res.payload?.reconnect_success);
-    ElMessage.success(reconnectSuccess ? '恢复完成，已重连成功' : '恢复已执行，请稍后重试连接');
+    ElMessage.success(
+      reconnectSuccess ? '恢复完成，已重连成功' : '恢复已执行，请稍后重试连接'
+    );
     await loadAccountDetail(activeAccountId.value);
   } catch (error) {
     console.error(error);
@@ -5992,15 +6514,22 @@ async function loadQmtReconcileStatus(accountId = activeAccountId.value) {
 }
 
 async function saveQmtReconcileSettings() {
-  if (!activeAccountId.value || !isQmtAccount.value || qmtReconcileSaving.value) {
+  if (
+    !activeAccountId.value ||
+    !isQmtAccount.value ||
+    qmtReconcileSaving.value
+  ) {
     return;
   }
   qmtReconcileSaving.value = true;
   try {
-    const res = await updateSimTradingQmtReconcileSettings(Number(activeAccountId.value), {
-      auto_enabled: Boolean(qmtReconcileForm.auto_enabled),
-      auto_time: String(qmtReconcileForm.auto_time || '15:10'),
-    });
+    const res = await updateSimTradingQmtReconcileSettings(
+      Number(activeAccountId.value),
+      {
+        auto_enabled: Boolean(qmtReconcileForm.auto_enabled),
+        auto_time: String(qmtReconcileForm.auto_time || '15:10'),
+      }
+    );
     if (!res?.success) {
       throw new Error(res?.message || '保存QMT自动对账配置失败');
     }
@@ -6015,7 +6544,11 @@ async function saveQmtReconcileSettings() {
 }
 
 async function runQmtReconcileNow() {
-  if (!activeAccountId.value || !isQmtAccount.value || qmtReconcileRunning.value) {
+  if (
+    !activeAccountId.value ||
+    !isQmtAccount.value ||
+    qmtReconcileRunning.value
+  ) {
     return;
   }
   qmtReconcileRunning.value = true;
@@ -6048,7 +6581,9 @@ async function runQmtReconcileNow() {
     if (hasSuspiciousGap) {
       ElMessage.error(`${messageText}。请检查后端日志中的校验失败明细。`);
     } else if (hasValidationFailed) {
-      ElMessage.warning(`${messageText}。存在部分数据校验失败，请关注诊断面板。`);
+      ElMessage.warning(
+        `${messageText}。存在部分数据校验失败，请关注诊断面板。`
+      );
     } else {
       ElMessage.success(messageText);
     }
@@ -6435,7 +6970,9 @@ watch(activeTab, (value) => {
   if (route.path !== pageRoutePath) {
     return;
   }
-  const resolvedAccountId = String(activeAccountId.value || route.query.accountId || '');
+  const resolvedAccountId = String(
+    activeAccountId.value || route.query.accountId || ''
+  );
   if (!resolvedAccountId) {
     // 初始化期间账号尚未加载时，避免把 URL 上已有 accountId 覆盖为空。
     return;
@@ -6468,7 +7005,9 @@ watch(activeFundManagementTab, (value) => {
     return;
   }
   if (value === 'manual-cash-flow') {
-    loadManualCashFlows(activeAccountId.value, { useCurrentFilters: true }).catch((error) => {
+    loadManualCashFlows(activeAccountId.value, {
+      useCurrentFilters: true,
+    }).catch((error) => {
       console.error(error);
       ElMessage.error(error?.message || '加载手工资金流水失败');
     });
@@ -6566,7 +7105,10 @@ watch(
     const routeTab = query.tab ? String(query.tab) : '';
     if (routeTab && isAccountDetailTabAvailable(routeTab)) {
       activeTab.value = routeTab;
-      if (routeTab === 'transfer' && (query.action === 'deposit' || query.action === 'withdraw')) {
+      if (
+        routeTab === 'transfer' &&
+        (query.action === 'deposit' || query.action === 'withdraw')
+      ) {
         activeFundManagementTab.value = 'transfer-sub';
       }
       if (routeTab !== 'transfer' && query.action) {

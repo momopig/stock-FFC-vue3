@@ -478,6 +478,31 @@
                     formatMoney(scope.row.market_value)
                   }}</template>
                 </el-table-column>
+                <el-table-column
+                  v-if="canOperateDailyStocks"
+                  label="操作"
+                  width="170"
+                  fixed="right"
+                >
+                  <template #default="scope">
+                    <el-button
+                      v-if="isSuperAdmin || canUpdateDailyStock"
+                      link
+                      type="primary"
+                      @click="openDailyStockEditDialog(scope.row)"
+                    >
+                      编辑
+                    </el-button>
+                    <el-button
+                      v-if="isSuperAdmin || canDeleteDailyStock"
+                      link
+                      type="danger"
+                      @click="deleteDailyStockSnapshot(scope.row)"
+                    >
+                      删除
+                    </el-button>
+                  </template>
+                </el-table-column>
               </el-table>
 
               <div class="daily-stocks-footer">
@@ -621,6 +646,31 @@
                         >{{ formatPercent(scope.row.daily_profit_rate) }}</span
                       >
                     </div>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canOperateDailyAccounts"
+                  label="操作"
+                  width="170"
+                  fixed="right"
+                >
+                  <template #default="scope">
+                    <el-button
+                      v-if="isSuperAdmin || canUpdateDailyAccount"
+                      link
+                      type="primary"
+                      @click="openDailyAccountEditDialog(scope.row)"
+                    >
+                      编辑
+                    </el-button>
+                    <el-button
+                      v-if="isSuperAdmin || canDeleteDailyAccount"
+                      link
+                      type="danger"
+                      @click="deleteDailyAccountSnapshot(scope.row)"
+                    >
+                      删除
+                    </el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -975,12 +1025,169 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog
+      v-model="dailyStockEditDialogVisible"
+      title="编辑股票每日盈亏记录"
+      width="680px"
+    >
+      <el-form label-width="130px">
+        <el-form-item label="持仓成本">
+          <el-input-number
+            v-model="dailyStockEditForm.avg_cost_price"
+            :min="0"
+            :precision="6"
+            :step="0.000001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="收盘价">
+          <el-input-number
+            v-model="dailyStockEditForm.close_price"
+            :min="0"
+            :precision="6"
+            :step="0.000001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="持仓数量">
+          <el-input-number
+            v-model="dailyStockEditForm.hold_quantity"
+            :min="0"
+            :precision="0"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日手续费">
+          <el-input-number
+            v-model="dailyStockEditForm.daily_fee"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日盈亏">
+          <el-input-number
+            v-model="dailyStockEditForm.day_profit_amount"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日收益率">
+          <el-input-number
+            v-model="dailyStockEditForm.day_profit_rate"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="是否清仓">
+          <el-switch v-model="dailyStockEditForm.is_closed" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dailyStockEditDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="dailyStockEditSubmitting"
+          @click="submitDailyStockEdit"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="dailyAccountEditDialogVisible"
+      title="编辑账号每日盈亏记录"
+      width="680px"
+    >
+      <el-form label-width="150px">
+        <el-form-item label="现金余额">
+          <el-input-number
+            v-model="dailyAccountEditForm.cash_balance"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="持仓市值">
+          <el-input-number
+            v-model="dailyAccountEditForm.market_value_total"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="总资产">
+          <el-input-number
+            v-model="dailyAccountEditForm.total_asset"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日净入金">
+          <el-input-number
+            v-model="dailyAccountEditForm.daily_net_capital_in"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="累计净入金">
+          <el-input-number
+            v-model="dailyAccountEditForm.cum_net_capital"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日已实现盈亏">
+          <el-input-number
+            v-model="dailyAccountEditForm.daily_realized_profit"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日浮盈浮亏变化">
+          <el-input-number
+            v-model="dailyAccountEditForm.daily_unrealized_change"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="当日总盈亏">
+          <el-input-number
+            v-model="dailyAccountEditForm.daily_total_profit"
+            :precision="4"
+            :step="0.0001"
+            controls-position="right"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dailyAccountEditDialogVisible = false"
+          >取消</el-button
+        >
+        <el-button
+          type="primary"
+          :loading="dailyAccountEditSubmitting"
+          @click="submitDailyAccountEdit"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   getProfitRebuildTaskProgress,
@@ -988,6 +1195,10 @@ import {
   getSimTradingProfitAnalysisDailyStocks,
   getSimTradingProfitAnalysisCalendar,
   getSimTradingProfitAnalysisOverview,
+  updateSimTradingProfitDailyStockSnapshot,
+  deleteSimTradingProfitDailyStockSnapshot,
+  updateSimTradingProfitDailyAccountSnapshot,
+  deleteSimTradingProfitDailyAccountSnapshot,
   rebuildAccountProfitSnapshot,
 } from '@/api/modules/simTrading';
 
@@ -1007,6 +1218,22 @@ const props = defineProps({
     default: () => [],
   },
   isSuperAdmin: {
+    type: Boolean,
+    default: false,
+  },
+  canUpdateDailyStock: {
+    type: Boolean,
+    default: false,
+  },
+  canDeleteDailyStock: {
+    type: Boolean,
+    default: false,
+  },
+  canUpdateDailyAccount: {
+    type: Boolean,
+    default: false,
+  },
+  canDeleteDailyAccount: {
     type: Boolean,
     default: false,
   },
@@ -1090,7 +1317,44 @@ const rebuildTask = reactive({
 });
 
 const dailyStocksIncludeClosed = ref(false);
+const dailyStockEditDialogVisible = ref(false);
+const dailyStockEditSubmitting = ref(false);
+const dailyStockEditTargetId = ref(0);
+const dailyStockEditForm = reactive({
+  avg_cost_price: 0,
+  close_price: 0,
+  hold_quantity: 0,
+  daily_fee: 0,
+  day_profit_amount: 0,
+  day_profit_rate: 0,
+  is_closed: false,
+});
+const dailyAccountEditDialogVisible = ref(false);
+const dailyAccountEditSubmitting = ref(false);
+const dailyAccountEditTargetId = ref(0);
+const dailyAccountEditForm = reactive({
+  cash_balance: 0,
+  market_value_total: 0,
+  total_asset: 0,
+  daily_net_capital_in: 0,
+  cum_net_capital: 0,
+  daily_realized_profit: 0,
+  daily_unrealized_change: 0,
+  daily_total_profit: 0,
+});
 const isSuperAdmin = computed(() => Boolean(props.isSuperAdmin));
+const canOperateDailyStocks = computed(
+  () =>
+    isSuperAdmin.value ||
+    Boolean(props.canUpdateDailyStock) ||
+    Boolean(props.canDeleteDailyStock)
+);
+const canOperateDailyAccounts = computed(
+  () =>
+    isSuperAdmin.value ||
+    Boolean(props.canUpdateDailyAccount) ||
+    Boolean(props.canDeleteDailyAccount)
+);
 const rebuildTaskRunning = computed(() => {
   const status = String(rebuildTask.status || '').toLowerCase();
   return status === 'pending' || status === 'running';
@@ -1649,6 +1913,186 @@ function filterDailyStockName(value, row) {
 function refreshDailyAccounts() {
   dailyAccounts.page = 1;
   loadDailyAccounts({ force: true });
+}
+
+function openDailyStockEditDialog(row) {
+  if (!(isSuperAdmin.value || props.canUpdateDailyStock)) {
+    return;
+  }
+  dailyStockEditTargetId.value = Number(row?.id || 0);
+  dailyStockEditForm.avg_cost_price = Number(row?.avg_cost_price || 0);
+  dailyStockEditForm.close_price = Number(row?.close_price || 0);
+  dailyStockEditForm.hold_quantity = Number(row?.hold_quantity || 0);
+  dailyStockEditForm.daily_fee = Number(row?.daily_fee || 0);
+  dailyStockEditForm.day_profit_amount = Number(row?.day_profit_amount || 0);
+  dailyStockEditForm.day_profit_rate = Number(row?.day_profit_rate || 0);
+  dailyStockEditForm.is_closed = Boolean(row?.is_closed);
+  dailyStockEditDialogVisible.value = true;
+}
+
+async function submitDailyStockEdit() {
+  if (!props.accountId || !dailyStockEditTargetId.value) {
+    return;
+  }
+  dailyStockEditSubmitting.value = true;
+  try {
+    await updateSimTradingProfitDailyStockSnapshot(
+      Number(props.accountId),
+      Number(dailyStockEditTargetId.value),
+      {
+        avg_cost_price: Number(dailyStockEditForm.avg_cost_price || 0),
+        close_price: Number(dailyStockEditForm.close_price || 0),
+        hold_quantity: Number(dailyStockEditForm.hold_quantity || 0),
+        daily_fee: Number(dailyStockEditForm.daily_fee || 0),
+        day_profit_amount: Number(dailyStockEditForm.day_profit_amount || 0),
+        day_profit_rate: Number(dailyStockEditForm.day_profit_rate || 0),
+        is_closed: Boolean(dailyStockEditForm.is_closed),
+      }
+    );
+    dailyStockEditDialogVisible.value = false;
+    ElMessage.success('股票每日盈亏记录已更新');
+    await loadDailyStocks({ force: true });
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '更新股票每日盈亏记录失败');
+  } finally {
+    dailyStockEditSubmitting.value = false;
+  }
+}
+
+async function deleteDailyStockSnapshot(row) {
+  if (!(isSuperAdmin.value || props.canDeleteDailyStock)) {
+    return;
+  }
+  const snapshotId = Number(row?.id || 0);
+  if (!props.accountId || !snapshotId) {
+    ElMessage.warning('记录ID无效，无法删除');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      '确认删除该股票每日盈亏记录吗？删除后不可恢复。',
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      }
+    );
+    await deleteSimTradingProfitDailyStockSnapshot(
+      Number(props.accountId),
+      snapshotId
+    );
+    ElMessage.success('股票每日盈亏记录已删除');
+    await loadDailyStocks({ force: true });
+  } catch (error) {
+    if (String(error || '').includes('cancel')) {
+      return;
+    }
+    console.error(error);
+    ElMessage.error(error?.message || '删除股票每日盈亏记录失败');
+  }
+}
+
+function openDailyAccountEditDialog(row) {
+  if (!(isSuperAdmin.value || props.canUpdateDailyAccount)) {
+    return;
+  }
+  dailyAccountEditTargetId.value = Number(row?.id || 0);
+  dailyAccountEditForm.cash_balance = Number(row?.cash_balance || 0);
+  dailyAccountEditForm.market_value_total = Number(
+    row?.market_value_total || 0
+  );
+  dailyAccountEditForm.total_asset = Number(row?.total_asset || 0);
+  dailyAccountEditForm.daily_net_capital_in = Number(
+    row?.daily_net_capital_in || 0
+  );
+  dailyAccountEditForm.cum_net_capital = Number(row?.cum_net_capital || 0);
+  dailyAccountEditForm.daily_realized_profit = Number(
+    row?.daily_realized_profit || 0
+  );
+  dailyAccountEditForm.daily_unrealized_change = Number(
+    row?.daily_unrealized_change || 0
+  );
+  dailyAccountEditForm.daily_total_profit = Number(
+    row?.daily_total_profit || 0
+  );
+  dailyAccountEditDialogVisible.value = true;
+}
+
+async function submitDailyAccountEdit() {
+  if (!props.accountId || !dailyAccountEditTargetId.value) {
+    return;
+  }
+  dailyAccountEditSubmitting.value = true;
+  try {
+    await updateSimTradingProfitDailyAccountSnapshot(
+      Number(props.accountId),
+      Number(dailyAccountEditTargetId.value),
+      {
+        cash_balance: Number(dailyAccountEditForm.cash_balance || 0),
+        market_value_total: Number(
+          dailyAccountEditForm.market_value_total || 0
+        ),
+        total_asset: Number(dailyAccountEditForm.total_asset || 0),
+        daily_net_capital_in: Number(
+          dailyAccountEditForm.daily_net_capital_in || 0
+        ),
+        cum_net_capital: Number(dailyAccountEditForm.cum_net_capital || 0),
+        daily_realized_profit: Number(
+          dailyAccountEditForm.daily_realized_profit || 0
+        ),
+        daily_unrealized_change: Number(
+          dailyAccountEditForm.daily_unrealized_change || 0
+        ),
+        daily_total_profit: Number(
+          dailyAccountEditForm.daily_total_profit || 0
+        ),
+      }
+    );
+    dailyAccountEditDialogVisible.value = false;
+    ElMessage.success('账号每日盈亏记录已更新');
+    await loadDailyAccounts({ force: true });
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '更新账号每日盈亏记录失败');
+  } finally {
+    dailyAccountEditSubmitting.value = false;
+  }
+}
+
+async function deleteDailyAccountSnapshot(row) {
+  if (!(isSuperAdmin.value || props.canDeleteDailyAccount)) {
+    return;
+  }
+  const snapshotId = Number(row?.id || 0);
+  if (!props.accountId || !snapshotId) {
+    ElMessage.warning('记录ID无效，无法删除');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      '确认删除该账号每日盈亏记录吗？删除后不可恢复。',
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      }
+    );
+    await deleteSimTradingProfitDailyAccountSnapshot(
+      Number(props.accountId),
+      snapshotId
+    );
+    ElMessage.success('账号每日盈亏记录已删除');
+    await loadDailyAccounts({ force: true });
+  } catch (error) {
+    if (String(error || '').includes('cancel')) {
+      return;
+    }
+    console.error(error);
+    ElMessage.error(error?.message || '删除账号每日盈亏记录失败');
+  }
 }
 
 function handleDailyStocksPageChange(page) {

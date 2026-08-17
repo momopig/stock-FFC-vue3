@@ -78,11 +78,16 @@ export async function getSimTradingAccountDetail(accountId) {
 }
 
 export async function getSimTradingRuntimeHealth(accountId) {
-  return await request.get(`${API_PREFIX}/accounts/${accountId}/runtime-health`);
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/runtime-health`
+  );
 }
 
 export async function recoverSimTradingRuntime(accountId, data = {}) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/runtime-recover`, data);
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/runtime-recover`,
+    data
+  );
 }
 
 export async function getSimTradingQmtReconcileStatus(accountId) {
@@ -90,27 +95,45 @@ export async function getSimTradingQmtReconcileStatus(accountId) {
 }
 
 export async function runSimTradingQmtReconcile(accountId) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/qmt-reconcile`);
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/qmt-reconcile`
+  );
 }
 
-export async function updateSimTradingQmtReconcileSettings(accountId, data = {}) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/qmt-reconcile/settings`, data);
+export async function updateSimTradingQmtReconcileSettings(
+  accountId,
+  data = {}
+) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/qmt-reconcile/settings`,
+    data
+  );
 }
 
 export async function getSimTradingTradeExecutorConfig(accountId) {
-  return await request.get(`${API_PREFIX}/accounts/${accountId}/trade-executor/config`);
+  return await request.get(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/config`
+  );
 }
 
 export async function saveSimTradingTradeExecutorConfig(accountId, data) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/config`, data);
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/config`,
+    data
+  );
 }
 
 export async function resetSimTradingTradeExecutorConfig(accountId) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/reset-default`);
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/reset-default`
+  );
 }
 
 export async function copySimTradingTradeExecutorConfig(accountId, data) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/copy`, data);
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/copy`,
+    data
+  );
 }
 
 export async function getSimTradingTradeExecutorLogs(accountId, params = {}) {
@@ -120,36 +143,56 @@ export async function getSimTradingTradeExecutorLogs(accountId, params = {}) {
   );
 }
 
-export async function getSimTradingTradeExecutorBatches(accountId, params = {}) {
+export async function getSimTradingTradeExecutorBatches(
+  accountId,
+  params = {}
+) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/trade-executor/batches${query ? `?${query}` : ''}`
   );
 }
 
-export async function getSimTradingTradeExecutorBatchChildren(accountId, batchId, params = {}) {
+export async function getSimTradingTradeExecutorBatchChildren(
+  accountId,
+  batchId,
+  params = {}
+) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/trade-executor/batches/${batchId}/children${query ? `?${query}` : ''}`
   );
 }
 
-export async function syncSimTradingTradeExecutorBatchStatus(accountId, batchId, data = {}) {
+export async function syncSimTradingTradeExecutorBatchStatus(
+  accountId,
+  batchId,
+  data = {}
+) {
   return await request.post(
     `${API_PREFIX}/accounts/${accountId}/trade-executor/batches/${batchId}/sync-status`,
     data
   );
 }
 
-export async function syncSimTradingTradeExecutorActiveBatches(accountId, params = {}) {
+export async function syncSimTradingTradeExecutorActiveBatches(
+  accountId,
+  params = {}
+) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.post(
     `${API_PREFIX}/accounts/${accountId}/trade-executor/sync-active-batches${query ? `?${query}` : ''}`
   );
 }
 
-export async function replaySimTradingTradeExecutorConfig(accountId, data = {}) {
-  return await request.post(`${API_PREFIX}/accounts/${accountId}/trade-executor/replay`, data);
+export async function replaySimTradingTradeExecutorConfig(
+  accountId,
+  data = {}
+) {
+  return await request.post(
+    `${API_PREFIX}/accounts/${accountId}/trade-executor/replay`,
+    data
+  );
 }
 
 export async function generateSimTradingAccountChipPrices(accountId) {
@@ -206,7 +249,11 @@ export async function createSimTradingManualCashFlow(accountId, data) {
   );
 }
 
-export async function updateSimTradingManualCashFlow(accountId, cashFlowId, data) {
+export async function updateSimTradingManualCashFlow(
+  accountId,
+  cashFlowId,
+  data
+) {
   return await request.patch(
     `${API_PREFIX}/accounts/${accountId}/fund-management/manual-cash-flows/${cashFlowId}`,
     data
@@ -225,7 +272,10 @@ export async function getSimTradingMaxAvailableCashSettings(accountId) {
   );
 }
 
-export async function updateSimTradingMaxAvailableCashSettings(accountId, data) {
+export async function updateSimTradingMaxAvailableCashSettings(
+  accountId,
+  data
+) {
   return await request.post(
     `${API_PREFIX}/accounts/${accountId}/fund-management/max-available-cash`,
     data
@@ -242,20 +292,38 @@ export async function getSimTradingAccountActivity(accountId, params = {}) {
   );
 }
 
-export async function updateSimTradingActivityOrder(accountId, orderId, data = {}) {
-  return await request.patch(`${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`, data);
+export async function updateSimTradingActivityOrder(
+  accountId,
+  orderId,
+  data = {}
+) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`,
+    data
+  );
 }
 
 export async function deleteSimTradingActivityOrder(accountId, orderId) {
-  return await request.delete(`${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`);
+  return await request.delete(
+    `${API_PREFIX}/accounts/${accountId}/activity/orders/${orderId}`
+  );
 }
 
-export async function updateSimTradingActivityTrade(accountId, tradeId, data = {}) {
-  return await request.patch(`${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`, data);
+export async function updateSimTradingActivityTrade(
+  accountId,
+  tradeId,
+  data = {}
+) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`,
+    data
+  );
 }
 
 export async function deleteSimTradingActivityTrade(accountId, tradeId) {
-  return await request.delete(`${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`);
+  return await request.delete(
+    `${API_PREFIX}/accounts/${accountId}/activity/trades/${tradeId}`
+  );
 }
 
 export async function getSimTradingProfitAnalysisOverview(
@@ -325,6 +393,46 @@ export async function getSimTradingProfitAnalysisDailyAccounts(
     {
       timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
     }
+  );
+}
+
+export async function updateSimTradingProfitDailyStockSnapshot(
+  accountId,
+  snapshotId,
+  data = {}
+) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-stocks/${snapshotId}`,
+    data
+  );
+}
+
+export async function deleteSimTradingProfitDailyStockSnapshot(
+  accountId,
+  snapshotId
+) {
+  return await request.delete(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-stocks/${snapshotId}`
+  );
+}
+
+export async function updateSimTradingProfitDailyAccountSnapshot(
+  accountId,
+  snapshotId,
+  data = {}
+) {
+  return await request.patch(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-accounts/${snapshotId}`,
+    data
+  );
+}
+
+export async function deleteSimTradingProfitDailyAccountSnapshot(
+  accountId,
+  snapshotId
+) {
+  return await request.delete(
+    `${API_PREFIX}/accounts/${accountId}/profit-analysis/daily-accounts/${snapshotId}`
   );
 }
 
