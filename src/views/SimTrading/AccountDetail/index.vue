@@ -243,6 +243,62 @@
         </template>
       </div>
 
+      <div class="auto-strategy-overview-card">
+        <div class="auto-strategy-overview-header">
+          <h3>自动执行策略概览</h3>
+          <p>展示当前账号已绑定策略的执行状态与股票黑白名单覆盖情况。</p>
+        </div>
+        <el-table
+          :data="autoStrategyOverviewRows"
+          border
+          size="small"
+          empty-text="当前账号暂无策略绑定"
+        >
+          <el-table-column
+            prop="strategy_type_label"
+            label="策略类型"
+            min-width="130"
+          />
+          <el-table-column
+            prop="strategy_name"
+            label="策略名称"
+            min-width="180"
+          />
+          <el-table-column
+            prop="strategy_code"
+            label="策略编码"
+            min-width="180"
+          />
+          <el-table-column prop="enabled_text" label="启用" width="90" />
+          <!-- <el-table-column
+            prop="last_execute_result_text"
+            label="最近执行结果"
+            min-width="220"
+          /> -->
+          <el-table-column label="股票黑白名单状态" min-width="280">
+            <template #default="scope">
+              <div class="auto-strategy-stock-filter-cell">
+                <span>{{ scope.row.stock_filter_mode_label }}</span>
+                <span
+                  v-if="scope.row.stock_filter_stocks.length"
+                  class="auto-strategy-stock-filter-list"
+                >
+                  <el-link
+                    v-for="stock in scope.row.stock_filter_stocks"
+                    :key="`auto-strategy-stock-filter-${scope.row.id}-${stock.key}`"
+                    type="primary"
+                    :underline="false"
+                    @click="openStockFinance(stock)"
+                  >
+                    {{ formatStockFilterStock(stock) }}
+                  </el-link>
+                </span>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
       <el-tabs v-model="activeTab">
         <el-tab-pane label="持仓" name="position" lazy>
           <div class="tab-toolbar">
@@ -3587,6 +3643,56 @@ const accountRiskRuntimeConfig = computed(() => {
 const buyRiskSummary = computed(() => buildBuyRiskSummary());
 const sellRiskSummary = computed(() => buildSellRiskSummary());
 const accountRiskOverview = computed(() => buildAccountRiskOverview());
+const autoStrategyOverviewRows = computed(() => {
+  const strategyCategoryOrderMap = {
+    ACCOUNT_RISK: 1,
+    OPEN_POSITION: 2,
+    CLOSE_POSITION: 3,
+    INTRADAY_T: 4,
+  };
+  return (
+    Array.isArray(accountStrategyBindings.value)
+      ? accountStrategyBindings.value
+      : []
+  )
+    .slice()
+    .sort((left, right) => {
+      const leftCategory = String(left?.strategy_category || '')
+        .trim()
+        .toUpperCase();
+      const rightCategory = String(right?.strategy_category || '')
+        .trim()
+        .toUpperCase();
+      const leftOrder = strategyCategoryOrderMap[leftCategory] || 99;
+      const rightOrder = strategyCategoryOrderMap[rightCategory] || 99;
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      const leftPriority = Number(left?.priority || 0);
+      const rightPriority = Number(right?.priority || 0);
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+      return Number(left?.id || 0) - Number(right?.id || 0);
+    })
+    .map((binding) => {
+      const strategy = binding?.strategy || {};
+      return {
+        id: Number(binding?.id || 0),
+        strategy_type_label: formatStrategyCategoryLabel(
+          binding?.strategy_category
+        ),
+        strategy_name: String(strategy?.strategy_name || '--'),
+        strategy_code: String(strategy?.strategy_code || '--'),
+        enabled_text: binding?.enabled ? '是' : '否',
+        last_execute_result_text: formatStrategyExecuteResult(
+          binding?.last_execute_result
+        ),
+        stock_filter_mode_label: getStockFilterModeLabelByBinding(binding),
+        stock_filter_stocks: getStockFilterStocksByBinding(binding),
+      };
+    });
+});
 const queryPagination = reactive({
   'today-orders': { page: 1, pageSize: 10 },
   'today-trades': { page: 1, pageSize: 10 },
@@ -4153,7 +4259,8 @@ function formatDateTime(value) {
   const hours = padTimeNumber(date.getHours());
   const minutes = padTimeNumber(date.getMinutes());
   const seconds = padTimeNumber(date.getSeconds());
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  // return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return `${year}-${month}-${day}`;
 }
 
 function formatDate(value) {
@@ -5231,6 +5338,120 @@ function getActiveRiskPayload() {
 function getActivePositionsForRisk() {
   return positions.value.filter(
     (item) => Number(item?.total_quantity || 0) > 0
+  );
+}
+
+function formatStrategyCategoryLabel(value) {
+  const category = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (category === 'ACCOUNT_RISK') {
+    return '账号风控';
+  }
+  if (category === 'OPEN_POSITION') {
+    return '建仓策略';
+  }
+  if (category === 'CLOSE_POSITION') {
+    return '清仓策略';
+  }
+  if (category === 'INTRADAY_T') {
+    return '做T策略';
+  }
+  return category || '--';
+}
+
+function formatStrategyExecuteResult(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '--';
+  }
+  if (text.length <= 48) {
+    return text;
+  }
+  return `${text.slice(0, 48)}...`;
+}
+
+function normalizeStockFilterStock(stock) {
+  const stockCode = String(
+    stock?.stock_code || stock?.code || stock?.symbol || ''
+  )
+    .trim()
+    .toUpperCase();
+  const exchangeCode = String(
+    stock?.exchange_code || stock?.exchange || stock?.market || ''
+  )
+    .trim()
+    .toUpperCase();
+  const stockName = String(stock?.stock_name || stock?.name || '').trim();
+  if (!stockCode) {
+    return null;
+  }
+  return {
+    stock_code: stockCode,
+    exchange_code: exchangeCode,
+    stock_name: stockName,
+    key: `${stockCode}.${exchangeCode || 'UNKNOWN'}`,
+  };
+}
+
+function getStockFilterModeByBinding(binding) {
+  const mode = String(binding?.account_override_json?.stock_filter?.mode || '')
+    .trim()
+    .toUpperCase();
+  if (['DISABLED', 'BLACKLIST', 'WHITELIST'].includes(mode)) {
+    return mode;
+  }
+  const legacyCodes = binding?.account_override_json?.blacklist?.stock_codes;
+  return Array.isArray(legacyCodes) && legacyCodes.length
+    ? 'BLACKLIST'
+    : 'DISABLED';
+}
+
+function getStockFilterStocksByBinding(binding) {
+  const stocks = binding?.account_override_json?.stock_filter?.stocks;
+  if (Array.isArray(stocks)) {
+    return stocks.map(normalizeStockFilterStock).filter(Boolean);
+  }
+  const legacyCodes = binding?.account_override_json?.blacklist?.stock_codes;
+  return Array.isArray(legacyCodes)
+    ? legacyCodes
+        .map((stockCode) =>
+          normalizeStockFilterStock({ stock_code: stockCode })
+        )
+        .filter(Boolean)
+    : [];
+}
+
+function getStockFilterModeLabelByBinding(binding) {
+  const mode = getStockFilterModeByBinding(binding);
+  return (
+    {
+      DISABLED: '关闭黑白名单',
+      BLACKLIST: '开启股票黑名单',
+      WHITELIST: '开启股票白名单',
+    }[mode] || '关闭黑白名单'
+  );
+}
+
+function formatStockFilterStock(stock) {
+  const normalized = normalizeStockFilterStock(stock) || {};
+  const fullCode = normalized.exchange_code
+    ? `${normalized.stock_code}.${normalized.exchange_code}`
+    : normalized.stock_code;
+  return normalized.stock_name
+    ? `${normalized.stock_name}（${fullCode}）`
+    : fullCode;
+}
+
+function openStockFinance(stock) {
+  const normalized = normalizeStockFilterStock(stock);
+  if (!normalized?.stock_code) {
+    return;
+  }
+  window.open(
+    `https://finance.baidu.com/stock/ab-${normalized.stock_code}`,
+    '_blank',
+    'noopener'
   );
 }
 
@@ -7371,8 +7592,8 @@ onUnmounted(() => {
 }
 
 .account-risk-overview-card {
-  margin-bottom: 18px;
-  padding: 18px 20px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
   border: 1px solid #f0d7a1;
   border-radius: 16px;
   background: linear-gradient(135deg, #fffaf0 0%, #fff4d8 100%);
@@ -7383,20 +7604,20 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
 .account-risk-overview-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   color: #6a4510;
 }
 
 .account-risk-overview-header p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: #8a641f;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .account-risk-overview-header--unbound {
@@ -7411,36 +7632,36 @@ onUnmounted(() => {
 .account-risk-overview-sections {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 .account-risk-overview-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .account-risk-overview-section__header h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   color: #6a4510;
 }
 
 .account-risk-overview-section__header p {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: #8a641f;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .account-risk-permission-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .account-risk-permission-chip {
   min-width: 120px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid rgba(205, 156, 73, 0.24);
   background: rgba(255, 255, 255, 0.78);
@@ -7451,7 +7672,7 @@ onUnmounted(() => {
 }
 
 .account-risk-permission-chip strong {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .account-risk-permission-chip.is-allowed {
@@ -7469,11 +7690,11 @@ onUnmounted(() => {
 .account-risk-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .account-risk-overview-item {
-  padding: 14px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(205, 156, 73, 0.22);
@@ -7483,12 +7704,12 @@ onUnmounted(() => {
 }
 
 .account-risk-overview-item span {
-  font-size: 13px;
+  font-size: 12px;
   color: #8a641f;
 }
 
 .account-risk-overview-item strong {
-  font-size: 22px;
+  font-size: 18px;
   color: #6a4510;
 }
 
@@ -7503,25 +7724,62 @@ onUnmounted(() => {
 }
 
 .account-risk-overview-item__desc {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.4;
   color: #9b7a42;
 }
 
 .account-risk-warning-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .account-risk-warning-item {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(186, 85, 65, 0.18);
   background: rgba(255, 244, 239, 0.92);
   color: #9b3a26;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auto-strategy-overview-card {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d8e3f2;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+  box-shadow: 0 8px 24px rgba(18, 76, 147, 0.08);
+}
+
+.auto-strategy-overview-header {
+  margin-bottom: 10px;
+}
+
+.auto-strategy-overview-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #19436f;
+}
+
+.auto-strategy-overview-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #476382;
+}
+
+.auto-strategy-stock-filter-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auto-strategy-stock-filter-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .form-panel {

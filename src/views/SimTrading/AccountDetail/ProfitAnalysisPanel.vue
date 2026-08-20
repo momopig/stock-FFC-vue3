@@ -996,11 +996,12 @@
               <span>成功：{{ rebuildTask.success_dates || 0 }}</span>
               <span>失败：{{ rebuildTask.failed_dates || 0 }}</span>
             </div>
+            <div class="rebuild-phase-title">阶段1：股票每日盈亏统计</div>
             <el-table
-              :data="rebuildTask.items || []"
+              :data="rebuildTaskStockItems"
               border
               size="small"
-              empty-text="暂无任务明细"
+              empty-text="暂无股票阶段明细"
             >
               <el-table-column prop="trade_date" label="日期" width="130" />
               <el-table-column prop="status" label="状态" width="100" />
@@ -1020,6 +1021,22 @@
                   >
                 </template>
               </el-table-column>
+            </el-table>
+
+            <div class="rebuild-phase-title">阶段2：账号每日盈亏统计</div>
+            <el-table
+              :data="rebuildTaskAccountItems"
+              border
+              size="small"
+              empty-text="暂无账号阶段明细"
+            >
+              <el-table-column prop="trade_date" label="日期" width="130" />
+              <el-table-column prop="status" label="状态" width="100" />
+              <el-table-column
+                prop="message"
+                label="结果说明"
+                min-width="400"
+              />
             </el-table>
           </div>
         </div>
@@ -1314,6 +1331,8 @@ const rebuildTask = reactive({
   failed_dates: 0,
   message: '',
   items: [],
+  stock_items: [],
+  account_items: [],
 });
 
 const dailyStocksIncludeClosed = ref(false);
@@ -1358,6 +1377,49 @@ const canOperateDailyAccounts = computed(
 const rebuildTaskRunning = computed(() => {
   const status = String(rebuildTask.status || '').toLowerCase();
   return status === 'pending' || status === 'running';
+});
+const rebuildTaskStockItems = computed(() => {
+  if (
+    Array.isArray(rebuildTask.stock_items) &&
+    rebuildTask.stock_items.length
+  ) {
+    return rebuildTask.stock_items;
+  }
+  const allItems = Array.isArray(rebuildTask.items) ? rebuildTask.items : [];
+  const phaseItems = allItems.filter(
+    (item) => String(item?.phase || '').toLowerCase() === 'stock'
+  );
+  if (phaseItems.length) {
+    return phaseItems;
+  }
+  return allItems.map((item) => ({
+    ...item,
+    phase: 'stock',
+    message: String(item?.message || '股票每日盈亏统计完成'),
+  }));
+});
+const rebuildTaskAccountItems = computed(() => {
+  if (
+    Array.isArray(rebuildTask.account_items) &&
+    rebuildTask.account_items.length
+  ) {
+    return rebuildTask.account_items;
+  }
+  const allItems = Array.isArray(rebuildTask.items) ? rebuildTask.items : [];
+  const phaseItems = allItems.filter(
+    (item) => String(item?.phase || '').toLowerCase() === 'account'
+  );
+  if (phaseItems.length) {
+    return phaseItems;
+  }
+  return allItems.map((item) => ({
+    ...item,
+    phase: 'account',
+    message:
+      item?.status === 'success'
+        ? '账号每日盈亏统计完成'
+        : '账号每日盈亏统计失败（股票阶段失败）',
+  }));
 });
 
 const overviewSummary = computed(() => overviewData.summary || {});
@@ -2151,6 +2213,8 @@ function resetRebuildTask() {
   rebuildTask.failed_dates = 0;
   rebuildTask.message = '';
   rebuildTask.items = [];
+  rebuildTask.stock_items = [];
+  rebuildTask.account_items = [];
   if (rebuildTaskTimer) {
     clearTimeout(rebuildTaskTimer);
     rebuildTaskTimer = null;
@@ -2176,6 +2240,12 @@ async function pullRebuildTaskProgress(taskId) {
   rebuildTask.failed_dates = Number(payload.failed_dates || 0);
   rebuildTask.message = String(payload.message || '');
   rebuildTask.items = Array.isArray(payload.items) ? payload.items : [];
+  rebuildTask.stock_items = Array.isArray(payload.stock_items)
+    ? payload.stock_items
+    : [];
+  rebuildTask.account_items = Array.isArray(payload.account_items)
+    ? payload.account_items
+    : [];
 }
 
 function stopRebuildTaskPolling() {
@@ -2760,6 +2830,13 @@ function formatDayNumber(value) {
   margin-bottom: 10px;
   color: #425466;
   font-size: 13px;
+}
+
+.rebuild-phase-title {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  color: #2f4052;
+  font-weight: 600;
 }
 
 .curve-tooltip {
