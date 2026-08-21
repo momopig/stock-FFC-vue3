@@ -753,6 +753,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // 父组件传入的搜索参数快照，用于回填搜索输入框。
+  searchQuery: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 const userStore = UserStore();
 const quoteContractSummary = computed(() => {
@@ -829,6 +834,10 @@ const localFilterParams = reactive({
   priority_level: '',
   snapshot_date: '',
 });
+
+function normalizeQueryText(value) {
+  return String(value || '').replace(/,/g, ' ').trim();
+}
 
 // 按「当前 stockList 数组引用」缓存筛选项：同一轮渲染多列会重复调用 getFiltersForColumn，避免重计算
 const addTypeFiltersCache = new WeakMap();
@@ -1581,6 +1590,18 @@ watch(
     }
   },
   { immediate: true }
+);
+
+watch(
+  () => props.searchQuery,
+  (nextQuery) => {
+    const query = nextQuery || {};
+    localSearchQuery.stock_code = normalizeQueryText(query.stock_code);
+    localSearchQuery.stock_name = normalizeQueryText(query.stock_name);
+    localFilterParams.exchange_code = String(query.exchange_code || '').trim();
+    localFilterParams.snapshot_date = String(query.snapshot_date || '').trim();
+  },
+  { immediate: true, deep: true }
 );
 </script>
 

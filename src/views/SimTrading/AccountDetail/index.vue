@@ -311,6 +311,11 @@
                 >{{ manualChipPriceButtonLabel }}</el-button
               >
               <el-button
+                :disabled="!positions.length"
+                @click="openSelfSelectedQuotesForPositions"
+                >查看自选行情</el-button
+              >
+              <el-button
                 :loading="positionRefreshLoading"
                 @click="refreshPositionsOnly()"
                 >刷新持仓与行情</el-button
@@ -3346,7 +3351,16 @@ const showTransferTab = computed(() => true);
 const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
 );
-const isSuperAdmin = computed(() => Boolean(userStore.userInfo?.is_superuser));
+const isSuperAdmin = computed(() => {
+  // 兼容历史字段与角色制：任一命中即视为超级管理员。
+  if (Boolean(userStore.userInfo?.is_superuser)) {
+    return true;
+  }
+  const roleKeys = Array.isArray(userStore.userInfo?.roles)
+    ? userStore.userInfo.roles
+    : [];
+  return roleKeys.includes('builtin_super_admin');
+});
 const canUpdateActivityOrder = computed(
   () =>
     isSuperAdmin.value ||
@@ -5978,6 +5992,44 @@ function viewTradeHistory(row) {
   queryForm.keyword = row?.stock_code || row?.stock_name || '';
   queryForm.orderKeyword = '';
   applyQueryFilters();
+}
+
+function openSelfSelectedQuotesForPositions() {
+  const rows = Array.isArray(positions.value) ? positions.value : [];
+  if (!rows.length) {
+    ElMessage.info('当前暂无持仓股票');
+    return;
+  }
+  // 优先使用股票名称拼接查询词，缺失时降级使用股票代码。
+  const stockNames = Array.from(
+    new Set(
+      rows
+        .map((item) => String(item?.stock_name || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const stockCodes = Array.from(
+    new Set(
+      rows
+        .map((item) => String(item?.stock_code || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const keywordList = stockNames.length ? stockNames : stockCodes;
+  const stockNameQuery = keywordList.join(' ');
+  if (!stockNameQuery) {
+    ElMessage.warning('当前持仓缺少股票名称和代码，无法执行查询');
+    return;
+  }
+  const resolvedRoute = router.resolve({
+    path: '/stock-pool/self-selected',
+    query: {
+      groupId: 'all',
+      stock_name: stockNameQuery,
+      auto_search: '1',
+    },
+  });
+  window.open(resolvedRoute.href, '_blank', 'noopener');
 }
 
 function handleProfitRankingTradeHistory(payload) {

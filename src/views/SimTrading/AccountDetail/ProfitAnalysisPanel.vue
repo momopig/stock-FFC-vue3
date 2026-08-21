@@ -209,7 +209,7 @@
 
               <el-table
                 class="stock-ranking-table"
-                :data="overviewData.stock_rankings || []"
+                :data="rankingTableData"
                 border
                 :empty-text="rankingEmptyText"
               >
@@ -1283,6 +1283,8 @@ const rebuildDateRange = ref([]);
 const overviewCache = new Map();
 const calendarCache = new Map();
 let rebuildTaskTimer = null;
+const rankingFallbackLoading = ref(false);
+const rankingFallbackItems = ref([]);
 
 const overviewData = reactive({
   range: null,
@@ -1423,6 +1425,17 @@ const rebuildTaskAccountItems = computed(() => {
 });
 
 const overviewSummary = computed(() => overviewData.summary || {});
+const rankingTableData = computed(() => {
+  const overviewRankings = Array.isArray(overviewData.stock_rankings)
+    ? overviewData.stock_rankings
+    : [];
+  if (overviewRankings.length) {
+    return overviewRankings;
+  }
+  return Array.isArray(rankingFallbackItems.value)
+    ? rankingFallbackItems.value
+    : [];
+});
 const overviewRangeLabel = computed(
   () => overviewData.range?.display_label || '当前区间'
 );
@@ -1542,6 +1555,9 @@ const curveEmptyDescription = computed(() => {
   return hasAnyTradeOrCashFlow.value ? snapshotMissingHint : '暂无盈亏数据';
 });
 const rankingEmptyText = computed(() => {
+  if (rankingFallbackLoading.value) {
+    return '正在根据明细动态聚合排行榜...';
+  }
   return hasAnyTradeOrCashFlow.value ? snapshotMissingHint : '暂无盈亏数据';
 });
 const dailyStocksTableEmptyText = computed(() => {
@@ -1652,6 +1668,8 @@ watch(
     dailyStocksFilters.stock_code = '';
     dailyStocksFilters.trade_date = '';
     dailyStocksFilters.holding_days = null;
+    rankingFallbackItems.value = [];
+    rankingFallbackLoading.value = false;
     dailyAccounts.page = 1;
     dailyAccounts.page_size = 50;
     dailyAccounts.items = [];
@@ -1700,13 +1718,141 @@ watch(
 watch(
   () => activeOverviewContentTab.value,
   async (value) => {
-    if (value === 'daily-stocks') {
+    if (value === 'ranking') {
+      await ensureRankingFallback();
+    } else if (value === 'daily-stocks') {
       await loadDailyStocks();
     } else if (value === 'daily-accounts') {
       await loadDailyAccounts();
     }
   }
 );
+
+function buildRankingFallbackFromDailyStocks(items = []) {
+  const rankingMap = new Map();
+  for (const row of items) {
+    const stockCode = String(row?.stock_code || '').trim();
+    const exchangeCode = String(row?.exchange_code || '').trim();
+    if (!stockCode || !exchangeCode) {
+      continue;
+    }
+    const key = `${stockCode}|${exchangeCode}`;
+    const tradeDateText = String(row?.trade_date || '').trim();
+    const rankingItem = rankingMap.get(key) || {
+      stock_code: stockCode,
+      stock_name: String(row?.stock_name || '').trim() || stockCode,
+      exchange_code: exchangeCode,
+      profit_amount: 0,
+      profit_rate: 0,
+      holding_days: 0,
+      first_open_date: row?.first_open_date || null,
+      close_date: row?.close_date || null,
+      start_market_value: 0,
+      end_market_value: 0,
+      buy_amount: 0,
+      sell_amount: 0,
+      end_quantity: 0,
+      _latest_trade_date: '',
+    };
+
+    rankingItem.profit_amount += Number(row?.day_profit_amount || 0);
+    rankingItem.buy_amount += Number(row?.daily_buy_amount || 0);
+    rankingItem.sell_amount += Number(row?.daily_sell_amount || 0);
+    rankingItem.holding_days = Math.max(
+      Number(rankingItem.holding_days || 0),
+      Number(row?.holding_days || 0)
+    );
+    if (!rankingItem.first_open_date && row?.first_open_date) {
+      rankingItem.first_open_date = row.first_open_date;
+    }
+    if (row?.close_date) {
+      rankingItem.close_date = row.close_date;
+    }
+    if (tradeDateText >= String(rankingItem._latest_trade_date || '')) {
+      rankingItem._latest_trade_date = tradeDateText;
+      rankingItem.end_market_value = Number(row?.market_value || 0);
+      rankingItem.end_quantity = Number(row?.hold_quantity || 0);
+    }
+    rankingMap.set(key, rankingItem);
+  }
+
+  return Array.from(rankingMap.values())
+    .map((item) => {
+      const denominator = Number(item.buy_amount || 0);
+      return {
+        ...item,
+        profit_rate:
+          denominator > 0 ? Number(item.profit_amount || 0) / denominator : 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        Number(b?.profit_amount || 0) - Number(a?.profit_amount || 0) ||
+        Number(b?.profit_rate || 0) - Number(a?.profit_rate || 0)
+    )
+    .map(({ _latest_trade_date, ...rest }) => rest);
+}
+
+async function ensureRankingFallback() {
+  const overviewRankings = Array.isArray(overviewData.stock_rankings)
+    ? overviewData.stock_rankings
+    : [];
+  if (overviewRankings.length || !props.accountId) {
+    rankingFallbackItems.value = [];
+    return;
+  }
+  rankingFallbackLoading.value = true;
+  try {
+    const pageSize = 500;
+    const params = {
+      range_type: overviewRangeType.value,
+      include_closed: true,
+      page: 1,
+      page_size: pageSize,
+      _ts: Date.now(),
+    };
+    if (
+      overviewRangeType.value === 'custom' &&
+      Array.isArray(overviewCustomDateRange.value) &&
+      overviewCustomDateRange.value.length === 2
+    ) {
+      params.start_date = overviewCustomDateRange.value[0];
+      params.end_date = overviewCustomDateRange.value[1];
+    }
+
+    const firstRes = await getSimTradingProfitAnalysisDailyStocks(
+      Number(props.accountId),
+      params
+    );
+    const firstPayload = firstRes?.payload || {};
+    const allItems = Array.isArray(firstPayload.items)
+      ? [...firstPayload.items]
+      : [];
+    const total = Number(firstPayload.total || 0);
+    const totalPages = Math.min(Math.ceil(total / pageSize), 20);
+
+    for (let pageIndex = 2; pageIndex <= totalPages; pageIndex += 1) {
+      const pageRes = await getSimTradingProfitAnalysisDailyStocks(
+        Number(props.accountId),
+        {
+          ...params,
+          page: pageIndex,
+        }
+      );
+      const pageItems = Array.isArray(pageRes?.payload?.items)
+        ? pageRes.payload.items
+        : [];
+      allItems.push(...pageItems);
+    }
+
+    rankingFallbackItems.value = buildRankingFallbackFromDailyStocks(allItems);
+  } catch (error) {
+    console.error(error);
+    rankingFallbackItems.value = [];
+  } finally {
+    rankingFallbackLoading.value = false;
+  }
+}
 
 async function loadOverview(options = {}) {
   if (!props.accountId) {
@@ -1728,6 +1874,7 @@ async function loadOverview(options = {}) {
   });
   if (!force && overviewCache.has(cacheKey)) {
     Object.assign(overviewData, clonePayload(overviewCache.get(cacheKey)));
+    await ensureRankingFallback();
     return;
   }
   overviewLoading.value = true;
@@ -1744,6 +1891,7 @@ async function loadOverview(options = {}) {
     };
     overviewCache.set(cacheKey, clonePayload(payload));
     Object.assign(overviewData, payload);
+    await ensureRankingFallback();
   } catch (error) {
     console.error(error);
     ElMessage.error(error?.message || '获取盈亏分析概览失败');
