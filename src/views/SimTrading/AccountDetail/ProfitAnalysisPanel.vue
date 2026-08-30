@@ -1285,6 +1285,7 @@ const calendarCache = new Map();
 let rebuildTaskTimer = null;
 const rankingFallbackLoading = ref(false);
 const rankingFallbackItems = ref([]);
+const rebuildTaskFailureNoticeKey = ref('');
 
 const overviewData = reactive({
   range: null,
@@ -2363,6 +2364,7 @@ function resetRebuildTask() {
   rebuildTask.items = [];
   rebuildTask.stock_items = [];
   rebuildTask.account_items = [];
+  rebuildTaskFailureNoticeKey.value = '';
   if (rebuildTaskTimer) {
     clearTimeout(rebuildTaskTimer);
     rebuildTaskTimer = null;
@@ -2394,6 +2396,20 @@ async function pullRebuildTaskProgress(taskId) {
   rebuildTask.account_items = Array.isArray(payload.account_items)
     ? payload.account_items
     : [];
+  // 任务转为失败时主动提醒用户，避免只在表格里被动查看。
+  if (String(rebuildTask.status || '').toLowerCase() === 'failed') {
+    const noticeKey = [
+      rebuildTask.task_id,
+      rebuildTask.failed_dates,
+      rebuildTask.message,
+    ].join('|');
+    if (noticeKey !== rebuildTaskFailureNoticeKey.value) {
+      rebuildTaskFailureNoticeKey.value = noticeKey;
+      ElMessage.error(
+        `${rebuildTask.message || '盈亏重建失败'}，请在失败日期行点击“重试”。`
+      );
+    }
+  }
 }
 
 function stopRebuildTaskPolling() {

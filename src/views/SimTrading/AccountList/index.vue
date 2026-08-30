@@ -65,43 +65,72 @@
           }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="自动盈亏统计" min-width="280">
+        <template #default="scope">
+          <div class="auto-profit-stat-cell">
+            <el-tag
+              size="small"
+              :type="getProfitStatAutoStatusTagType(scope.row)"
+              effect="light"
+            >
+              {{ getProfitStatAutoStatusText(scope.row) }}
+            </el-tag>
+            <span
+              v-if="
+                getProfitStatAutoSummary(scope.row)?.last_status === 'failed'
+              "
+              class="auto-profit-stat-failed-reason"
+            >
+              {{
+                getProfitStatAutoSummary(scope.row)?.last_message ||
+                '自动盈亏统计任务失败，请进入详情手动重试。'
+              }}
+            </span>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" fixed="right" width="620">
         <template #default="scope">
           <div class="operation-cell-scroll">
             <el-space class="operation-cell-actions" wrap="false">
-            <el-button link type="primary" @click="openDetail(scope.row)"
-              >查看详情</el-button
-            >
-            <el-button link type="primary" @click="openStrategyConfig(scope.row)"
-              >自动化策略配置</el-button
-            >
-            <el-button link @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button link @click="quickAction(scope.row, 'deposit')"
-              >资金管理</el-button
-            >
-            <el-button
-              v-if="scope.row.account_type === 'QMT'"
-              link
-              @click="showRuntimeHealth(scope.row)"
-              >运行状态</el-button
-            >
-            <el-button
-              v-if="scope.row.account_type === 'QMT'"
-              link
-              type="warning"
-              @click="recoverRuntime(scope.row)"
-              >恢复连接</el-button
-            >
-            <el-button
-              v-if="scope.row.account_type === 'SIMULATED'"
-              link
-              type="danger"
-              @click="resetAccount(scope.row)"
-              >重置</el-button
-            >
-            <el-button link type="danger" @click="deleteAccount(scope.row)"
-              >删除</el-button
-            >
+              <el-button link type="primary" @click="openDetail(scope.row)"
+                >查看详情</el-button
+              >
+              <el-button
+                link
+                type="primary"
+                @click="openStrategyConfig(scope.row)"
+                >自动化策略配置</el-button
+              >
+              <el-button link @click="openEditDialog(scope.row)"
+                >编辑</el-button
+              >
+              <el-button link @click="quickAction(scope.row, 'deposit')"
+                >资金管理</el-button
+              >
+              <el-button
+                v-if="scope.row.account_type === 'QMT'"
+                link
+                @click="showRuntimeHealth(scope.row)"
+                >运行状态</el-button
+              >
+              <el-button
+                v-if="scope.row.account_type === 'QMT'"
+                link
+                type="warning"
+                @click="recoverRuntime(scope.row)"
+                >恢复连接</el-button
+              >
+              <el-button
+                v-if="scope.row.account_type === 'SIMULATED'"
+                link
+                type="danger"
+                @click="resetAccount(scope.row)"
+                >重置</el-button
+              >
+              <el-button link type="danger" @click="deleteAccount(scope.row)"
+                >删除</el-button
+              >
             </el-space>
           </div>
         </template>
@@ -144,7 +173,8 @@
               placeholder="例如：http://127.0.0.1:9101"
             />
             <div class="form-help-text">
-              QMT 账户统一通过 qmt-agent 转发。开发环境和生产环境可配置不同的 Agent 地址，编辑账户时也可修改。
+              QMT 账户统一通过 qmt-agent 转发。开发环境和生产环境可配置不同的
+              Agent 地址，编辑账户时也可修改。
             </div>
           </el-form-item>
           <el-form-item label="资金账号">
@@ -404,6 +434,56 @@ function statusTagType(status) {
   return map[status] || 'info';
 }
 
+function getProfitStatAutoSummary(row = {}) {
+  const directSummary = row?.profit_stat_auto_summary;
+  if (directSummary && typeof directSummary === 'object') {
+    return directSummary;
+  }
+  const fallbackState = row?.connection_config_json?.profit_stat_auto_state;
+  if (!fallbackState || typeof fallbackState !== 'object') {
+    return null;
+  }
+  return {
+    last_status: String(fallbackState.last_status || '')
+      .trim()
+      .toLowerCase(),
+    last_message: String(fallbackState.last_message || '').trim(),
+    last_trigger_date: String(fallbackState.last_trigger_date || '').trim(),
+  };
+}
+
+function getProfitStatAutoStatusTagType(row = {}) {
+  const status = String(
+    getProfitStatAutoSummary(row)?.last_status || ''
+  ).toLowerCase();
+  if (status === 'failed') return 'danger';
+  if (status === 'success') return 'success';
+  if (status === 'running') return 'warning';
+  return 'info';
+}
+
+function getProfitStatAutoStatusText(row = {}) {
+  const summary = getProfitStatAutoSummary(row);
+  if (!summary) {
+    return '未执行';
+  }
+  const status = String(summary.last_status || '').toLowerCase();
+  if (status === 'failed') {
+    return summary.last_trigger_date
+      ? `失败（${summary.last_trigger_date}）`
+      : '失败';
+  }
+  if (status === 'success') {
+    return summary.last_trigger_date
+      ? `成功（${summary.last_trigger_date}）`
+      : '成功';
+  }
+  if (status === 'running') {
+    return '执行中';
+  }
+  return '未执行';
+}
+
 function resetForm() {
   Object.assign(formData, initFormData());
   editingAccountId.value = null;
@@ -535,7 +615,9 @@ async function recoverRuntime(row) {
       return;
     }
     const reconnectSuccess = Boolean(res.payload?.reconnect_success);
-    ElMessage.success(reconnectSuccess ? '恢复完成，已重连成功' : '恢复已执行，请稍后重试连接');
+    ElMessage.success(
+      reconnectSuccess ? '恢复完成，已重连成功' : '恢复已执行，请稍后重试连接'
+    );
     await loadAccounts();
   } catch (error) {
     console.error(error);
@@ -793,5 +875,18 @@ onMounted(() => {
 
 .profit-down {
   color: #1f8a5b;
+}
+
+.auto-profit-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.auto-profit-stat-failed-reason {
+  color: #c45656;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

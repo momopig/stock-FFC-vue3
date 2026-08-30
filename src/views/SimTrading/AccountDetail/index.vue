@@ -116,6 +116,28 @@
         </div>
       </div>
 
+      <el-alert
+        v-if="profitStatAutoFailureAlert.visible"
+        :title="profitStatAutoFailureAlert.title"
+        :description="profitStatAutoFailureAlert.description"
+        type="error"
+        :closable="false"
+        show-icon
+        class="profit-stat-auto-failure-alert"
+      >
+        <template #default>
+          <div class="profit-stat-auto-failure-alert__content">
+            <div>{{ profitStatAutoFailureAlert.description }}</div>
+            <el-button
+              type="danger"
+              link
+              @click="jumpToProfitAnalysisForManualRetry"
+              >前往盈亏分析手动重试</el-button
+            >
+          </div>
+        </template>
+      </el-alert>
+
       <div v-if="currentAccount && isSimulatedAccount" class="trade-mode-card">
         <div class="trade-mode-card__content">
           <div>
@@ -284,7 +306,11 @@
               <div class="auto-strategy-status-cell">
                 <el-tag
                   size="small"
-                  :type="getAutoStrategyStatusTagType(scope.row.actual_execution_status)"
+                  :type="
+                    getAutoStrategyStatusTagType(
+                      scope.row.actual_execution_status
+                    )
+                  "
                 >
                   {{ scope.row.actual_execution_status_label }}
                 </el-tag>
@@ -3564,6 +3590,60 @@ const visibleOpenOrders = computed(() =>
 );
 
 const summary = computed(() => detailPayload.value?.summary || {});
+const profitStatAutoSummary = computed(() => {
+  const directSummary = detailAccount.value?.profit_stat_auto_summary;
+  if (directSummary && typeof directSummary === 'object') {
+    return directSummary;
+  }
+  const connectionConfig = detailAccount.value?.connection_config_json;
+  const fallbackState = connectionConfig?.profit_stat_auto_state;
+  if (!fallbackState || typeof fallbackState !== 'object') {
+    return null;
+  }
+  return {
+    last_status: String(fallbackState.last_status || '')
+      .trim()
+      .toLowerCase(),
+    last_message: String(fallbackState.last_message || '').trim(),
+    last_trigger_date: String(fallbackState.last_trigger_date || '').trim(),
+    task_id: fallbackState.task_id,
+    updated_at: fallbackState.updated_at || fallbackState.last_updated_at,
+  };
+});
+const profitStatAutoFailureAlert = computed(() => {
+  const summaryPayload = profitStatAutoSummary.value;
+  if (!summaryPayload) {
+    return {
+      visible: false,
+      title: '',
+      description: '',
+    };
+  }
+  const status = String(summaryPayload.last_status || '').toLowerCase();
+  if (status !== 'failed') {
+    return {
+      visible: false,
+      title: '',
+      description: '',
+    };
+  }
+  const dateText = String(summaryPayload.last_trigger_date || '').trim();
+  const messageText = String(summaryPayload.last_message || '').trim();
+  const detailText = [
+    dateText ? `触发日期：${dateText}` : '',
+    messageText
+      ? `失败原因：${messageText}`
+      : '失败原因：自动盈亏统计任务执行失败，请手动重试。',
+    '建议：进入盈亏分析页点击“重建”手动补算。',
+  ]
+    .filter(Boolean)
+    .join('；');
+  return {
+    visible: true,
+    title: '自动盈亏统计任务执行失败',
+    description: detailText,
+  };
+});
 const maxAvailableCashOverview = computed(() => {
   const actualAvailableCash = Number(
     summary.value.actual_available_cash ?? summary.value.available_cash ?? 0
@@ -4125,6 +4205,14 @@ function getDiagnosticsValue(value) {
     return '--';
   }
   return String(value);
+}
+
+function jumpToProfitAnalysisForManualRetry() {
+  if (!supportsProfitAnalysis.value) {
+    ElMessage.warning('当前账号暂不支持盈亏分析，请先检查账号能力状态');
+    return;
+  }
+  activeTab.value = 'profit-analysis';
 }
 
 function resolveQueryTabAssessment(tabName) {
@@ -6159,16 +6247,12 @@ function openSelfSelectedQuotesForPositions() {
   // 优先使用股票名称拼接查询词，缺失时降级使用股票代码。
   const stockNames = Array.from(
     new Set(
-      rows
-        .map((item) => String(item?.stock_name || '').trim())
-        .filter(Boolean)
+      rows.map((item) => String(item?.stock_name || '').trim()).filter(Boolean)
     )
   );
   const stockCodes = Array.from(
     new Set(
-      rows
-        .map((item) => String(item?.stock_code || '').trim())
-        .filter(Boolean)
+      rows.map((item) => String(item?.stock_code || '').trim()).filter(Boolean)
     )
   );
   const keywordList = stockNames.length ? stockNames : stockCodes;
@@ -8373,6 +8457,17 @@ onUnmounted(() => {
 
 .profit-down {
   color: #1f8a5b;
+}
+
+.profit-stat-auto-failure-alert {
+  margin-top: 12px;
+}
+
+.profit-stat-auto-failure-alert__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .stock-search-row {
