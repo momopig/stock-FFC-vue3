@@ -84,7 +84,7 @@
       </el-form-item>
 
       <!-- 是否保持策略信息 -->
-      <el-form-item label="" v-if="strategyInfo && (strategyInfo.add_time || strategyInfo.initial_price || strategyInfo.add_reason || strategyInfo.notes)">
+      <el-form-item label="" v-if="hasStrategyContext">
         <el-radio-group v-model="formData.keepStrategyInfo">
           <el-radio :label="true">加入信息（加入日期、初始价、加入原因、备注）保持与策略相同</el-radio>
           <el-radio :label="false">否</el-radio>
@@ -99,7 +99,7 @@
           :min="0"
           placeholder="请输入初始价格"
           style="width: 100%"
-          :disabled="formData.keepStrategyInfo && strategyInfo?.initial_price != null"
+          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.initial_price != null"
         />
       </el-form-item>
 
@@ -112,7 +112,7 @@
           placeholder="请输入加入原因"
           maxlength="2000"
           show-word-limit
-          :disabled="formData.keepStrategyInfo && strategyInfo?.add_reason"
+          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.add_reason"
         />
       </el-form-item>
 
@@ -125,7 +125,7 @@
           placeholder="请输入备注信息（可选）"
           maxlength="2000"
           show-word-limit
-          :disabled="formData.keepStrategyInfo && strategyInfo?.notes"
+          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.notes"
         />
       </el-form-item>
     </el-form>
@@ -194,6 +194,16 @@ const existingJoinedGroupIdSet = computed(() => {
     existingMemberships.value?.map((m) => m?.group_id)?.filter((id) => id != null) ??
     []
   return new Set(ids)
+})
+
+const hasStrategyContext = computed(() => {
+  const info = props.strategyInfo || {}
+  return Boolean(
+    info.add_time ||
+      info.initial_price != null ||
+      info.add_reason ||
+      info.notes
+  )
 })
 
 const isGroupAlreadyJoined = (groupId) => {
@@ -374,7 +384,7 @@ watch(() => props.visible, async (newVal) => {
     await Promise.all([fetchGroups(), fetchMemberships()])
 
     // 初始化表单数据
-    const keepStrategyInfo = true // 默认保持策略信息
+    const keepStrategyInfo = hasStrategyContext.value
     formData.value = {
       group_ids: [],
       initial_price: keepStrategyInfo && props.strategyInfo?.initial_price != null
@@ -393,7 +403,7 @@ watch(() => props.visible, async (newVal) => {
 
 // 监听是否保持策略信息的变化，自动填充或清空策略信息
 watch(() => formData.value.keepStrategyInfo, (newVal) => {
-  if (newVal && props.strategyInfo) {
+  if (newVal && hasStrategyContext.value && props.strategyInfo) {
     // 选择"是"时，自动填充策略信息
     if (props.strategyInfo.initial_price != null) {
       formData.value.initial_price = props.strategyInfo.initial_price
@@ -429,7 +439,7 @@ const handleSubmit = async () => {
     let finalRemark = formData.value.remark
     let finalAddTime = null
 
-    if (formData.value.keepStrategyInfo && props.strategyInfo) {
+    if (formData.value.keepStrategyInfo && hasStrategyContext.value && props.strategyInfo) {
       // 优先使用策略信息，如果策略信息中没有，则使用用户输入的值
       // 如果选择保持策略信息，使用股票的加入日期
       if (props.stockData?.add_time) {

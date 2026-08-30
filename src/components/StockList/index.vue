@@ -192,7 +192,7 @@
           reserve-selection
         />
         <el-table-column
-          v-for="item in columns"
+          v-for="item in resolvedColumns"
           :key="item.key"
           :prop="item.prop"
           :label="item.label"
@@ -224,7 +224,7 @@
                 <div class="stock-name-cell">
                   {{ row.stock_name || '--' }}
                 </div>
-                <div class="stock-star-action">
+                <div v-if="showStarAction" class="stock-star-action">
                   <el-button
                     link
                     :type="row.is_starred ? 'warning' : 'info'"
@@ -753,6 +753,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // 是否显示股票名称下方的加星按钮。
+  showStarAction: {
+    type: Boolean,
+    default: true,
+  },
+  // 指定要展示的列 key 列表；为空时展示默认列。
+  visibleColumnKeys: {
+    type: Array,
+    default: () => [],
+  },
+  // 父组件传入的搜索参数快照，用于回填搜索输入框。
+  searchQuery: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 const userStore = UserStore();
 const quoteContractSummary = computed(() => {
@@ -829,6 +844,10 @@ const localFilterParams = reactive({
   priority_level: '',
   snapshot_date: '',
 });
+
+function normalizeQueryText(value) {
+  return String(value || '').replace(/,/g, ' ').trim();
+}
 
 // 按「当前 stockList 数组引用」缓存筛选项：同一轮渲染多列会重复调用 getFiltersForColumn，避免重计算
 const addTypeFiltersCache = new WeakMap();
@@ -1171,6 +1190,37 @@ const columns = reactive([
   //   sortable: true
   // },
 ]);
+
+const defaultVisibleColumnKeys = Object.freeze([
+  'stock_name',
+  'initial_price',
+  'last_price',
+  'selfChangeRate',
+  'change_rate',
+  'turnover_rate',
+  'volume_ratio',
+  'pe_ttm_ratio',
+  'circular_market_val_yi',
+  'stability_analysis',
+  'ma_trend',
+  'risk_signs',
+  'days_added',
+  'add_time',
+  'add_reason',
+  'strategy_name',
+  'notes',
+]);
+
+const resolvedColumns = computed(() => {
+  const sourceKeys = Array.isArray(props.visibleColumnKeys)
+    ? props.visibleColumnKeys.filter(Boolean)
+    : [];
+  const visibleKeys = sourceKeys.length
+    ? sourceKeys
+    : defaultVisibleColumnKeys;
+  const keySet = new Set(visibleKeys);
+  return columns.filter((item) => keySet.has(item.key));
+});
 
 // 根据列配置获取对应的筛选项
 // 注意：由于搜索改为后端接口搜索，前端筛选功能保留但主要用于展示，实际筛选通过接口实现
@@ -1582,6 +1632,18 @@ watch(
   },
   { immediate: true }
 );
+
+watch(
+  () => props.searchQuery,
+  (nextQuery) => {
+    const query = nextQuery || {};
+    localSearchQuery.stock_code = normalizeQueryText(query.stock_code);
+    localSearchQuery.stock_name = normalizeQueryText(query.stock_name);
+    localFilterParams.exchange_code = String(query.exchange_code || '').trim();
+    localFilterParams.snapshot_date = String(query.snapshot_date || '').trim();
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <style scoped lang="less">
@@ -1645,8 +1707,20 @@ watch(
     margin-top: 20px;
     width: 100%;
 
-    :deep(.el-table__cell) {
-      padding: 4px 0;
+    :deep(.el-table__header-wrapper th.el-table__cell) {
+      padding: 10px 0;
+      background: #f8fafc;
+    }
+
+    :deep(.el-table__header-wrapper th .cell) {
+      font-size: 14px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.25;
+    }
+
+    :deep(.el-table__body-wrapper td.el-table__cell) {
+      padding: 6px 0;
     }
 
     .stock-name-container {

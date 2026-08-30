@@ -248,6 +248,15 @@
           <h3>自动执行策略概览</h3>
           <p>展示当前账号已绑定策略的执行状态与股票黑白名单覆盖情况。</p>
         </div>
+        <el-alert
+          v-if="autoStrategyExecutionAlert.visible"
+          :title="autoStrategyExecutionAlert.title"
+          :description="autoStrategyExecutionAlert.description"
+          :type="autoStrategyExecutionAlert.type"
+          :closable="false"
+          show-icon
+          class="auto-strategy-execution-alert"
+        />
         <el-table
           :data="autoStrategyOverviewRows"
           border
@@ -270,11 +279,34 @@
             min-width="180"
           />
           <el-table-column prop="enabled_text" label="启用" width="90" />
-          <!-- <el-table-column
+          <el-table-column label="实际执行状态" min-width="220">
+            <template #default="scope">
+              <div class="auto-strategy-status-cell">
+                <el-tag
+                  size="small"
+                  :type="getAutoStrategyStatusTagType(scope.row.actual_execution_status)"
+                >
+                  {{ scope.row.actual_execution_status_label }}
+                </el-tag>
+                <span
+                  v-if="scope.row.actual_execution_hint"
+                  class="auto-strategy-status-hint"
+                >
+                  {{ scope.row.actual_execution_hint }}
+                </span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="last_execute_time_text"
+            label="最近执行时间"
+            min-width="140"
+          />
+          <el-table-column
             prop="last_execute_result_text"
             label="最近执行结果"
-            min-width="220"
-          /> -->
+            min-width="180"
+          />
           <el-table-column label="股票黑白名单状态" min-width="280">
             <template #default="scope">
               <div class="auto-strategy-stock-filter-cell">
@@ -309,6 +341,11 @@
                 :disabled="!positions.length"
                 @click="handleGenerateChipPrices"
                 >{{ manualChipPriceButtonLabel }}</el-button
+              >
+              <el-button
+                :disabled="!positions.length"
+                @click="openSelfSelectedQuotesForPositions"
+                >查看自选行情</el-button
               >
               <el-button
                 :loading="positionRefreshLoading"
@@ -3346,7 +3383,16 @@ const showTransferTab = computed(() => true);
 const accountCapabilities = computed(
   () => detailPayload.value?.capabilities || {}
 );
-const isSuperAdmin = computed(() => Boolean(userStore.userInfo?.is_superuser));
+const isSuperAdmin = computed(() => {
+  // 兼容历史字段与角色制：任一命中即视为超级管理员。
+  if (Boolean(userStore.userInfo?.is_superuser)) {
+    return true;
+  }
+  const roleKeys = Array.isArray(userStore.userInfo?.roles)
+    ? userStore.userInfo.roles
+    : [];
+  return roleKeys.includes('builtin_super_admin');
+});
 const canUpdateActivityOrder = computed(
   () =>
     isSuperAdmin.value ||
@@ -3685,6 +3731,16 @@ const autoStrategyOverviewRows = computed(() => {
         strategy_name: String(strategy?.strategy_name || '--'),
         strategy_code: String(strategy?.strategy_code || '--'),
         enabled_text: binding?.enabled ? '是' : '否',
+        actual_execution_status: String(
+          binding?.actual_execution_status || 'UNKNOWN'
+        ),
+        actual_execution_status_label: getAutoStrategyStatusLabel(
+          binding?.actual_execution_status,
+          binding?.actual_execution_status_label
+        ),
+        actual_execution_hint: String(binding?.actual_execution_hint || ''),
+        is_execution_stale: Boolean(binding?.is_execution_stale),
+        last_execute_time_text: formatDateTime(binding?.last_execute_time),
         last_execute_result_text: formatStrategyExecuteResult(
           binding?.last_execute_result
         ),
@@ -3692,6 +3748,77 @@ const autoStrategyOverviewRows = computed(() => {
         stock_filter_stocks: getStockFilterStocksByBinding(binding),
       };
     });
+});
+const autoStrategyExecutionAlert = computed(() => {
+  const rows = autoStrategyOverviewRows.value;
+  if (!rows.length) {
+    return {
+      visible: false,
+      type: 'info',
+      title: '',
+      description: '',
+    };
+  }
+
+  const riskRows = rows.filter((item) => item.is_execution_stale);
+  if (!riskRows.length) {
+    return {
+      visible: false,
+      type: 'success',
+      title: '',
+      description: '',
+    };
+  }
+
+  const blockedCount = riskRows.filter((item) =>
+    String(item.actual_execution_status || '').startsWith('BLOCKED_')
+  ).length;
+  const failedCount = riskRows.filter(
+    (item) => item.actual_execution_status === 'DISPATCH_FAILED'
+  ).length;
+  const staleCount = riskRows.filter(
+    (item) => item.actual_execution_status === 'STALE_NO_RECENT_EXECUTION'
+  ).length;
+  const pendingCount = riskRows.filter(
+    (item) => item.actual_execution_status === 'PENDING_FIRST_RUN'
+  ).length;
+
+  let type = 'warning';
+  if (blockedCount > 0 || failedCount > 0) {
+    type = 'error';
+  }
+
+  // 聚合提示，便于在账号详情页第一时间发现“策略长期不执行”。
+  const title = `自动策略存在执行风险：共 ${riskRows.length} 条异常`;
+  const detailParts = [];
+  if (blockedCount > 0) {
+    detailParts.push(`阻塞 ${blockedCount} 条`);
+  }
+  if (failedCount > 0) {
+    detailParts.push(`分发失败 ${failedCount} 条`);
+  }
+  if (staleCount > 0) {
+    detailParts.push(`长时间未执行 ${staleCount} 条`);
+  }
+  if (pendingCount > 0) {
+    detailParts.push(`待首次执行 ${pendingCount} 条`);
+  }
+  const sampleText = riskRows
+    .slice(0, 2)
+    .map(
+      (item) =>
+        `${item.strategy_name}：${item.actual_execution_status_label}${
+          item.actual_execution_hint ? `（${item.actual_execution_hint}）` : ''
+        }`
+    )
+    .join('；');
+
+  return {
+    visible: true,
+    type,
+    title,
+    description: `${detailParts.join('，')}。${sampleText}`,
+  };
 });
 const queryPagination = reactive({
   'today-orders': { page: 1, pageSize: 10 },
@@ -5371,6 +5498,49 @@ function formatStrategyExecuteResult(value) {
   return `${text.slice(0, 48)}...`;
 }
 
+function getAutoStrategyStatusLabel(status, backendLabel) {
+  const backendText = String(backendLabel || '').trim();
+  if (backendText) {
+    return backendText;
+  }
+  const normalized = String(status || '')
+    .trim()
+    .toUpperCase();
+  const labelMap = {
+    RUNNING_OK: '运行中',
+    PENDING_FIRST_RUN: '待首次执行',
+    STALE_NO_RECENT_EXECUTION: '超过阈值未执行',
+    DISPATCH_FAILED: '最近分发失败',
+    BLOCKED_READ_ONLY_MODE: '只读模式已拦截',
+    BLOCKED_SCHEDULER_DISABLED: '调度器已关闭',
+    BLOCKED_AUTOMATION_DISABLED: '账号自动化已关闭',
+    BLOCKED_ACCOUNT_INACTIVE: '账号非激活',
+    BLOCKED_BINDING_DISABLED: '绑定已停用',
+    BLOCKED_STRATEGY_DISABLED: '策略模板已停用',
+  };
+  return labelMap[normalized] || '状态未知';
+}
+
+function getAutoStrategyStatusTagType(status) {
+  const normalized = String(status || '')
+    .trim()
+    .toUpperCase();
+  if (normalized === 'RUNNING_OK') {
+    return 'success';
+  }
+  if (normalized === 'PENDING_FIRST_RUN') {
+    return 'warning';
+  }
+  if (
+    normalized === 'DISPATCH_FAILED' ||
+    normalized.startsWith('BLOCKED_') ||
+    normalized === 'STALE_NO_RECENT_EXECUTION'
+  ) {
+    return 'danger';
+  }
+  return 'info';
+}
+
 function normalizeStockFilterStock(stock) {
   const stockCode = String(
     stock?.stock_code || stock?.code || stock?.symbol || ''
@@ -5978,6 +6148,44 @@ function viewTradeHistory(row) {
   queryForm.keyword = row?.stock_code || row?.stock_name || '';
   queryForm.orderKeyword = '';
   applyQueryFilters();
+}
+
+function openSelfSelectedQuotesForPositions() {
+  const rows = Array.isArray(positions.value) ? positions.value : [];
+  if (!rows.length) {
+    ElMessage.info('当前暂无持仓股票');
+    return;
+  }
+  // 优先使用股票名称拼接查询词，缺失时降级使用股票代码。
+  const stockNames = Array.from(
+    new Set(
+      rows
+        .map((item) => String(item?.stock_name || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const stockCodes = Array.from(
+    new Set(
+      rows
+        .map((item) => String(item?.stock_code || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const keywordList = stockNames.length ? stockNames : stockCodes;
+  const stockNameQuery = keywordList.join(' ');
+  if (!stockNameQuery) {
+    ElMessage.warning('当前持仓缺少股票名称和代码，无法执行查询');
+    return;
+  }
+  const resolvedRoute = router.resolve({
+    path: '/stock-pool/self-selected',
+    query: {
+      groupId: 'all',
+      stock_name: stockNameQuery,
+      auto_search: '1',
+    },
+  });
+  window.open(resolvedRoute.href, '_blank', 'noopener');
 }
 
 function handleProfitRankingTradeHistory(payload) {
@@ -7758,6 +7966,10 @@ onUnmounted(() => {
   margin-bottom: 10px;
 }
 
+.auto-strategy-execution-alert {
+  margin-bottom: 10px;
+}
+
 .auto-strategy-overview-header h3 {
   margin: 0;
   font-size: 16px;
@@ -7774,6 +7986,18 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.auto-strategy-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auto-strategy-status-hint {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 .auto-strategy-stock-filter-list {

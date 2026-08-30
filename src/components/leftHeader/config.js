@@ -2,6 +2,21 @@ import { PermissionCodes } from '@/config/permissionCodes'
 
 export const menuList = [
   {
+    name: '行情分析',
+    foldName: '行情分析',
+    icon: 'TrendCharts',
+    path: '/market-analysis',
+    permissionCodes: [PermissionCodes.STOCK_POOL_SELF_SELECTED_READ],
+    children: [
+      {
+        name: '股票查询',
+        foldName: '股票查询',
+        path: '/market-analysis/stock-query',
+        permissionCodes: [PermissionCodes.STOCK_POOL_SELF_SELECTED_READ],
+      },
+    ],
+  },
+  {
     name: '股票池',
     foldName: '股票池',
     icon: 'Box',

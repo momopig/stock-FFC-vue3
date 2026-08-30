@@ -74,6 +74,7 @@
     <StockList
       :stockList="displayStockList"
       :loading="tableLoading"
+      :search-query="searchParams"
       :total="page.total"
       :currentPage="page.pageNo"
       :pageSize="page.pageSize"
@@ -222,12 +223,32 @@ function clearTabDragEdgeScroll() {
 }
 
 let lastSortableGroupOrderKey = '';
-function getTargetGroupIdFromRoute() {
-  const rawGroupId = route.query?.groupId;
-  if (Array.isArray(rawGroupId)) {
-    return String(rawGroupId[0] || '');
+function readFirstRouteQueryValue(key) {
+  const rawValue = route.query?.[key];
+  if (Array.isArray(rawValue)) {
+    return String(rawValue[0] || '').trim();
   }
-  return String(rawGroupId || '');
+  return String(rawValue || '').trim();
+}
+
+function getTargetGroupIdFromRoute() {
+  const routeGroupId = readFirstRouteQueryValue('groupId');
+  const normalizedRouteGroupId = routeGroupId.toLowerCase();
+  if (normalizedRouteGroupId === 'all') {
+    return String(allGroup.value?.id || '');
+  }
+  if (routeGroupId) {
+    return routeGroupId;
+  }
+
+  const builtinGroup = readFirstRouteQueryValue('builtin_group').toLowerCase();
+  if (builtinGroup && BUILTIN_GROUP_CREATE_TYPES.includes(builtinGroup)) {
+    const matched = groups.value.find(
+      (group) => getBuiltinCreateType(group) === builtinGroup
+    );
+    return String(matched?.id || '');
+  }
+  return '';
 }
 
 function createDefaultSearchParams() {
@@ -463,10 +484,18 @@ async function activateGroupTab(
   await getStockList();
 }
 
-function applyRouteGroupId() {
-  const targetGroupId = getTargetGroupIdFromRoute();
-  if (!targetGroupId || targetGroupId === 'add') return;
-  activeGroupId.value = targetGroupId;
+async function applyRouteStockNameSearch() {
+  const shouldAutoSearch = readFirstRouteQueryValue('auto_search') !== '0';
+  if (!shouldAutoSearch) {
+    return;
+  }
+  const stockNameQuery = readFirstRouteQueryValue('stock_name');
+  if (!stockNameQuery) {
+    return;
+  }
+  applySearchParams({ stock_name: stockNameQuery });
+  page.pageNo = 1;
+  await getStockList();
 }
 
 function flushGroupTabsLayout() {
@@ -557,9 +586,9 @@ watch(
 
 // 页面加载时获取分组列表（分组变化由 watch 触发 flush；ResizeObserver 覆盖窗口与侧栏变宽）
 onMounted(async () => {
-  applyRouteGroupId();
   await loadKlineSourceSettings();
   await fetchGroups();
+  await applyRouteStockNameSearch();
   document.addEventListener('visibilitychange', handleVisibilityChange);
   await nextTick();
   groupTabsResizeObserver = new ResizeObserver(() => {
@@ -867,6 +896,14 @@ const fetchGroups = async () => {
     if (response?.success) {
       const items = response.payload?.items || [];
       groups.value = sortGroupsForDisplay(items);
+
+      const routeTargetGroupId = getTargetGroupIdFromRoute();
+      if (
+        routeTargetGroupId &&
+        groups.value.find((group) => String(group.id) === routeTargetGroupId)
+      ) {
+        activeGroupId.value = routeTargetGroupId;
+      }
 
       // 如果没有选中分组或当前分组不存在，默认选中内置分组数组的第一项：主线。
       if (

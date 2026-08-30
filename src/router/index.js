@@ -78,6 +78,11 @@ const routes = [
     path: '/stock-pool/futu-subscriptions',
     redirect: '/futu-opend-subscriptions',
   },
+  {
+    path: '/market-analysis/stock-query',
+    component: lazy(() => import('@/views/MarketAnalysis/StockQuery/index.vue')),
+    meta: { permissionCodes: [PermissionCodes.STOCK_POOL_SELF_SELECTED_READ] },
+  },
   // 股票池子路由
   {
     path: '/stock-pool/strategy',

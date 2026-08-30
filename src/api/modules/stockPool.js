@@ -485,3 +485,14 @@ export const refreshStockSearchPrice = async (code, exchangeCode) => {
   const query = qs.stringify({ code, exchange_code: exchangeCode });
   return await request.post(`/stock-api/api/stock/search/price?${query}`);
 };
+
+/**
+ * 批量补齐股票搜索结果的行情字段。
+ * @param {Array<{code:string,exchange_code:string,name?:string,full_code?:string}>} items
+ * @returns {Promise}
+ */
+export const enrichStockSearchQuotes = async (items = []) => {
+  return await request.post(`/stock-api/api/stock/search/quotes`, {
+    items,
+  });
+};
