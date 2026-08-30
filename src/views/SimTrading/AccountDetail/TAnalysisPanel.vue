@@ -3,6 +3,26 @@
     <div class="t-analysis-header">
       <div class="t-analysis-title">做T提示</div>
       <div class="t-analysis-actions">
+        <el-input
+          v-model="queryForm.stock_name"
+          clearable
+          placeholder="股票名称"
+          class="t-analysis-stock-name"
+          @keyup.enter="handleQueryChange"
+          @change="handleQueryChange"
+          @clear="handleQueryChange"
+        />
+        <el-select
+          v-model="queryForm.direction"
+          clearable
+          placeholder="成交类型"
+          class="t-analysis-direction"
+          @change="handleQueryChange"
+          @clear="handleQueryChange"
+        >
+          <el-option label="买入" value="BUY" />
+          <el-option label="卖出" value="SELL" />
+        </el-select>
         <el-date-picker
           v-model="dateRange"
           type="daterange"
@@ -23,8 +43,7 @@
           @click="loadData({ force: true })"
         >
           刷新成交记录
-        </el-button
-        >
+        </el-button>
       </div>
     </div>
 
@@ -67,42 +86,84 @@
       </el-table-column>
       <el-table-column prop="direction_label" label="成交类型" width="100" />
       <el-table-column prop="fill_price" label="成交价格" width="120" sortable>
-        <template #default="scope">{{ formatMoney(scope.row.fill_price) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.fill_price)
+        }}</template>
       </el-table-column>
-      <el-table-column prop="fill_quantity" label="成交数量" width="120" sortable />
+      <el-table-column
+        prop="fill_quantity"
+        label="成交数量"
+        width="120"
+        sortable
+      />
       <el-table-column prop="traded_time" label="成交时间" width="150" sortable>
-        <template #default="scope">{{ formatDateTime(scope.row.traded_time) }}</template>
+        <template #default="scope">{{
+          formatDateTime(scope.row.traded_time)
+        }}</template>
       </el-table-column>
-      <el-table-column prop="trade_day_price" label="当日价格" width="120" sortable>
-        <template #default="scope">{{ formatMoney(scope.row.trade_day_price) }}</template>
+      <el-table-column
+        prop="trade_day_price"
+        label="当日价格"
+        width="120"
+        sortable
+      >
+        <template #default="scope">{{
+          formatMoney(scope.row.trade_day_price)
+        }}</template>
       </el-table-column>
       <el-table-column prop="today_price" label="今日价格" width="120" sortable>
-        <template #default="scope">{{ formatMoney(scope.row.today_price) }}</template>
+        <template #default="scope">{{
+          formatMoney(scope.row.today_price)
+        }}</template>
       </el-table-column>
-      <el-table-column prop="t_space_ratio_compare_trade_day" label="做T空间(对比当日)" width="170" sortable>
+      <el-table-column
+        prop="t_space_ratio_compare_trade_day"
+        label="做T空间(对比当日)"
+        width="170"
+        sortable
+      >
         <template #default="scope">
           <div :class="profitClass(scope.row.profit_compare_trade_day)">
             <div>{{ scope.row.suggestion_compare_trade_day }}</div>
-            <div>{{ formatPercent(scope.row.t_space_ratio_compare_trade_day) }}</div>
+            <div>
+              {{ formatPercent(scope.row.t_space_ratio_compare_trade_day) }}
+            </div>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="profit_compare_trade_day" label="盈亏(对比当日)" width="150" sortable>
+      <el-table-column
+        prop="profit_compare_trade_day"
+        label="盈亏(对比当日)"
+        width="150"
+        sortable
+      >
         <template #default="scope">
           <span :class="profitClass(scope.row.profit_compare_trade_day)">
             {{ formatMoney(scope.row.profit_compare_trade_day) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column prop="t_space_ratio_compare_today" label="做T空间(对比今日)" width="170" sortable>
+      <el-table-column
+        prop="t_space_ratio_compare_today"
+        label="做T空间(对比今日)"
+        width="170"
+        sortable
+      >
         <template #default="scope">
           <div :class="profitClass(scope.row.profit_compare_today)">
             <div>{{ scope.row.suggestion_compare_today }}</div>
-            <div>{{ formatPercent(scope.row.t_space_ratio_compare_today) }}</div>
+            <div>
+              {{ formatPercent(scope.row.t_space_ratio_compare_today) }}
+            </div>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="profit_compare_today" label="盈亏(对比今日)" width="150" sortable>
+      <el-table-column
+        prop="profit_compare_today"
+        label="盈亏(对比今日)"
+        width="150"
+        sortable
+      >
         <template #default="scope">
           <span :class="profitClass(scope.row.profit_compare_today)">
             {{ formatMoney(scope.row.profit_compare_today) }}
@@ -119,32 +180,50 @@
           >
             <div class="fee-breakdown-item">
               <span>手续费</span>
-              <strong>{{ formatMoney(scope.row.fee_breakdown_json.commission_fee) }}</strong>
+              <strong>{{
+                formatMoney(scope.row.fee_breakdown_json.commission_fee)
+              }}</strong>
             </div>
             <div class="fee-breakdown-item">
               <span>印花税</span>
-              <strong>{{ formatMoney(scope.row.fee_breakdown_json.stamp_duty_fee) }}</strong>
+              <strong>{{
+                formatMoney(scope.row.fee_breakdown_json.stamp_duty_fee)
+              }}</strong>
             </div>
             <div class="fee-breakdown-item">
               <span>过户费</span>
-              <strong>{{ formatMoney(scope.row.fee_breakdown_json.transfer_fee) }}</strong>
+              <strong>{{
+                formatMoney(scope.row.fee_breakdown_json.transfer_fee)
+              }}</strong>
             </div>
             <div class="fee-breakdown-item">
               <span>规费</span>
-              <strong>{{ formatMoney(scope.row.fee_breakdown_json.handling_fee) }}</strong>
+              <strong>{{
+                formatMoney(scope.row.fee_breakdown_json.handling_fee)
+              }}</strong>
             </div>
             <div class="fee-breakdown-item">
               <span>其他费</span>
-              <strong>{{ formatMoney(scope.row.fee_breakdown_json.other_fee) }}</strong>
+              <strong>{{
+                formatMoney(scope.row.fee_breakdown_json.other_fee)
+              }}</strong>
             </div>
-            <div v-if="scope.row.fee_breakdown_json?.source" class="fee-breakdown-note">
+            <div
+              v-if="scope.row.fee_breakdown_json?.source"
+              class="fee-breakdown-note"
+            >
               {{ `费用来源：${scope.row.fee_breakdown_json.source}` }}
             </div>
-            <div v-if="scope.row.fee_breakdown_json?.inferred" class="fee-breakdown-note">
+            <div
+              v-if="scope.row.fee_breakdown_json?.inferred"
+              class="fee-breakdown-note"
+            >
               券商未返回完整费用拆分，当前为系统推导值，仅供参考。
             </div>
             <template #reference>
-              <el-button link type="primary">{{ formatMoney(scope.row.fee_total) }}</el-button>
+              <el-button link type="primary">{{
+                formatMoney(scope.row.fee_total)
+              }}</el-button>
             </template>
           </el-popover>
           <span v-else>{{ formatMoney(scope.row.fee_total) }}</span>
@@ -183,6 +262,10 @@ const props = defineProps({
 const dateRange = ref([]);
 const loading = ref(false);
 const rows = ref([]);
+const queryForm = reactive({
+  stock_name: '',
+  direction: '',
+});
 const pagination = reactive({
   page: 1,
   pageSize: 20,
@@ -196,6 +279,7 @@ const summary = reactive({
 });
 
 const cache = new Map();
+const latestRequestId = ref(0);
 
 function todayDate() {
   const now = new Date();
@@ -255,6 +339,8 @@ watch(
     }
     cache.clear();
     dateRange.value = [];
+    queryForm.stock_name = '';
+    queryForm.direction = '';
     pagination.page = 1;
     pagination.pageSize = 20;
     await loadData({ force: true });
@@ -272,6 +358,12 @@ function buildParams() {
     params.start_date = dateRange.value[0];
     params.end_date = dateRange.value[1];
   }
+  if (queryForm.stock_name) {
+    params.stock_name = String(queryForm.stock_name).trim();
+  }
+  if (queryForm.direction) {
+    params.direction = String(queryForm.direction).trim().toUpperCase();
+  }
   return params;
 }
 
@@ -281,12 +373,16 @@ async function loadData(options = {}) {
   }
   const { force = false } = options;
   const params = buildParams();
+  const requestId = latestRequestId.value + 1;
+  latestRequestId.value = requestId;
   const cacheKey = JSON.stringify({
     accountId: Number(props.accountId),
     ...params,
   });
   if (!force && cache.has(cacheKey)) {
-    applyPayload(cache.get(cacheKey));
+    if (requestId === latestRequestId.value) {
+      applyPayload(cache.get(cacheKey));
+    }
     return;
   }
   loading.value = true;
@@ -297,12 +393,16 @@ async function loadData(options = {}) {
     }
     const payload = res.payload || {};
     cache.set(cacheKey, payload);
-    applyPayload(payload);
+    if (requestId === latestRequestId.value) {
+      applyPayload(payload);
+    }
   } catch (error) {
     console.error(error);
     ElMessage.error(error?.message || '加载做T分析失败');
   } finally {
-    loading.value = false;
+    if (requestId === latestRequestId.value) {
+      loading.value = false;
+    }
   }
 }
 
@@ -312,8 +412,12 @@ function applyPayload(payload = {}) {
   pagination.page = Number(payload.page || pagination.page || 1);
   pagination.pageSize = Number(payload.page_size || pagination.pageSize || 20);
   const nextSummary = payload.summary || {};
-  summary.total_profit_compare_today = Number(nextSummary.total_profit_compare_today || 0);
-  summary.total_profit_compare_trade_day = Number(nextSummary.total_profit_compare_trade_day || 0);
+  summary.total_profit_compare_today = Number(
+    nextSummary.total_profit_compare_today || 0
+  );
+  summary.total_profit_compare_trade_day = Number(
+    nextSummary.total_profit_compare_trade_day || 0
+  );
   summary.total_fee = Number(nextSummary.total_fee || 0);
   summary.trade_count = Number(nextSummary.trade_count || 0);
 }
@@ -322,6 +426,11 @@ async function handleDateRangeChange(value) {
   if (value && (!Array.isArray(value) || value.length !== 2)) {
     return;
   }
+  pagination.page = 1;
+  await loadData();
+}
+
+async function handleQueryChange() {
   pagination.page = 1;
   await loadData();
 }
@@ -439,6 +548,14 @@ const profitClass = (value) => {
 
 .t-analysis-date-picker {
   width: 360px;
+}
+
+.t-analysis-stock-name {
+  width: 180px;
+}
+
+.t-analysis-direction {
+  width: 120px;
 }
 
 .refresh-button {
