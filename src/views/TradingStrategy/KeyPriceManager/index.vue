@@ -128,7 +128,7 @@
         <el-table-column
           prop="time_level"
           label="时间级别"
-          min-width="96"
+          min-width="120"
           sortable
         />
         <el-table-column prop="key_price" label="关键价" width="110" sortable>
@@ -180,6 +180,24 @@
         <el-table-column
           prop="source_type"
           label="来源类型"
+          min-width="140"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="analysis_desc"
+          label="分析说明"
+          min-width="140"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="action_suggestion"
+          label="操作建议"
+          min-width="440"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="remark"
+          label="备注"
           min-width="140"
           show-overflow-tooltip
         />
