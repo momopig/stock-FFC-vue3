@@ -59,7 +59,7 @@
         <el-select
           v-model="queryForm.recorded_type"
           clearable
-          placeholder="记录类型"
+          placeholder="事件类型"
           class="filter-item filter-recorded-type"
         >
           <el-option
@@ -553,8 +553,12 @@ const recordedTypeOptions = [
 const timeLevelOptions = [
   { label: '1min', value: '1min' },
   { label: '5min', value: '5min' },
+  { label: '15min', value: '15min' },
   { label: '30min', value: '30min' },
   { label: '1h', value: '1h' },
+  { label: '1d', value: '1d' },
+  { label: '1week', value: '1week' },
+  { label: '1month', value: '1month' },
 ];
 
 const sourceTypeOptions = [
