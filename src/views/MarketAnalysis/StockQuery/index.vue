@@ -16,7 +16,10 @@
           @keyup.enter="submitHeroSearch"
         >
           <template #append>
-            <el-button type="primary" :loading="tableLoading" @click="submitHeroSearch"
+            <el-button
+              type="primary"
+              :loading="tableLoading"
+              @click="submitHeroSearch"
               >搜索</el-button
             >
           </template>
@@ -47,7 +50,9 @@
                   placement="top"
                   :content="marketOverview.highStockName || '暂无对应股票名称'"
                 >
-                  <strong :style="{ color: getQuoteColor(marketOverview.high) }">
+                  <strong
+                    :style="{ color: getQuoteColor(marketOverview.high) }"
+                  >
                     {{ formatChangePercent(marketOverview.high) }}
                   </strong>
                 </el-tooltip>
@@ -69,7 +74,9 @@
         </article>
         <article class="overview-card overview-card--basic">
           <div class="overview-label">股票池数量</div>
-          <div class="overview-value">{{ `${Number(page.total || 0)} 只` }}</div>
+          <div class="overview-value">
+            {{ `${Number(page.total || 0)} 只` }}
+          </div>
           <div class="overview-subtext">满足当前查询条件的股票总数</div>
         </article>
       </div>
@@ -98,6 +105,7 @@
         @selection-change="handleSelectionChange"
         @add-to-self="handleAddToSelfForQuery"
         @bulk-add-to-group="handleBulkAddToGroup"
+        @force-subscribe-page-stocks="handleForceSubscribeCurrentPageStocks"
         @force-subscribe-group-stocks="handleForceSubscribeAllGroupStocks"
       />
     </section>
@@ -105,6 +113,7 @@
     <AddToGroupDialog
       v-model:visible="addToGroupDialogVisible"
       :stock-data="selectedStockData"
+      :batch-stock-list="bulkAddRows"
       :strategy-info="selectedStrategyInfo"
       @submit="handleAddToGroupSubmitWrapped"
     />
@@ -112,11 +121,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import StockList from '@/components/StockList/index.vue';
 import { getKlineSourceSettings } from '@/api/modules/klineSource';
-import { enrichStockSearchQuotes, getStock } from '@/api/modules/stockPool';
+import {
+  enrichStockSearchQuotes,
+  forceSubscribeTargetStocks,
+  getStock,
+} from '@/api/modules/stockPool';
 import {
   addStockToGroups,
   forceSubscribeGroupStocks,
@@ -192,11 +205,12 @@ const {
 });
 
 const marketOverview = computed(() => {
-  const rows = Array.isArray(filteredRows.value) && filteredRows.value.length
-    ? filteredRows.value
-    : Array.isArray(stockList.value)
-      ? stockList.value
-      : [];
+  const rows =
+    Array.isArray(filteredRows.value) && filteredRows.value.length
+      ? filteredRows.value
+      : Array.isArray(stockList.value)
+        ? stockList.value
+        : [];
   const values = [];
   const validRows = [];
   for (const row of rows) {
@@ -204,7 +218,9 @@ const marketOverview = computed(() => {
     if (!Number.isNaN(changeRate)) {
       values.push(changeRate);
       validRows.push({
-        stockName: String(row?.stock_name || '').trim() || String(row?.stock_code || '').trim(),
+        stockName:
+          String(row?.stock_name || '').trim() ||
+          String(row?.stock_code || '').trim(),
         changeRate,
       });
     }
@@ -247,11 +263,11 @@ const marketOverview = computed(() => {
 });
 
 function getQuoteColor(changeRate) {
-  const amount = Number(changeRate)
+  const amount = Number(changeRate);
   if (changeRate == null || Number.isNaN(amount)) {
-    return '#606266'
+    return '#606266';
   }
-  return amount >= 0 ? '#f56c6c' : '#67c23a'
+  return amount >= 0 ? '#f56c6c' : '#67c23a';
 }
 
 function formatChangePercent(value) {
@@ -311,22 +327,22 @@ function mapSearchItemToStockRow(item = {}) {
 }
 
 function mergeQuoteFieldsToRows(baseRows = [], quoteItems = []) {
-  const quoteMap = new Map()
+  const quoteMap = new Map();
   for (const item of quoteItems) {
-    const key = `${String(item?.exchange_code || '').toUpperCase()}_${String(item?.code || '').toUpperCase()}`
+    const key = `${String(item?.exchange_code || '').toUpperCase()}_${String(item?.code || '').toUpperCase()}`;
     if (!key.trim() || key === '_') {
-      continue
+      continue;
     }
-    quoteMap.set(key, item?.quote || {})
+    quoteMap.set(key, item?.quote || {});
   }
   return baseRows.map((row) => {
-    const key = `${String(row?.exchange_code || '').toUpperCase()}_${String(row?.stock_code || '').toUpperCase()}`
-    const quote = quoteMap.get(key) || {}
+    const key = `${String(row?.exchange_code || '').toUpperCase()}_${String(row?.stock_code || '').toUpperCase()}`;
+    const quote = quoteMap.get(key) || {};
     return {
       ...row,
       ...mapQuoteToFlatRowFields(quote, null),
-    }
-  })
+    };
+  });
 }
 
 async function searchStocksByKeywords(keywordTokens = []) {
@@ -363,9 +379,9 @@ async function searchStocksByKeywords(keywordTokens = []) {
       }
     }
   }
-  const baseRows = Array.from(mergedMap.values())
+  const baseRows = Array.from(mergedMap.values());
   if (!baseRows.length) {
-    return []
+    return [];
   }
   const quoteResponse = await enrichStockSearchQuotes(
     baseRows.map((row) => ({
@@ -374,11 +390,11 @@ async function searchStocksByKeywords(keywordTokens = []) {
       name: row.stock_name,
       full_code: row.full_code,
     }))
-  )
+  );
   const quoteItems = Array.isArray(quoteResponse?.payload?.items)
     ? quoteResponse.payload.items
-    : []
-  return mergeQuoteFieldsToRows(baseRows, quoteItems)
+    : [];
+  return mergeQuoteFieldsToRows(baseRows, quoteItems);
 }
 
 function applyLocalFiltersAndPagination() {
@@ -386,13 +402,19 @@ function applyLocalFiltersAndPagination() {
     .trim()
     .toUpperCase();
   const filtered = allMatchedRows.value.filter((row) => {
-    if (exchangeCode && String(row.exchange_code || '').toUpperCase() !== exchangeCode) {
+    if (
+      exchangeCode &&
+      String(row.exchange_code || '').toUpperCase() !== exchangeCode
+    ) {
       return false;
     }
     return true;
   });
   page.total = filtered.length;
-  const startIndex = Math.max((Number(page.pageNo || 1) - 1) * Number(page.pageSize || 50), 0);
+  const startIndex = Math.max(
+    (Number(page.pageNo || 1) - 1) * Number(page.pageSize || 50),
+    0
+  );
   const endIndex = startIndex + Number(page.pageSize || 50);
   stockList.value = filtered.slice(startIndex, endIndex);
   filteredRows.value = stockList.value;
@@ -415,7 +437,9 @@ async function loadAllGroupId() {
     const groups = Array.isArray(response?.payload?.items)
       ? response.payload.items
       : [];
-    const allGroup = groups.find((group) => getBuiltinCreateType(group) === 'all');
+    const allGroup = groups.find(
+      (group) => getBuiltinCreateType(group) === 'all'
+    );
     allGroupId.value = String(allGroup?.id || '');
   } catch (error) {
     console.error('加载分组信息失败:', error);
@@ -475,8 +499,8 @@ function handleFilterChange(rows) {
 }
 
 function handleAddToSelfForQuery(row) {
-  handleAddToSelf(row)
-  selectedStrategyInfo.value = null
+  handleAddToSelf(row);
+  selectedStrategyInfo.value = null;
 }
 
 function handleSelectionChange(rows) {
@@ -489,8 +513,31 @@ const handleBulkAddToGroup = (rows) => {
     ElMessage.warning('请先选择要加入分组的股票');
     return;
   }
+  // 批量添加直接进入批量弹窗，避免复用单条股票状态导致只显示第一只。
   bulkAddRows.value = [...targets];
-  handleAddToSelf(targets[0]);
+  selectedStockData.value = null;
+  selectedStrategyInfo.value = null;
+  addToGroupDialogVisible.value = true;
+};
+
+const parseNumericPrice = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+};
+
+const resolveBatchInitialPrice = (row) => {
+  // 批量加入时按每只股票当前最新价入组，避免所有股票共用一个初始价。
+  return (
+    parseNumericPrice(row?.last_price) ??
+    parseNumericPrice(row?.lastPrice) ??
+    parseNumericPrice(row?.current_price) ??
+    parseNumericPrice(row?.price) ??
+    parseNumericPrice(row?.initial_price) ??
+    0
+  );
 };
 
 const handleAddToGroupSubmitWrapped = async (submitData) => {
@@ -509,7 +556,7 @@ const handleAddToGroupSubmitWrapped = async (submitData) => {
         stock_code: row.stock_code,
         stock_name: row.stock_name,
         add_time: submitData.add_time || null,
-        initial_price: submitData.initial_price || row.initial_price || 0,
+        initial_price: resolveBatchInitialPrice(row),
         add_reason: submitData.add_reason || row.add_reason || '',
         remark: submitData.remark || row.notes || '',
       });
@@ -524,7 +571,7 @@ const handleAddToGroupSubmitWrapped = async (submitData) => {
   }
 
   ElMessage.success(
-    `批量加入分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+    `批量加入新分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
   );
   bulkAddRows.value = [];
   addToGroupDialogVisible.value = false;
@@ -556,6 +603,47 @@ async function handleForceSubscribeAllGroupStocks() {
   }
 }
 
+// 关闭弹窗时清空批量上下文，避免后续单条添加误走批量提交流程。
+watch(addToGroupDialogVisible, (visible) => {
+  if (!visible) {
+    bulkAddRows.value = [];
+  }
+});
+
+async function handleForceSubscribeCurrentPageStocks(rows) {
+  const targets = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      stock_code: String(row?.stock_code || '').trim(),
+      exchange_code: String(row?.exchange_code || '').trim(),
+      stock_name: String(row?.stock_name || '').trim(),
+    }))
+    .filter((row) => row.stock_code && row.exchange_code);
+  if (!targets.length) {
+    ElMessage.warning('当前页暂无可订阅的股票');
+    return;
+  }
+  forceSubscribeLoading.value = true;
+  try {
+    const response = await forceSubscribeTargetStocks(
+      targets,
+      'market_analysis_current_page'
+    );
+    if (response?.success === false) {
+      ElMessage.error(response?.message || '强制订阅本页股票失败');
+      return;
+    }
+    const payload = response?.payload || {};
+    ElMessage.success(
+      `订阅处理完成：共 ${payload.success_count || 0} 只，失败 ${payload.failed_count || 0} 只`
+    );
+  } catch (error) {
+    console.error('强制订阅本页股票失败:', error);
+    ElMessage.error(error?.message || '强制订阅本页股票失败，请稍后重试');
+  } finally {
+    forceSubscribeLoading.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadKlineSourceSettings(), loadAllGroupId()]);
 });
@@ -566,8 +654,16 @@ onMounted(async () => {
   padding: 20px;
   min-height: calc(100vh - 140px);
   background:
-    radial-gradient(circle at 14% 18%, rgba(16, 185, 129, 0.14), transparent 40%),
-    radial-gradient(circle at 84% 10%, rgba(249, 115, 22, 0.13), transparent 38%),
+    radial-gradient(
+      circle at 14% 18%,
+      rgba(16, 185, 129, 0.14),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 84% 10%,
+      rgba(249, 115, 22, 0.13),
+      transparent 38%
+    ),
     linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
 }
 

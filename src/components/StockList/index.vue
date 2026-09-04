@@ -86,7 +86,7 @@
               :disabled="!selectedRows.length"
               @click="handleBulkAddToGroup"
             >
-              批量加入分组
+              批量加入新分组
             </el-button>
             <el-button
               v-if="showBulkAddToWatchButton"
@@ -127,6 +127,21 @@
           >
           <el-tooltip
             v-if="showForceSubscribeGroupButton"
+            content="仅订阅当前页实际显示的股票，包含表格筛选后的结果"
+            placement="top"
+          >
+            <el-button
+              link
+              type="primary"
+              class="force-subscribe-page-btn"
+              :loading="forceSubscribeLoading"
+              @click="handleForceSubscribePageStocks"
+            >
+              强制订阅本页股票
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            v-if="showForceSubscribeGroupButton"
             content="按第1页至末页顺序优先订阅，保障本组股票实时行情"
             placement="top"
           >
@@ -160,7 +175,11 @@
         show-icon
       >
         <template #title>
-          当前列表有 {{ quoteContractSummary.count }} 只股票仍存在数据源字段缺失，统一层已补默认值。缺失最多的字段：{{ quoteContractSummary.preview || '无' }}。
+          当前列表有
+          {{ quoteContractSummary.count }}
+          只股票仍存在数据源字段缺失，统一层已补默认值。缺失最多的字段：{{
+            quoteContractSummary.preview || '无'
+          }}。
         </template>
       </el-alert>
       <!-- 股票列表表格 -->
@@ -773,7 +792,8 @@ const userStore = UserStore();
 const quoteContractSummary = computed(() => {
   const rows = Array.isArray(props.stockList) ? props.stockList : [];
   const warnedRows = rows.filter(
-    (item) => item?.quote_contract_warning || item?.quote?.quote_contract_warning
+    (item) =>
+      item?.quote_contract_warning || item?.quote?.quote_contract_warning
   );
   if (!warnedRows.length) {
     return { count: 0, preview: '' };
@@ -828,6 +848,7 @@ const emit = defineEmits([
   'bulk-add-to-recycle',
   'open-group',
   'copy-all-stock-names',
+  'force-subscribe-page-stocks',
   'force-subscribe-group-stocks',
   'toggle-star',
 ]);
@@ -846,7 +867,9 @@ const localFilterParams = reactive({
 });
 
 function normalizeQueryText(value) {
-  return String(value || '').replace(/,/g, ' ').trim();
+  return String(value || '')
+    .replace(/,/g, ' ')
+    .trim();
 }
 
 // 按「当前 stockList 数组引用」缓存筛选项：同一轮渲染多列会重复调用 getFiltersForColumn，避免重计算
@@ -861,6 +884,11 @@ const getDisplayedStockList = () => {
   const tableData = tableRef.value?.store?.states?.data;
   const displayedRows = tableData?.value ?? tableData;
   return Array.isArray(displayedRows) ? displayedRows : props.stockList;
+};
+
+// 强制订阅当前页时，直接复用表格当前实际显示的数据，避免父组件重复推导二次筛选结果。
+const handleForceSubscribePageStocks = () => {
+  emit('force-subscribe-page-stocks', getDisplayedStockList());
 };
 
 const getRowKey = (row) => {
@@ -1215,9 +1243,7 @@ const resolvedColumns = computed(() => {
   const sourceKeys = Array.isArray(props.visibleColumnKeys)
     ? props.visibleColumnKeys.filter(Boolean)
     : [];
-  const visibleKeys = sourceKeys.length
-    ? sourceKeys
-    : defaultVisibleColumnKeys;
+  const visibleKeys = sourceKeys.length ? sourceKeys : defaultVisibleColumnKeys;
   const keySet = new Set(visibleKeys);
   return columns.filter((item) => keySet.has(item.key));
 });

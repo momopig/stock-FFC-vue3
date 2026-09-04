@@ -496,3 +496,19 @@ export const enrichStockSearchQuotes = async (items = []) => {
     items,
   });
 };
+
+/**
+ * 强制订阅当前页股票列表。
+ * @param {Array<{stock_code:string,exchange_code:string,stock_name?:string}>} items
+ * @param {string} reason - 调用来源，便于后端日志定位
+ * @returns {Promise}
+ */
+export const forceSubscribeTargetStocks = async (
+  items = [],
+  reason = 'stock_list_current_page'
+) => {
+  return await request.post(`/stock-api/api/stock/search/force-subscribe`, {
+    items,
+    reason,
+  });
+};

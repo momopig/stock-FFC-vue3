@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="visible"
     @update:model-value="$emit('update:visible', $event)"
-    title="添加到自选分组"
+    :title="dialogTitle"
     width="600px"
     :close-on-click-modal="false"
     @close="handleClose"
@@ -14,43 +14,74 @@
       label-width="100px"
       v-loading="loading"
     >
-      <!-- 股票基本信息（只读） -->
-      <el-form-item label="股票代码">
-        <el-input
-          :model-value="stockData?.stock_code || '--'"
-          disabled
-          placeholder="--"
-        />
-      </el-form-item>
-
-      <el-form-item label="股票名称">
-        <el-input
-          :model-value="stockData?.stock_name || '--'"
-          disabled
-          placeholder="--"
-        />
-      </el-form-item>
-
-      <el-form-item label="交易所">
-        <el-input
-          :model-value="getExchangeName(stockData?.exchange_code)"
-          disabled
-          placeholder="--"
-        />
-      </el-form-item>
-
-      <!-- 当前股票已在的分组（接口回显，只读） -->
-      <el-form-item label="已选分组">
-        <div class="memberships-readonly" v-loading="membershipsLoading">
+      <template v-if="isBatchMode">
+        <el-form-item label="批量数量">
           <el-input
-            :model-value="existingGroupNamesDisplay"
-            type="textarea"
-            :autosize="{ minRows: 1, maxRows: 8 }"
+            :model-value="`${props.batchStockList.length} 只`"
             disabled
-            placeholder="暂无"
           />
-        </div>
-      </el-form-item>
+        </el-form-item>
+
+        <el-form-item label="批量股票">
+          <el-input
+            :model-value="batchStockDisplay"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 10 }"
+            disabled
+            placeholder="暂无可展示股票"
+          />
+        </el-form-item>
+
+        <el-form-item label="初始价格预览">
+          <el-input
+            :model-value="batchPriceDisplay"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 12 }"
+            disabled
+            placeholder="将按每只股票当前最新价作为初始价格"
+          />
+        </el-form-item>
+      </template>
+
+      <template v-else>
+        <!-- 股票基本信息（只读） -->
+        <el-form-item label="股票代码">
+          <el-input
+            :model-value="stockData?.stock_code || '--'"
+            disabled
+            placeholder="--"
+          />
+        </el-form-item>
+
+        <el-form-item label="股票名称">
+          <el-input
+            :model-value="stockData?.stock_name || '--'"
+            disabled
+            placeholder="--"
+          />
+        </el-form-item>
+
+        <el-form-item label="交易所">
+          <el-input
+            :model-value="getExchangeName(stockData?.exchange_code)"
+            disabled
+            placeholder="--"
+          />
+        </el-form-item>
+
+        <!-- 当前股票已在的分组（接口回显，只读） -->
+        <el-form-item label="已选分组">
+          <div class="memberships-readonly" v-loading="membershipsLoading">
+            <el-input
+              :model-value="existingGroupNamesDisplay"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 8 }"
+              disabled
+              placeholder="暂无"
+            />
+          </div>
+        </el-form-item>
+      </template>
 
       <!-- 多选分组下拉框 -->
       <el-form-item label="选择分组" prop="group_ids">
@@ -73,10 +104,10 @@
           <el-option
             label="+ 新增分组"
             value="__create_new__"
-            style="color: #409eff; font-weight: bold;"
+            style="color: #409eff; font-weight: bold"
           >
-            <span style="color: #409eff; font-weight: bold;">
-              <el-icon style="margin-right: 4px;"><Plus /></el-icon>
+            <span style="color: #409eff; font-weight: bold">
+              <el-icon style="margin-right: 4px"><Plus /></el-icon>
               新增分组
             </span>
           </el-option>
@@ -84,22 +115,28 @@
       </el-form-item>
 
       <!-- 是否保持策略信息 -->
-      <el-form-item label="" v-if="hasStrategyContext">
+      <el-form-item label="" v-if="hasStrategyContext && !isBatchMode">
         <el-radio-group v-model="formData.keepStrategyInfo">
-          <el-radio :label="true">加入信息（加入日期、初始价、加入原因、备注）保持与策略相同</el-radio>
+          <el-radio :label="true"
+            >加入信息（加入日期、初始价、加入原因、备注）保持与策略相同</el-radio
+          >
           <el-radio :label="false">否</el-radio>
         </el-radio-group>
       </el-form-item>
 
       <!-- 初始价格 -->
-      <el-form-item label="初始价格" prop="initial_price">
+      <el-form-item v-if="!isBatchMode" label="初始价格" prop="initial_price">
         <el-input-number
           v-model="formData.initial_price"
           :precision="2"
           :min="0"
           placeholder="请输入初始价格"
           style="width: 100%"
-          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.initial_price != null"
+          :disabled="
+            hasStrategyContext &&
+            formData.keepStrategyInfo &&
+            strategyInfo?.initial_price != null
+          "
         />
       </el-form-item>
 
@@ -112,7 +149,11 @@
           placeholder="请输入加入原因"
           maxlength="2000"
           show-word-limit
-          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.add_reason"
+          :disabled="
+            hasStrategyContext &&
+            formData.keepStrategyInfo &&
+            strategyInfo?.add_reason
+          "
         />
       </el-form-item>
 
@@ -125,7 +166,11 @@
           placeholder="请输入备注信息（可选）"
           maxlength="2000"
           show-word-limit
-          :disabled="hasStrategyContext && formData.keepStrategyInfo && strategyInfo?.notes"
+          :disabled="
+            hasStrategyContext &&
+            formData.keepStrategyInfo &&
+            strategyInfo?.notes
+          "
         />
       </el-form-item>
     </el-form>
@@ -133,11 +178,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleSubmit"
-          :loading="loading"
-        >
+        <el-button type="primary" @click="handleSubmit" :loading="loading">
           确定
         </el-button>
       </span>
@@ -146,19 +187,27 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { getUserGroups, createGroup, getStockGroupMemberships } from '@/api/modules/stockGroup'
+import { ref, computed, watch } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import {
+  getUserGroups,
+  createGroup,
+  getStockGroupMemberships,
+} from '@/api/modules/stockGroup';
 
 const props = defineProps({
   visible: {
     type: Boolean,
-    default: false
+    default: false,
   },
   stockData: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
+  },
+  batchStockList: {
+    type: Array,
+    default: () => [],
   },
   strategyInfo: {
     type: Object,
@@ -166,50 +215,102 @@ const props = defineProps({
       add_time: null,
       initial_price: null,
       add_reason: '',
-      notes: ''
-    })
-  }
-})
+      notes: '',
+    }),
+  },
+});
 
-const emit = defineEmits(['update:visible', 'submit'])
+const emit = defineEmits(['update:visible', 'submit']);
 
-const formRef = ref()
-const loading = ref(false)
-const groupsLoading = ref(false)
-const groups = ref([])
-const membershipsLoading = ref(false)
+const formRef = ref();
+const loading = ref(false);
+const groupsLoading = ref(false);
+const groups = ref([]);
+const membershipsLoading = ref(false);
 /** @type {import('vue').Ref<Array<{ item_id?: number, group_id: number, group_name: string }>>} */
-const existingMemberships = ref([])
+const existingMemberships = ref([]);
 
 // 已选分组名称展示（与上方只读表单项风格一致，多行便于阅读）
 const existingGroupNamesDisplay = computed(() => {
   const names =
-    existingMemberships.value?.map((m) => m?.group_name)?.filter(Boolean) ?? []
-  return names.length ? names.join('，') : ''
-})
+    existingMemberships.value?.map((m) => m?.group_name)?.filter(Boolean) ?? [];
+  return names.length ? names.join('，') : '';
+});
 
 // 下拉项置灰：股票已在这些分组中，避免重复选择
 const existingJoinedGroupIdSet = computed(() => {
   const ids =
-    existingMemberships.value?.map((m) => m?.group_id)?.filter((id) => id != null) ??
-    []
-  return new Set(ids)
-})
+    existingMemberships.value
+      ?.map((m) => m?.group_id)
+      ?.filter((id) => id != null) ?? [];
+  return new Set(ids);
+});
+
+// 批量模式下不再展示单只股票的只读信息与归属回显，避免把首条股票误当成全部结果。
+const isBatchMode = computed(
+  () => Array.isArray(props.batchStockList) && props.batchStockList.length > 0
+);
+
+const dialogTitle = computed(() =>
+  isBatchMode.value ? '批量加入新分组' : '添加到自选分组'
+);
+
+const parseNumericPrice = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+};
+
+const resolveBatchInitialPrice = (item) => {
+  const latestPrice =
+    parseNumericPrice(item?.last_price) ??
+    parseNumericPrice(item?.lastPrice) ??
+    parseNumericPrice(item?.current_price) ??
+    parseNumericPrice(item?.price);
+  if (latestPrice != null) {
+    return latestPrice;
+  }
+  return parseNumericPrice(item?.initial_price) ?? 0;
+};
+
+const batchStockDisplay = computed(() => {
+  const items = Array.isArray(props.batchStockList) ? props.batchStockList : [];
+  return items
+    .map((item) => {
+      const stockCode = String(item?.stock_code || '').trim();
+      const stockName = String(item?.stock_name || '').trim();
+      const exchangeCode = getExchangeName(item?.exchange_code);
+      return [stockCode, stockName, exchangeCode].filter(Boolean).join(' / ');
+    })
+    .filter(Boolean)
+    .join('\n');
+});
+
+const batchPriceDisplay = computed(() => {
+  const items = Array.isArray(props.batchStockList) ? props.batchStockList : [];
+  return items
+    .map((item) => {
+      const stockCode = String(item?.stock_code || '').trim() || '--';
+      const stockName = String(item?.stock_name || '').trim() || '--';
+      const initialPrice = resolveBatchInitialPrice(item);
+      return `${stockCode} / ${stockName} / 当前价 ${initialPrice.toFixed(2)}`;
+    })
+    .join('\n');
+});
 
 const hasStrategyContext = computed(() => {
-  const info = props.strategyInfo || {}
+  const info = props.strategyInfo || {};
   return Boolean(
-    info.add_time ||
-      info.initial_price != null ||
-      info.add_reason ||
-      info.notes
-  )
-})
+    info.add_time || info.initial_price != null || info.add_reason || info.notes
+  );
+});
 
 const isGroupAlreadyJoined = (groupId) => {
-  if (groupId == null) return false
-  return existingJoinedGroupIdSet.value?.has(groupId) ?? false
-}
+  if (groupId == null) return false;
+  return existingJoinedGroupIdSet.value?.has(groupId) ?? false;
+};
 
 // 表单数据
 const formData = ref({
@@ -217,270 +318,335 @@ const formData = ref({
   initial_price: null,
   add_reason: '',
   remark: '',
-  keepStrategyInfo: true // 默认保持策略信息
-})
+  keepStrategyInfo: true, // 默认保持策略信息
+});
 
 // 表单验证规则（动态验证，当保持策略信息时跳过某些字段的必填验证）
 const formRules = computed(() => {
   const rules = {
     group_ids: [
       { required: true, message: '请至少选择一个分组', trigger: 'change' },
-      { type: 'array', min: 1, message: '请至少选择一个分组', trigger: 'change' }
-    ]
+      {
+        type: 'array',
+        min: 1,
+        message: '请至少选择一个分组',
+        trigger: 'change',
+      },
+    ],
+  };
+
+  if (isBatchMode.value) {
+    rules.add_reason = [
+      {
+        min: 1,
+        max: 2000,
+        message: '加入原因长度在1-2000个字符',
+        trigger: 'blur',
+      },
+    ];
+    return rules;
   }
 
   // 如果选择保持策略信息，且策略信息中有初始价格，则不需要必填验证
-  if (!formData.value.keepStrategyInfo || props.strategyInfo?.initial_price == null) {
+  if (
+    !formData.value.keepStrategyInfo ||
+    props.strategyInfo?.initial_price == null
+  ) {
     rules.initial_price = [
       { required: true, message: '请输入初始价格', trigger: 'blur' },
-      { type: 'number', min: 0, message: '初始价格必须大于等于0', trigger: 'blur' }
-    ]
+      {
+        type: 'number',
+        min: 0,
+        message: '初始价格必须大于等于0',
+        trigger: 'blur',
+      },
+    ];
   } else {
     rules.initial_price = [
-      { type: 'number', min: 0, message: '初始价格必须大于等于0', trigger: 'blur' }
-    ]
+      {
+        type: 'number',
+        min: 0,
+        message: '初始价格必须大于等于0',
+        trigger: 'blur',
+      },
+    ];
   }
 
   // 如果选择保持策略信息，且策略信息中有加入原因，则不需要必填验证
   if (!formData.value.keepStrategyInfo || !props.strategyInfo?.add_reason) {
     rules.add_reason = [
       { required: true, message: '请输入加入原因', trigger: 'blur' },
-      { min: 1, max: 2000, message: '加入原因长度在1-2000个字符', trigger: 'blur' }
-    ]
+      {
+        min: 1,
+        max: 2000,
+        message: '加入原因长度在1-2000个字符',
+        trigger: 'blur',
+      },
+    ];
   } else {
     rules.add_reason = [
-      { max: 2000, message: '加入原因长度不能超过2000个字符', trigger: 'blur' }
-    ]
+      { max: 2000, message: '加入原因长度不能超过2000个字符', trigger: 'blur' },
+    ];
   }
 
-  return rules
-})
+  return rules;
+});
 
 // 获取交易所名称
 const getExchangeName = (code) => {
   const exchangeMap = {
-    'SH': '上交所',
-    'SZ': '深交所',
-    'HK': '港交所',
-    'US': '美股'
-  }
-  return exchangeMap[code] || code || '--'
-}
+    SH: '上交所',
+    SZ: '深交所',
+    HK: '港交所',
+    US: '美股',
+  };
+  return exchangeMap[code] || code || '--';
+};
 
 // 获取分组列表
 const fetchGroups = async () => {
-  groupsLoading.value = true
+  groupsLoading.value = true;
   try {
-    const response = await getUserGroups()
+    const response = await getUserGroups();
     if (response?.success) {
-      const items = response.payload?.items || []
-      groups.value = items.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      const items = response.payload?.items || [];
+      groups.value = items.sort(
+        (a, b) => (a.display_order || 0) - (b.display_order || 0)
+      );
     } else {
-      ElMessage.error(response?.message || '获取分组列表失败')
+      ElMessage.error(response?.message || '获取分组列表失败');
     }
   } catch (error) {
-    console.error('获取分组列表失败:', error)
-    ElMessage.error('获取分组列表失败，请稍后重试')
+    console.error('获取分组列表失败:', error);
+    ElMessage.error('获取分组列表失败，请稍后重试');
   } finally {
-    groupsLoading.value = false
+    groupsLoading.value = false;
   }
-}
+};
 
 // 回显：该股票当前所在分组（只读展示，与「选择分组」互补）
 const fetchMemberships = async () => {
-  const stockCode = props.stockData?.stock_code
-  const exchangeCode = props.stockData?.exchange_code
+  const stockCode = props.stockData?.stock_code;
+  const exchangeCode = props.stockData?.exchange_code;
   if (!stockCode || !exchangeCode) {
-    existingMemberships.value = []
-    return
+    existingMemberships.value = [];
+    return;
   }
-  membershipsLoading.value = true
+  membershipsLoading.value = true;
   try {
     const response = await getStockGroupMemberships({
       stock_code: stockCode,
-      exchange_code: exchangeCode
-    })
+      exchange_code: exchangeCode,
+    });
     if (response?.success) {
-      const items =
-        response.payload?.items ?? response.payload?.data ?? []
-      existingMemberships.value = Array.isArray(items) ? items : []
+      const items = response.payload?.items ?? response.payload?.data ?? [];
+      existingMemberships.value = Array.isArray(items) ? items : [];
     } else {
-      existingMemberships.value = []
-      ElMessage.error(response?.message || '获取已选分组失败')
+      existingMemberships.value = [];
+      ElMessage.error(response?.message || '获取已选分组失败');
     }
   } catch (error) {
-    console.error('获取已选分组失败:', error)
-    existingMemberships.value = []
-    ElMessage.error('获取已选分组失败，请稍后重试')
+    console.error('获取已选分组失败:', error);
+    existingMemberships.value = [];
+    ElMessage.error('获取已选分组失败，请稍后重试');
   } finally {
-    membershipsLoading.value = false
+    membershipsLoading.value = false;
   }
-}
+};
 
 // 处理分组选择变化
 const handleGroupChange = (value) => {
   // 如果选择了"新增分组"选项，触发创建分组
   if (Array.isArray(value) && value.includes('__create_new__')) {
     // 移除特殊值
-    formData.value.group_ids = value.filter(id => id !== '__create_new__')
-    handleCreateGroup()
+    formData.value.group_ids = value.filter((id) => id !== '__create_new__');
+    handleCreateGroup();
   }
-}
+};
 
 // 创建新分组
 const handleCreateGroup = async () => {
   try {
-    const { value: groupName } = await ElMessageBox.prompt('请输入分组名称', '新建分组', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /^.{1,20}$/,
-      inputErrorMessage: '分组名称长度为1-20个字符'
-    })
+    const { value: groupName } = await ElMessageBox.prompt(
+      '请输入分组名称',
+      '新建分组',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPattern: /^.{1,20}$/,
+        inputErrorMessage: '分组名称长度为1-20个字符',
+      }
+    );
 
-    if (!groupName) return
+    if (!groupName) return;
 
-    groupsLoading.value = true
+    groupsLoading.value = true;
     try {
       const result = await createGroup({
         name: groupName,
         is_hidden: false,
         display_order: groups.value.length,
         remark: '',
-        create_type: 'custom'
-      })
+        create_type: 'custom',
+      });
 
       if (result?.success) {
-        ElMessage.success('创建分组成功')
+        ElMessage.success('创建分组成功');
         // 刷新分组列表
-        await fetchGroups()
+        await fetchGroups();
         // 自动选中新创建的分组
         if (result.payload?.id) {
           const currentGroupIds = Array.isArray(formData.value.group_ids)
             ? formData.value.group_ids
-            : []
-          formData.value.group_ids = [...currentGroupIds, result.payload.id]
+            : [];
+          formData.value.group_ids = [...currentGroupIds, result.payload.id];
         }
       } else {
-        ElMessage.error(result?.message || '创建分组失败')
+        ElMessage.error(result?.message || '创建分组失败');
       }
     } catch (error) {
-      console.error('创建分组失败:', error)
-      ElMessage.error('创建分组失败，请稍后重试')
+      console.error('创建分组失败:', error);
+      ElMessage.error('创建分组失败，请稍后重试');
     } finally {
-      groupsLoading.value = false
+      groupsLoading.value = false;
     }
   } catch (error) {
     // 用户取消输入
   }
-}
+};
 
 // 监听弹窗显示状态
-watch(() => props.visible, async (newVal) => {
-  if (newVal) {
-    // 重置表单
-    formRef.value?.clearValidate()
-    existingMemberships.value = []
+watch(
+  () => props.visible,
+  async (newVal) => {
+    if (newVal) {
+      // 重置表单
+      formRef.value?.clearValidate();
+      existingMemberships.value = [];
 
-    await Promise.all([fetchGroups(), fetchMemberships()])
+      const dialogTasks = [fetchGroups()];
+      if (!isBatchMode.value) {
+        dialogTasks.push(fetchMemberships());
+      }
+      await Promise.all(dialogTasks);
 
-    // 初始化表单数据
-    const keepStrategyInfo = hasStrategyContext.value
-    formData.value = {
-      group_ids: [],
-      initial_price: keepStrategyInfo && props.strategyInfo?.initial_price != null
-        ? props.strategyInfo.initial_price
-        : (props.stockData?.last_price || props.stockData?.initial_price || null),
-      add_reason: keepStrategyInfo && props.strategyInfo?.add_reason
-        ? props.strategyInfo.add_reason
-        : '',
-      remark: keepStrategyInfo && props.strategyInfo?.notes
-        ? props.strategyInfo.notes
-        : '',
-      keepStrategyInfo
+      // 初始化表单数据
+      const keepStrategyInfo = !isBatchMode.value && hasStrategyContext.value;
+      formData.value = {
+        group_ids: [],
+        initial_price:
+          keepStrategyInfo && props.strategyInfo?.initial_price != null
+            ? props.strategyInfo.initial_price
+            : isBatchMode.value
+              ? null
+              : props.stockData?.last_price ||
+                props.stockData?.initial_price ||
+                null,
+        add_reason:
+          keepStrategyInfo && props.strategyInfo?.add_reason
+            ? props.strategyInfo.add_reason
+            : '',
+        remark:
+          keepStrategyInfo && props.strategyInfo?.notes
+            ? props.strategyInfo.notes
+            : '',
+        keepStrategyInfo,
+      };
     }
   }
-})
+);
 
 // 监听是否保持策略信息的变化，自动填充或清空策略信息
-watch(() => formData.value.keepStrategyInfo, (newVal) => {
-  if (newVal && hasStrategyContext.value && props.strategyInfo) {
-    // 选择"是"时，自动填充策略信息
-    if (props.strategyInfo.initial_price != null) {
-      formData.value.initial_price = props.strategyInfo.initial_price
+watch(
+  () => formData.value.keepStrategyInfo,
+  (newVal) => {
+    if (newVal && hasStrategyContext.value && props.strategyInfo) {
+      // 选择"是"时，自动填充策略信息
+      if (props.strategyInfo.initial_price != null) {
+        formData.value.initial_price = props.strategyInfo.initial_price;
+      }
+      if (props.strategyInfo.add_reason) {
+        formData.value.add_reason = props.strategyInfo.add_reason;
+      }
+      if (props.strategyInfo.notes) {
+        formData.value.remark = props.strategyInfo.notes;
+      }
+    } else if (!newVal) {
+      // 选择"否"时，如果之前是策略信息，则清空让用户重新输入
+      // 但保留用户已经输入的内容（如果有的话）
+      // 这里不清空，让用户自己决定
     }
-    if (props.strategyInfo.add_reason) {
-      formData.value.add_reason = props.strategyInfo.add_reason
-    }
-    if (props.strategyInfo.notes) {
-      formData.value.remark = props.strategyInfo.notes
-    }
-  } else if (!newVal) {
-    // 选择"否"时，如果之前是策略信息，则清空让用户重新输入
-    // 但保留用户已经输入的内容（如果有的话）
-    // 这里不清空，让用户自己决定
   }
-})
+);
 
 // 关闭对话框
 const handleClose = () => {
-  emit('update:visible', false)
-}
+  emit('update:visible', false);
+};
 
 // 提交表单
 const handleSubmit = async () => {
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
 
-    loading.value = true
+    loading.value = true;
 
     // 如果选择保持策略信息，优先使用策略信息
-    let finalInitialPrice = formData.value.initial_price
-    let finalAddReason = formData.value.add_reason
-    let finalRemark = formData.value.remark
-    let finalAddTime = null
+    let finalInitialPrice = formData.value.initial_price;
+    let finalAddReason = formData.value.add_reason;
+    let finalRemark = formData.value.remark;
+    let finalAddTime = null;
 
-    if (formData.value.keepStrategyInfo && hasStrategyContext.value && props.strategyInfo) {
+    if (
+      !isBatchMode.value &&
+      formData.value.keepStrategyInfo &&
+      hasStrategyContext.value &&
+      props.strategyInfo
+    ) {
       // 优先使用策略信息，如果策略信息中没有，则使用用户输入的值
       // 如果选择保持策略信息，使用股票的加入日期
       if (props.stockData?.add_time) {
-        finalAddTime = props.stockData.add_time
+        finalAddTime = props.stockData.add_time;
       }
       if (props.strategyInfo.initial_price != null) {
-        finalInitialPrice = props.strategyInfo.initial_price
+        finalInitialPrice = props.strategyInfo.initial_price;
       }
       if (props.strategyInfo.add_reason) {
-        finalAddReason = props.strategyInfo.add_reason
+        finalAddReason = props.strategyInfo.add_reason;
       }
       if (props.strategyInfo.notes) {
-        finalRemark = props.strategyInfo.notes
+        finalRemark = props.strategyInfo.notes;
       }
     }
     // 如果选择"否"，则不传加入日期（finalAddTime 保持为 null）
 
     // 准备提交数据（确保过滤掉特殊值）
     const groupIds = Array.isArray(formData.value.group_ids)
-      ? formData.value.group_ids.filter(id => id !== '__create_new__')
-      : []
+      ? formData.value.group_ids.filter((id) => id !== '__create_new__')
+      : [];
 
     const submitData = {
       group_ids: groupIds,
-      initial_price: finalInitialPrice || 0,
       add_reason: finalAddReason || '',
-      remark: finalRemark || ''
+      remark: finalRemark || '',
+    };
+
+    if (!isBatchMode.value) {
+      submitData.initial_price = finalInitialPrice || 0;
     }
 
     // 只有当选择保持策略信息且有股票的加入日期时，才传递 add_time
     if (finalAddTime) {
-      submitData.add_time = finalAddTime
+      submitData.add_time = finalAddTime;
     }
 
-    emit('submit', submitData)
+    emit('submit', submitData);
   } catch (error) {
-    console.log('表单验证失败:', error)
+    console.log('表单验证失败:', error);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>

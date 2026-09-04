@@ -107,6 +107,7 @@
       @bulk-add-to-group="handleBulkAddToGroup"
       @bulk-add-to-recycle="handleBulkAddToRecycle"
       @copy-all-stock-names="handleCopyAllStockNames"
+      @force-subscribe-page-stocks="handleForceSubscribeCurrentPageStocks"
       @force-subscribe-group-stocks="handleForceSubscribeGroupStocks"
       @toggle-star="handleToggleStar"
     />
@@ -127,6 +128,7 @@
     <AddToGroupDialog
       v-model:visible="addToGroupDialogVisible"
       :stock-data="selectedStockData"
+      :batch-stock-list="bulkAddRows"
       :strategy-info="selectedStrategyInfo"
       @submit="handleAddToGroupSubmitWrapped"
     />
@@ -163,6 +165,7 @@ import {
   forceSubscribeGroupStocks,
 } from '@/api/modules/stockGroup';
 import { getKlineSourceSettings } from '@/api/modules/klineSource';
+import { forceSubscribeTargetStocks } from '@/api/modules/stockPool';
 import StockInsights from '@/components/StockInsights/index.vue';
 import StockList from '@/components/StockList/index.vue';
 import GroupSearchPopover from '../components/GroupSearchPopover.vue';
@@ -602,7 +605,8 @@ onMounted(async () => {
 const loadKlineSourceSettings = async () => {
   try {
     const response = await getKlineSourceSettings();
-    isFutuActive.value = String(response?.payload?.active_source || '').toLowerCase() === 'futu';
+    isFutuActive.value =
+      String(response?.payload?.active_source || '').toLowerCase() === 'futu';
   } catch (error) {
     console.warn('获取K线数据源配置失败，已隐藏富途订阅按钮:', error);
     isFutuActive.value = false;
@@ -1253,6 +1257,13 @@ const {
   onSuccess: () => getStockList(),
 });
 
+// 关闭弹窗时清空批量上下文，避免后续单条添加误走批量提交流程。
+watch(addToGroupDialogVisible, (visible) => {
+  if (!visible) {
+    bulkAddRows.value = [];
+  }
+});
+
 const openRouteInNewTab = (location) => {
   const resolvedRoute = router.resolve(location);
   window.open(resolvedRoute.href, '_blank', 'noopener');
@@ -1412,8 +1423,31 @@ const handleBulkAddToGroup = (rows) => {
     ElMessage.warning('请先选择要加入分组的股票');
     return;
   }
+  // 批量添加直接打开批量弹窗，避免把首条股票误展示成唯一目标。
   bulkAddRows.value = [...targets];
-  handleAddToSelf(targets[0]);
+  selectedStockData.value = null;
+  selectedStrategyInfo.value = null;
+  addToGroupDialogVisible.value = true;
+};
+
+const parseNumericPrice = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+};
+
+const resolveBatchInitialPrice = (row) => {
+  // 批量加入时按每只股票当前最新价入组，避免所有股票共用一个初始价。
+  return (
+    parseNumericPrice(row?.last_price) ??
+    parseNumericPrice(row?.lastPrice) ??
+    parseNumericPrice(row?.current_price) ??
+    parseNumericPrice(row?.price) ??
+    parseNumericPrice(row?.initial_price) ??
+    0
+  );
 };
 
 const handleAddToGroupSubmitWrapped = async (submitData) => {
@@ -1432,7 +1466,7 @@ const handleAddToGroupSubmitWrapped = async (submitData) => {
         stock_code: row.stock_code,
         stock_name: row.stock_name,
         add_time: submitData.add_time || null,
-        initial_price: submitData.initial_price || row.initial_price || 0,
+        initial_price: resolveBatchInitialPrice(row),
         add_reason: submitData.add_reason || row.add_reason || '',
         remark: submitData.remark || row.notes || '',
       });
@@ -1447,7 +1481,7 @@ const handleAddToGroupSubmitWrapped = async (submitData) => {
   }
 
   ElMessage.success(
-    `批量加入分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
+    `批量加入新分组完成：成功 ${successCount} 只${failCount ? `，失败 ${failCount} 只` : ''}`
   );
   bulkAddRows.value = [];
   addToGroupDialogVisible.value = false;
@@ -1470,6 +1504,41 @@ const handleBulkAddToRecycle = async (rows) => {
     await handleAddToRecycle(row);
   }
   selectedRows.value = [];
+};
+
+const handleForceSubscribeCurrentPageStocks = async (rows) => {
+  const targets = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      stock_code: String(row?.stock_code || '').trim(),
+      exchange_code: String(row?.exchange_code || '').trim(),
+      stock_name: String(row?.stock_name || '').trim(),
+    }))
+    .filter((row) => row.stock_code && row.exchange_code);
+  if (!targets.length) {
+    ElMessage.warning('当前页暂无可订阅的股票');
+    return;
+  }
+
+  forceSubscribeLoading.value = true;
+  try {
+    const response = await forceSubscribeTargetStocks(
+      targets,
+      `self_selected_group_page:${activeGroupId.value || 'unknown'}`
+    );
+    if (response?.success === false) {
+      ElMessage.error(response?.message || '强制订阅本页股票失败');
+      return;
+    }
+    const payload = response?.payload || {};
+    ElMessage.success(
+      `订阅处理完成：共 ${payload.success_count || 0} 只，失败 ${payload.failed_count || 0} 只`
+    );
+  } catch (error) {
+    console.error('强制订阅本页股票失败:', error);
+    ElMessage.error(error?.message || '强制订阅本页股票失败，请稍后重试');
+  } finally {
+    forceSubscribeLoading.value = false;
+  }
 };
 
 const handleToggleStar = async (row) => {
