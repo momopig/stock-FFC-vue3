@@ -3820,7 +3820,9 @@ const autoStrategyOverviewRows = computed(() => {
         ),
         actual_execution_hint: String(binding?.actual_execution_hint || ''),
         is_execution_stale: Boolean(binding?.is_execution_stale),
-        last_execute_time_text: formatDateTime(binding?.last_execute_time),
+        last_execute_time_text:
+          binding?.last_execute_time_text ||
+          formatDateTime(binding?.last_execute_time),
         last_execute_result_text: formatStrategyExecuteResult(
           binding?.last_execute_result
         ),
@@ -4468,14 +4470,24 @@ function padTimeNumber(value) {
 function formatDateTime(value) {
   const date = normalizeDate(value);
   if (!date) return '--';
-  const year = date.getFullYear();
-  const month = padTimeNumber(date.getMonth() + 1);
-  const day = padTimeNumber(date.getDate());
-  const hours = padTimeNumber(date.getHours());
-  const minutes = padTimeNumber(date.getMinutes());
-  const seconds = padTimeNumber(date.getSeconds());
-  // return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  return `${year}-${month}-${day}`;
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap = {};
+  parts.forEach((part) => {
+    if (part.type !== 'literal') {
+      partMap[part.type] = part.value;
+    }
+  });
+  return `${partMap.year}-${partMap.month}-${partMap.day} ${partMap.hour}:${partMap.minute}:${partMap.second}`;
 }
 
 function formatDate(value) {
