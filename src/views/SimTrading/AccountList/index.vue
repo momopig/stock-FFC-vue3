@@ -249,8 +249,8 @@
               <el-form-item label="请求超时(秒)">
                 <el-input-number
                   v-model="formData.connection_config_json.big_qmt_timeout_seconds"
-                  :min="1"
-                  :max="120"
+                  :min="80"
+                  :max="180"
                   class="full-width"
                 />
               </el-form-item>
@@ -379,7 +379,7 @@ const initFormData = () => ({
     client_path: '',
     big_qmt_base_url: BIG_QMT_DEFAULT_BASE_URL,
     big_qmt_auth_token: '',
-    big_qmt_timeout_seconds: 15,
+    big_qmt_timeout_seconds: 80,
   },
   remark: '',
 });
@@ -495,8 +495,10 @@ function normalizeConnectionConfig(config = {}) {
     big_qmt_base_url:
       config?.big_qmt_base_url || BIG_QMT_DEFAULT_BASE_URL,
     big_qmt_auth_token: config?.big_qmt_auth_token || '',
-    big_qmt_timeout_seconds: Number(
-      config?.big_qmt_timeout_seconds || 15
+    // 一分钟周期的大QMT策略最多需要等待下一次handlebar回调。
+    big_qmt_timeout_seconds: Math.max(
+      Number(config?.big_qmt_timeout_seconds || 80),
+      80
     ),
   };
 }

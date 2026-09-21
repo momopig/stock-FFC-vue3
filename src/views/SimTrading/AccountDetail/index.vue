@@ -3374,6 +3374,8 @@ const qmtReconcileForm = reactive({
   auto_enabled: false,
   auto_time: '15:10',
 });
+// QMT HTTP链路需覆盖下一次一分钟策略回调及后端处理时间。
+const QMT_HTTP_REQUEST_TIMEOUT_MS = 110000;
 
 const currentAccount = computed(
   () =>
@@ -6941,7 +6943,10 @@ async function loadAccountDetail(accountId = activeAccountId.value) {
     detailPayload.value = null;
     return;
   }
-  const res = await getSimTradingAccountDetail(Number(accountId));
+  const requestTimeout = isQmtAccount.value
+    ? QMT_HTTP_REQUEST_TIMEOUT_MS
+    : undefined;
+  const res = await getSimTradingAccountDetail(Number(accountId), requestTimeout);
   if (!res?.success) {
     throw new Error(res?.message || '获取账户详情失败');
   }
@@ -7232,10 +7237,14 @@ async function loadLegacyConditionOrders(accountId = activeAccountId.value) {
 
 async function loadAccountActivitySnapshot(accountId = activeAccountId.value) {
   if (!accountId) return;
-  const res = await getSimTradingAccountActivity(Number(accountId), {
-    page: 1,
-    page_size: ACTIVITY_PAGE_SIZE,
-  });
+  const res = await getSimTradingAccountActivity(
+    Number(accountId),
+    {
+      page: 1,
+      page_size: ACTIVITY_PAGE_SIZE,
+    },
+    QMT_HTTP_REQUEST_TIMEOUT_MS
+  );
   if (!res?.success) {
     throw new Error(res?.message || '获取账户活动快照失败');
   }

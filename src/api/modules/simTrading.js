@@ -62,7 +62,10 @@ export async function reorderSimTradingAccounts(accountIds = []) {
   });
 }
 
-export async function getSimTradingAccountDetail(accountId) {
+export async function getSimTradingAccountDetail(
+  accountId,
+  timeout = SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS
+) {
   const cacheKey = `account-detail:${Number(accountId)}`;
   const cached = readHotCache(cacheKey);
   if (cached) {
@@ -70,7 +73,7 @@ export async function getSimTradingAccountDetail(accountId) {
   }
   return await withInFlightRequest(cacheKey, async () => {
     const result = await request.get(`${API_PREFIX}/accounts/${accountId}`, {
-      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+      timeout,
     });
     writeHotCache(cacheKey, result);
     return result;
@@ -282,12 +285,16 @@ export async function updateSimTradingMaxAvailableCashSettings(
   );
 }
 
-export async function getSimTradingAccountActivity(accountId, params = {}) {
+export async function getSimTradingAccountActivity(
+  accountId,
+  params = {},
+  timeout = SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS
+) {
   const query = qs.stringify(params, { skipNulls: true });
   return await request.get(
     `${API_PREFIX}/accounts/${accountId}/activity${query ? `?${query}` : ''}`,
     {
-      timeout: SIM_TRADING_PAGE_REQUEST_TIMEOUT_MS,
+      timeout,
     }
   );
 }
