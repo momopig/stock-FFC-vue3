@@ -6367,11 +6367,13 @@ function jumpToRelatedOrder(row) {
 }
 
 function handleOpenOrderSelection(rows) {
-  selectedOpenOrderIds.value = rows.map((item) => item.id);
+  selectedOpenOrderIds.value = rows
+    .map((item) => String(item?.id || '').trim())
+    .filter(Boolean);
 }
 
 function isCancelingOrder(orderId) {
-  return cancelingOrderIds.value.includes(orderId);
+  return cancelingOrderIds.value.includes(String(orderId || '').trim());
 }
 
 async function cancelOne(row) {
@@ -6390,7 +6392,7 @@ async function batchCancel() {
 
 async function doCancel(orderIds, options = {}) {
   const normalizedIds = Array.from(
-    new Set((orderIds || []).map((item) => Number(item)).filter(Boolean))
+    new Set((orderIds || []).map((item) => String(item || '').trim()).filter(Boolean))
   );
   if (!normalizedIds.length) return;
   cancelingOrderIds.value = Array.from(
@@ -7157,7 +7159,7 @@ function applyActivitySnapshot(payload) {
     isOpenOrderStatus(item?.order_status)
   );
   selectedOpenOrderIds.value = selectedOpenOrderIds.value.filter((id) =>
-    openOrders.value.some((item) => item.id === id)
+    openOrders.value.some((item) => String(item?.id || '').trim() === id)
   );
   allOrders.value = orderItems;
   trades.value = payload?.trades?.items || [];
@@ -7188,7 +7190,7 @@ async function loadLegacyOrders(
         isOpenOrderStatus(item?.order_status)
       );
       selectedOpenOrderIds.value = selectedOpenOrderIds.value.filter((id) =>
-        openOrders.value.some((item) => item.id === id)
+        openOrders.value.some((item) => String(item?.id || '').trim() === id)
       );
     } else {
       allOrders.value = res.payload?.items || [];

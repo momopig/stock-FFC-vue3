@@ -167,6 +167,16 @@
           <el-form-item label="接入方式">
             <el-input :model-value="'REMOTE_AGENT（固定）'" disabled />
           </el-form-item>
+          <el-form-item label="通信模式">
+            <el-radio-group
+              v-model="formData.connection_config_json.communication_type"
+              @change="handleCommunicationTypeChange"
+            >
+              <el-radio value="bigQMT-http">bigQMT-http</el-radio>
+              <el-radio value="miniQMT">miniQMT</el-radio>
+              <el-radio value="bigQMT-redis">bigQMT-redis</el-radio>
+            </el-radio-group>
+          </el-form-item>
           <el-form-item label="Agent 地址">
             <el-input
               v-model="formData.connection_config_json.agent_base_url"
@@ -188,14 +198,6 @@
               <el-option label="普通证券账户(STOCK)" value="STOCK" />
               <el-option label="信用账户(CREDIT)" value="CREDIT" />
             </el-select>
-          </el-form-item>
-          <el-form-item label="QMT 会话ID">
-            <el-input-number
-              v-model="formData.connection_config_json.session_id"
-              :min="1"
-              :step="1"
-              class="full-width"
-            />
           </el-form-item>
           <el-form-item label="委托备注前缀">
             <el-input
@@ -221,6 +223,63 @@
               保持一致，否则无法连接。
             </div>
           </el-form-item>
+          <el-tabs
+            v-model="formData.connection_config_json.communication_type"
+            class="communication-tabs"
+            @tab-change="handleCommunicationTypeChange"
+          >
+            <el-tab-pane label="bigQMT-http" name="bigQMT-http">
+              <el-form-item label="大QMT地址">
+                <el-input
+                  v-model="formData.connection_config_json.big_qmt_base_url"
+                  placeholder="例如：http://127.0.0.1:9201"
+                />
+                <div class="form-help-text">
+                  qmt-agent 访问大QMT策略内 HTTP 服务的地址，通常保持本机地址。
+                </div>
+              </el-form-item>
+              <el-form-item label="大QMT Token">
+                <el-input
+                  v-model="formData.connection_config_json.big_qmt_auth_token"
+                  placeholder="与 http_trade_services.py 配置一致"
+                  maxlength="128"
+                  show-password
+                />
+              </el-form-item>
+              <el-form-item label="请求超时(秒)">
+                <el-input-number
+                  v-model="formData.connection_config_json.big_qmt_timeout_seconds"
+                  :min="1"
+                  :max="120"
+                  class="full-width"
+                />
+              </el-form-item>
+            </el-tab-pane>
+            <el-tab-pane label="miniQMT" name="miniQMT" lazy>
+              <el-form-item label="QMT 会话ID">
+                <el-input-number
+                  v-model="formData.connection_config_json.session_id"
+                  :min="1"
+                  :step="1"
+                  class="full-width"
+                />
+              </el-form-item>
+              <el-form-item label="客户端目录">
+                <el-input
+                  v-model="formData.connection_config_json.client_path"
+                  placeholder="例如：D:\国金证券QMT交易端\userdata_mini"
+                />
+              </el-form-item>
+            </el-tab-pane>
+            <el-tab-pane label="bigQMT-redis" name="bigQMT-redis" lazy>
+              <el-alert
+                title="bigQMT-redis 暂未实现，本期不可保存或启用。"
+                type="warning"
+                :closable="false"
+                show-icon
+              />
+            </el-tab-pane>
+          </el-tabs>
         </template>
         <el-form-item
           v-if="!isEditMode && formData.account_type === 'SIMULATED'"
@@ -299,6 +358,7 @@ const accounts = ref([]);
 const QMT_BROKER_NAME = 'GJZQ_QMT';
 const SIM_BROKER_NAME = 'LOCAL_SIM';
 const QMT_DEFAULT_AGENT_BASE_URL = 'http://127.0.0.1:9101';
+const BIG_QMT_DEFAULT_BASE_URL = 'http://127.0.0.1:9201';
 
 const initFormData = () => ({
   account_name: '',
@@ -309,12 +369,17 @@ const initFormData = () => ({
   status: 'ACTIVE',
   connection_config_json: {
     gateway_mode: 'REMOTE_AGENT',
+    communication_type: 'bigQMT-http',
     agent_base_url: QMT_DEFAULT_AGENT_BASE_URL,
     account_id: '',
     account_type: 'STOCK',
     session_id: 900001,
     order_remark_prefix: 'FFC',
     strategy_name_prefix: 'FFC',
+    client_path: '',
+    big_qmt_base_url: BIG_QMT_DEFAULT_BASE_URL,
+    big_qmt_auth_token: '',
+    big_qmt_timeout_seconds: 15,
   },
   remark: '',
 });
@@ -413,16 +478,34 @@ function getStatusLabel(status) {
 }
 
 function normalizeConnectionConfig(config = {}) {
+  // 同时兼容需求原文中的旧拼写，保存时统一使用 communication_type。
+  const communicationType =
+    config?.communication_type || config?.comunication_type || 'bigQMT-http';
   return {
     gateway_mode: 'REMOTE_AGENT',
+    communication_type: communicationType,
     agent_base_url: config?.agent_base_url || QMT_DEFAULT_AGENT_BASE_URL,
     account_id: config?.account_id || config?.fund_account || '',
     account_type: config?.account_type || 'STOCK',
     session_id: Number(config?.session_id || 900001),
     order_remark_prefix: config?.order_remark_prefix || 'FFC',
     strategy_name_prefix: config?.strategy_name_prefix || 'FFC',
-    agent_auth_token: config?.agent_auth_token || '', // 新增，保证回显
+    agent_auth_token: config?.agent_auth_token || '',
+    client_path: config?.client_path || config?.mini_qmt_path || '',
+    big_qmt_base_url:
+      config?.big_qmt_base_url || BIG_QMT_DEFAULT_BASE_URL,
+    big_qmt_auth_token: config?.big_qmt_auth_token || '',
+    big_qmt_timeout_seconds: Number(
+      config?.big_qmt_timeout_seconds || 15
+    ),
   };
+}
+
+// Redis 模式仅展示设计占位，不允许用户误认为本期已经可用。
+function handleCommunicationTypeChange(communicationType) {
+  if (communicationType === 'bigQMT-redis') {
+    ElMessage.warning('bigQMT-redis 暂未实现，请选择 bigQMT-http 或 miniQMT');
+  }
 }
 
 function statusTagType(status) {
@@ -728,7 +811,7 @@ async function submitForm() {
     const qmtConnectionConfig =
       formData.account_type === 'QMT'
         ? (() => {
-            const { client_path, mini_qmt_path, ...restConfig } =
+            const { mini_qmt_path, comunication_type, ...restConfig } =
               formData.connection_config_json || {};
             return {
               ...restConfig,
@@ -772,6 +855,23 @@ async function submitForm() {
         submitting.value = false;
         return;
       }
+      if (
+        formData.connection_config_json.communication_type ===
+        'bigQMT-redis'
+      ) {
+        ElMessage.warning('bigQMT-redis 暂未实现，当前账户不能保存');
+        submitting.value = false;
+        return;
+      }
+      if (
+        formData.connection_config_json.communication_type ===
+          'bigQMT-http' &&
+        !formData.connection_config_json.big_qmt_base_url
+      ) {
+        ElMessage.warning('请填写大QMT HTTP服务地址');
+        submitting.value = false;
+        return;
+      }
     }
 
     const res = isEditMode.value
@@ -799,6 +899,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.communication-tabs {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .sim-page {
   padding: 24px;
   text-align: left;
