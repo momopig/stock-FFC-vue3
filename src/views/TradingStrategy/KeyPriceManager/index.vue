@@ -165,6 +165,16 @@
             {{ formatPrice(scope.row.current_price) }}
           </template>
         </el-table-column>
+        <el-table-column label="价格监控状态" width="130">
+          <template #default="scope">
+            <el-tag
+              size="small"
+              :type="scope.row.monitor_enabled ? 'success' : 'info'"
+            >
+              {{ scope.row.monitor_enabled ? '开启' : '关闭' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column
           prop="distance_to_last_price_pct"
           label="偏离(%)"
@@ -201,6 +211,17 @@
           min-width="140"
           show-overflow-tooltip
         />
+        <el-table-column label="监控条件" min-width="150">
+          <template #default="scope">
+            {{ monitorConditionLabel(scope.row.monitor_condition) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="monitor_interval" label="监控周期" width="110" />
+        <el-table-column label="告警频次" min-width="120">
+          <template #default="scope">
+            {{ alertFrequencyLabel(scope.row.alert_frequency) }}
+          </template>
+        </el-table-column>
         <el-table-column label="附图" min-width="180">
           <template #default="scope">
             <div v-if="scope.row.images_json?.length" class="image-preview-row">
@@ -238,7 +259,7 @@
             {{ formatDateTime(scope.row.updated_time) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="180">
+        <el-table-column label="操作" fixed="right" width="220">
           <template #default="scope">
             <el-space wrap>
               <el-button link type="primary" @click="openViewDialog(scope.row)"
@@ -246,6 +267,9 @@
               >
               <el-button link type="primary" @click="openEditDialog(scope.row)"
                 >编辑</el-button
+              >
+              <el-button link type="primary" @click="openCopyDialog(scope.row)"
+                >复制</el-button
               >
               <el-button
                 link
@@ -405,7 +429,6 @@
             placeholder="例如：接近减仓、放量突破再观察、回踩确认再处理"
           />
         </el-form-item>
-
         <el-form-item label="附图上传">
           <div class="image-input-block">
             <div
@@ -530,6 +553,91 @@
             inactive-text="失效"
           />
         </el-form-item>
+        <el-divider content-position="left">到价告警</el-divider>
+        <div class="form-grid">
+          <el-form-item label="价格监控" prop="monitor_enabled">
+            <el-radio-group v-model="form.monitor_enabled">
+              <el-radio :value="false">关闭</el-radio>
+              <el-radio :value="true">开启</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <template v-if="form.monitor_enabled">
+            <el-form-item label="监控条件" prop="monitor_condition">
+              <el-select v-model="form.monitor_condition" style="width: 100%">
+                <el-option
+                  v-for="item in monitorConditionOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item
+              v-if="form.monitor_condition === 'APPROACH'"
+              label="上下幅度"
+              prop="monitor_range_pct"
+            >
+              <el-input-number
+                v-model="form.monitor_range_pct"
+                :min="0"
+                :max="100"
+                :precision="2"
+                :step="0.1"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <span class="form-unit">%</span>
+            </el-form-item>
+            <el-form-item label="监控周期" prop="monitor_interval">
+              <el-select v-model="form.monitor_interval" style="width: 100%">
+                <el-option
+                  v-for="item in monitorIntervalOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="告警频次" prop="alert_frequency">
+              <el-select v-model="form.alert_frequency" style="width: 100%">
+                <el-option
+                  v-for="item in alertFrequencyOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </template>
+        </div>
+        <template v-if="form.monitor_enabled">
+          <el-form-item label="告警备注" prop="alert_remark">
+            <el-input
+              v-model="form.alert_remark"
+              maxlength="250"
+              show-word-limit
+              placeholder="监控触发时，会推送此备注"
+            />
+          </el-form-item>
+          <el-form-item label="Webhook地址" prop="webhook_url">
+            <el-input
+              v-model="form.webhook_url"
+              placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+            />
+          </el-form-item>
+          <el-form-item v-if="dialog.mode !== 'view'">
+            <el-button
+              type="primary"
+              plain
+              :loading="monitorTestLoading"
+              @click="handleMonitorTest"
+            >
+              手动触发一次监控检查(调试使用)
+            </el-button>
+          </el-form-item>
+        </template>
+
+
       </el-form>
 
       <template #footer>
@@ -558,6 +666,7 @@ import {
   deleteSignalStrategyKeyPrice,
   getSignalStrategyKeyPrice,
   getSignalStrategyKeyPrices,
+  testSignalStrategyKeyPriceMonitor,
   updateSignalStrategyKeyPrice,
 } from '@/api/modules/signalStrategy';
 import { getStock } from '@/api/modules/stockPool';
@@ -587,6 +696,27 @@ const sourceTypeOptions = [
   { label: '接口导入', value: 'API_IMPORT' },
 ];
 
+// 到价告警选项与后端枚举保持一致。
+const monitorConditionOptions = [
+  { label: '接近', value: 'APPROACH' },
+  { label: '大于（高位、突破）', value: 'ABOVE' },
+  { label: '小于（跌破、回调）', value: 'BELOW' },
+];
+
+const monitorIntervalOptions = [
+  { label: '1min', value: '1min' },
+  { label: '5min', value: '5min' },
+  { label: '15min', value: '15min' },
+  { label: '30min', value: '30min' },
+  { label: '1h', value: '1h' },
+];
+
+const alertFrequencyOptions = [
+  { label: '仅提醒一次', value: 'ONCE' },
+  { label: '每日一次', value: 'DAILY' },
+  { label: '一分钟一次', value: 'MINUTE' },
+];
+
 const TODAY_TYPE_LABEL_MAP = {
   RESISTANCE: '压力位',
   SUPPORT: '支撑位',
@@ -606,6 +736,7 @@ const EXCHANGE_MAP = {
 
 const loading = ref(false);
 const saving = ref(false);
+const monitorTestLoading = ref(false);
 const stockSearchLoading = ref(false);
 const rows = ref([]);
 const stockNameMap = ref({});
@@ -684,6 +815,38 @@ const formRules = {
   source_type: [
     { required: true, message: '请选择来源类型', trigger: 'change' },
   ],
+  monitor_range_pct: [
+    {
+      validator: (_, value, callback) => {
+        if (
+          form.monitor_enabled &&
+          form.monitor_condition === 'APPROACH' &&
+          value == null
+        ) {
+          callback(new Error('请输入上下幅度'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'change',
+    },
+  ],
+  webhook_url: [
+    {
+      validator: (_, value, callback) => {
+        if (!form.monitor_enabled) {
+          callback();
+          return;
+        }
+        if (!/^https?:\/\/\S+$/i.test(String(value || '').trim())) {
+          callback(new Error('请输入有效的 HTTP 或 HTTPS Webhook 地址'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
 };
 
 const dialogTitle = computed(() => {
@@ -722,6 +885,13 @@ function createInitialForm() {
     action_suggestion: '',
     images_json: [],
     remark: '',
+    monitor_enabled: false,
+    monitor_condition: 'APPROACH',
+    monitor_range_pct: 1,
+    monitor_interval: '1min',
+    alert_frequency: 'ONCE',
+    alert_remark: '',
+    webhook_url: '',
     is_active: true,
   };
 }
@@ -775,6 +945,19 @@ function recordedTypeLabel(value) {
     recordedTypeOptions.find((item) => item.value === value)?.label ||
     value ||
     '--'
+  );
+}
+
+// 将监控枚举转换为列表和详情页使用的中文文案。
+function monitorConditionLabel(value) {
+  return (
+    monitorConditionOptions.find((item) => item.value === value)?.label || '--'
+  );
+}
+
+function alertFrequencyLabel(value) {
+  return (
+    alertFrequencyOptions.find((item) => item.value === value)?.label || '--'
   );
 }
 
@@ -1184,6 +1367,14 @@ function fillFormFromRow(row) {
     action_suggestion: row.action_suggestion || '',
     images_json: Array.isArray(row.images_json) ? [...row.images_json] : [],
     remark: row.remark || '',
+    monitor_enabled: row.monitor_enabled === true,
+    monitor_condition: row.monitor_condition || 'APPROACH',
+    monitor_range_pct:
+      row.monitor_range_pct == null ? 1 : Number(row.monitor_range_pct),
+    monitor_interval: row.monitor_interval || '1min',
+    alert_frequency: row.alert_frequency || 'ONCE',
+    alert_remark: row.alert_remark || '',
+    webhook_url: row.webhook_url || '',
     is_active: row.is_active !== false,
   });
 }
@@ -1215,6 +1406,20 @@ async function openEditDialog(row) {
   }
 }
 
+// 复制仅复用业务配置，并始终按一条新的有效记录提交。
+function openCopyDialog(row) {
+  dialog.mode = 'create';
+  dialog.recordId = null;
+  fillFormFromRow(row);
+  form.is_active = true;
+  selectedEditorStockOption.value = buildStockOptionFromCode(
+    row.stock_code,
+    getStockDisplayName(row)
+  );
+  resetImageDragState();
+  dialog.visible = true;
+}
+
 function buildPayload() {
   return {
     stock_code: form.stock_code,
@@ -1230,8 +1435,69 @@ function buildPayload() {
     action_suggestion: form.action_suggestion || null,
     images_json: form.images_json || [],
     remark: form.remark || null,
+    monitor_enabled: form.monitor_enabled,
+    monitor_condition: form.monitor_condition,
+    monitor_range_pct:
+      form.monitor_condition === 'APPROACH'
+        ? Number(form.monitor_range_pct)
+        : null,
+    monitor_interval: form.monitor_interval,
+    alert_frequency: form.alert_frequency,
+    alert_remark: form.alert_remark || null,
+    webhook_url: form.webhook_url || null,
     is_active: form.is_active,
   };
+}
+
+// 手动检查使用当前表单值，无需先保存新建或编辑记录。
+function buildMonitorTestPayload() {
+  return {
+    stock_code: form.stock_code,
+    exchange_code: form.exchange_code || null,
+    key_price: Number(form.key_price),
+    monitor_enabled: form.monitor_enabled,
+    monitor_condition: form.monitor_condition,
+    monitor_range_pct:
+      form.monitor_condition === 'APPROACH'
+        ? Number(form.monitor_range_pct)
+        : null,
+    monitor_interval: form.monitor_interval,
+    alert_frequency: form.alert_frequency,
+    alert_remark: form.alert_remark || null,
+    webhook_url: form.webhook_url || '',
+  };
+}
+
+async function handleMonitorTest() {
+  await formRef.value.validateField([
+    'stock_code',
+    'key_price',
+    'monitor_range_pct',
+    'webhook_url',
+  ]);
+  monitorTestLoading.value = true;
+  try {
+    const res = await testSignalStrategyKeyPriceMonitor(
+      buildMonitorTestPayload()
+    );
+    const payload = res?.payload || {};
+    if (payload.result_code === 'ALERT_SENT') {
+      ElMessage.success(payload.message || '测试告警发送成功');
+      return;
+    }
+    if (payload.result_code === 'WEBHOOK_FAILED') {
+      ElMessage.error(
+        `${payload.message || 'Webhook发送失败'}：${payload.webhook_result || '--'}`
+      );
+      return;
+    }
+    ElMessage.warning(payload.message || '本次监控检查未触发告警');
+  } catch (error) {
+    console.error(error);
+    ElMessage.error(error?.message || '手动监控检查失败');
+  } finally {
+    monitorTestLoading.value = false;
+  }
 }
 
 async function submitForm() {

@@ -94,6 +94,13 @@ export const createSignalStrategyKeyPrice = async (data) => {
   );
 };
 
+export const testSignalStrategyKeyPriceMonitor = async (data) => {
+  return await request.post(
+    '/stock-api/api/signal-strategies/key-prices/monitor-test',
+    data
+  );
+};
+
 export const updateSignalStrategyKeyPrice = async (recordId, data) => {
   return await request.patch(
     `/stock-api/api/signal-strategies/key-prices/${recordId}`,
