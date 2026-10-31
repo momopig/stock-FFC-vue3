@@ -2840,6 +2840,7 @@
             :can-update-daily-account="canUpdateActivityOrder"
             :can-delete-daily-account="canDeleteActivityOrder"
             @view-history-trades="handleProfitRankingTradeHistory"
+            @open-cash-flows="openProfitCashFlows"
           />
         </el-tab-pane>
 
@@ -7529,6 +7530,13 @@ watch(activeTab, (value) => {
     console.error(error);
   });
 });
+
+// 盈亏覆盖确认前跳转已有 QMT 手工流水页；不创建第二套补录入口。
+function openProfitCashFlows() {
+  if (!isQmtAccount.value) return;
+  activeFundManagementTab.value = 'manual-cash-flow';
+  activeTab.value = 'transfer';
+}
 
 watch(activeFundManagementTab, (value) => {
   if (activeTab.value !== 'transfer') {
