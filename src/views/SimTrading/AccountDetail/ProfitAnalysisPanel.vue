@@ -479,6 +479,16 @@
                   }}</template>
                 </el-table-column>
                 <el-table-column
+                  prop="created_time"
+                  label="生成时间"
+                  width="190"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatGenerationTime(scope.row.created_time)
+                  }}</template>
+                </el-table-column>
+                <el-table-column
                   v-if="canOperateDailyStocks"
                   label="操作"
                   width="170"
@@ -647,6 +657,16 @@
                       >
                     </div>
                   </template>
+                </el-table-column>
+                <el-table-column
+                  prop="created_time"
+                  label="生成时间"
+                  width="190"
+                  sortable
+                >
+                  <template #default="scope">{{
+                    formatGenerationTime(scope.row.created_time)
+                  }}</template>
                 </el-table-column>
                 <el-table-column
                   v-if="canOperateDailyAccounts"
@@ -1205,6 +1225,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import moment from 'moment'; // 统一将后端 UTC 生成时间转换为北京时间并精确到秒。
 
 import {
   getProfitRebuildTaskProgress,
@@ -1338,7 +1359,7 @@ const rebuildTask = reactive({
   account_items: [],
 });
 
-const dailyStocksIncludeClosed = ref(false);
+const dailyStocksIncludeClosed = ref(true); // 默认展示已清仓个股，保留完整每日盈亏记录。
 const dailyStockEditDialogVisible = ref(false);
 const dailyStockEditSubmitting = ref(false);
 const dailyStockEditTargetId = ref(0);
@@ -1675,7 +1696,7 @@ watch(
     dailyAccounts.page_size = 50;
     dailyAccounts.items = [];
     dailyAccounts.total = 0;
-    dailyStocksIncludeClosed.value = false;
+    dailyStocksIncludeClosed.value = true; // 切换账号时恢复默认勾选，确保包含已清仓记录。
     resetRebuildTask();
     await Promise.all([loadOverview(), loadCalendar()]);
   },
@@ -2541,6 +2562,13 @@ async function retryRebuildForDate(tradeDate) {
     return;
   }
   await submitRebuild(buildRebuildPayload('single', { trade_date: tradeDate }));
+}
+
+// 快照创建时间由后端以 UTC 存储，统一按北京时间展示，缺失或非法时间显示占位符。
+function formatGenerationTime(value) {
+  if (!value) return '--'; // 兼容历史记录没有生成时间的情况。
+  const parsed = moment.utc(value).utcOffset(8); // 同时兼容无时区 UTC 字符串及带时区时间。
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '--'; // 固定展示格式，避免本地化格式差异。
 }
 
 function formatMoney(value) {
